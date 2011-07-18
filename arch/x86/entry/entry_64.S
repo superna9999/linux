@@ -1075,6 +1075,7 @@ EXPORT_SYMBOL(native_load_gs_index)
 	jmp	2b
 	.previous
 
+#ifndef CONFIG_PREEMPT_RT
 /* Call softirq on interrupt stack. Interrupts are off. */
 ENTRY(do_softirq_own_stack)
 	pushq	%rbp
@@ -1085,6 +1086,7 @@ ENTRY(do_softirq_own_stack)
 	leaveq
 	ret
 ENDPROC(do_softirq_own_stack)
+#endif
 
 #ifdef CONFIG_XEN_PV
 idtentry hypervisor_callback xen_do_hypervisor_callback has_error_code=0
