@@ -373,6 +373,21 @@ config MAGIC_SYSRQ_DEFAULT_ENABLE
 	  This may be set to 1 or 0 to enable or disable them all, or
 	  to a bitmask as described in Documentation/sysrq.txt.
 
+config MAGIC_SYSRQ_BREAK_EMULATION
+	bool "Enable magic SysRq serial break emulation"
+	depends on MAGIC_SYSRQ && SERIAL_CORE_CONSOLE
+	default n
+	help
+	  If you say Y here, then you can use the character sequence ^B^R^K
+	  to simulate a BREAK on the serial console. This is useful if for
+	  some reason you cannot send a BREAK to your console's serial port.
+	  For example, if you have a serial device server that cannot
+	  send a BREAK. Enabling this feature can delay the delivery of
+	  characters to the TTY because the ^B and a subsequent ^R will be
+	  delayed until we know what the next character is.
+
+	  If unsure, say N.
+
 config DEBUG_KERNEL
 	bool "Kernel debugging"
 	help

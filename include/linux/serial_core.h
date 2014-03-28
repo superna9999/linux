@@ -159,6 +159,9 @@ struct uart_port {
 	struct console		*cons;			/* struct console, if any */
 #if defined(CONFIG_SERIAL_CORE_CONSOLE) || defined(SUPPORT_SYSRQ)
 	unsigned long		sysrq;			/* sysrq timeout */
+#ifdef CONFIG_MAGIC_SYSRQ_BREAK_EMULATION
+	char                    sysrq_emul;             /* sysrq break emulation */
+#endif
 #endif
 
 	/* flags must be updated while holding port mutex */
@@ -426,24 +429,6 @@ extern void uart_handle_cts_change(struct uart_port *uport,
 extern void uart_insert_char(struct uart_port *port, unsigned int status,
 		 unsigned int overrun, unsigned int ch, unsigned int flag);
 
-#ifdef SUPPORT_SYSRQ
-static inline int
-uart_handle_sysrq_char(struct uart_port *port, unsigned int ch)
-{
-	if (port->sysrq) {
-		if (ch && time_before(jiffies, port->sysrq)) {
-			handle_sysrq(ch);
-			port->sysrq = 0;
-			return 1;
-		}
-		port->sysrq = 0;
-	}
-	return 0;
-}
-#else
-#define uart_handle_sysrq_char(port,ch) ({ (void)port; 0; })
-#endif
-
 /*
  * We do the SysRQ and SAK checking like this...
  */
@@ -467,6 +452,68 @@ static inline int uart_handle_break(struct uart_port *port)
 		do_SAK(state->port.tty);
 	return 0;
 }
+
+#if defined(SUPPORT_SYSRQ) && defined(CONFIG_MAGIC_SYSRQ_BREAK_EMULATION)
+/*
+ * Emulate a break if we are the serial console and receive ^B, ^R, ^K.
+ */
+static inline int
+uart_handle_sysrq_break_emulation(struct uart_port *port, unsigned int ch)
+{
+	const unsigned int ctrlb = 'B' & 31;
+	const unsigned int ctrlr = 'R' & 31;
+	const unsigned int ctrlk = 'K' & 31;
+
+	if (uart_console(port)) {
+		if ((port->sysrq_emul == 0 && ch == ctrlb) ||
+		    (port->sysrq_emul == ctrlb && ch == ctrlr)) {
+			/* for either of the first two trigger characters
+			 * update the state variable and move on.
+			 */
+			port->sysrq_emul = ch;
+			return 1;
+		} else if (port->sysrq_emul == ctrlr &&
+		           ch == ctrlk && uart_handle_break(port)) {
+			/* the break has already been emulated whilst
+			 * evaluating the condition, tidy up and move on
+			 */
+			port->sysrq_emul = 0;
+			return 1;
+		}
+	}
+
+	if (port->sysrq_emul) {
+		/* received a partial (false) trigger, tidy up and move on */
+		uart_insert_char(port, 0, 0, ctrlb, TTY_NORMAL);
+                if (port->sysrq_emul == ctrlr)
+			uart_insert_char(port, 0, 0, ctrlr, TTY_NORMAL);
+		port->sysrq_emul = 0;
+	}
+
+	return 0;
+}
+#else
+#define uart_handle_sysrq_break_emulation(port,ch) ({ (void)port; 0; })
+#endif
+
+#ifdef SUPPORT_SYSRQ
+static inline int
+uart_handle_sysrq_char(struct uart_port *port, unsigned int ch)
+{
+	if (port->sysrq) {
+		if (ch && time_before(jiffies, port->sysrq)) {
+			handle_sysrq(ch);
+			port->sysrq = 0;
+			return 1;
+		}
+		port->sysrq = 0;
+	}
+
+	return uart_handle_sysrq_break_emulation(port, ch);
+}
+#else
+#define uart_handle_sysrq_char(port,ch) ({ (void)port; 0; })
+#endif
 
 /*
  *	UART_ENABLE_MS - determine if port should enable modem status irqs
