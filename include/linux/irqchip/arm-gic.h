@@ -23,6 +23,10 @@
 #define GIC_CPU_DEACTIVATE		0x1000
 
 #define GICC_ENABLE			0x1
+#define GICC_ENABLE_GRP1		0x2
+#define GICC_ACK_CTL			0x4
+#define GICC_FIQ_EN			0x8
+#define GICC_COMMON_BPR			0x10
 #define GICC_INT_PRI_THRESHOLD		0xf0
 
 #define GIC_CPU_CTRL_EOImodeNS		(1 << 9)
@@ -48,6 +52,7 @@
 #define GIC_DIST_SGI_PENDING_SET	0xf20
 
 #define GICD_ENABLE			0x1
+#define GICD_ENABLE_GRP1		0x2
 #define GICD_DISABLE			0x0
 #define GICD_INT_ACTLOW_LVLTRIG		0x0
 #define GICD_INT_EN_CLR_X32		0xffffffff
@@ -117,6 +122,15 @@ void gic_send_sgi(unsigned int cpu_id, unsigned int irq);
 int gic_get_cpu_id(unsigned int cpu);
 void gic_migrate_target(unsigned int new_cpu_id);
 unsigned long gic_get_sgir_physaddr(void);
+
+extern const struct irq_domain_ops *gic_routable_irq_domain_ops;
+static inline void __init register_routable_domain_ops
+					(const struct irq_domain_ops *ops)
+{
+	gic_routable_irq_domain_ops = ops;
+}
+
+void gic_handle_fiq_ipi(void);
 
 #endif /* __ASSEMBLY */
 #endif

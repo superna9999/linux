@@ -42,6 +42,7 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/irqchip/arm-gic-acpi.h>
+#include <linux/ratelimit.h>
 
 #include <asm/cputype.h>
 #include <asm/irq.h>
@@ -50,6 +51,10 @@
 #include <asm/virt.h>
 
 #include "irq-gic-common.h"
+
+#ifndef SMP_IPI_FIQ_MASK
+#define SMP_IPI_FIQ_MASK 0
+#endif
 
 union gic_base {
 	void __iomem *common_base;
@@ -68,6 +73,7 @@ struct gic_chip_data {
 #endif
 	struct irq_domain *domain;
 	unsigned int gic_irqs;
+	u32 igroup0_shadow;
 #ifdef CONFIG_GIC_NON_BANKED
 	void __iomem *(*get_base)(union gic_base *);
 #endif
@@ -425,6 +431,83 @@ static struct irq_chip gic_eoimode1_chip = {
 				  IRQCHIP_MASK_ON_SUSPEND,
 };
 
+/*
+ * Shift an interrupt between Group 0 and Group 1.
+ *
+ * In addition to changing the group we also modify the priority to
+ * match what "ARM strongly recommends" for a system where no Group 1
+ * interrupt must ever preempt a Group 0 interrupt.
+ *
+ * If is safe to call this function on systems which do not support
+ * grouping (it will have no effect).
+ */
+static void gic_set_group_irq(struct gic_chip_data *gic, unsigned int hwirq,
+			      int group)
+{
+	void __iomem *base = gic_data_dist_base(gic);
+	unsigned int grp_reg = hwirq / 32 * 4;
+	u32 grp_mask = BIT(hwirq % 32);
+	u32 grp_val;
+
+	unsigned int pri_reg = (hwirq / 4) * 4;
+	u32 pri_mask = BIT(7 + ((hwirq % 4) * 8));
+	u32 pri_val;
+
+	/*
+	 * Systems which do not support grouping will have not have
+	 * the EnableGrp1 bit set.
+	 */
+	if (!(GICD_ENABLE_GRP1 & readl_relaxed(base + GIC_DIST_CTRL)))
+		return;
+
+	raw_spin_lock(&irq_controller_lock);
+
+	grp_val = readl_relaxed(base + GIC_DIST_IGROUP + grp_reg);
+	pri_val = readl_relaxed(base + GIC_DIST_PRI + pri_reg);
+
+	if (group) {
+		grp_val |= grp_mask;
+		pri_val |= pri_mask;
+	} else {
+		grp_val &= ~grp_mask;
+		pri_val &= ~pri_mask;
+	}
+
+	writel_relaxed(grp_val, base + GIC_DIST_IGROUP + grp_reg);
+	if (grp_reg == 0)
+		gic->igroup0_shadow = grp_val;
+
+	writel_relaxed(pri_val, base + GIC_DIST_PRI + pri_reg);
+
+	raw_spin_unlock(&irq_controller_lock);
+}
+
+
+/*
+ * Fully acknowledge (both ack and eoi) any outstanding FIQ-based IPI,
+ * otherwise do nothing.
+ */
+void gic_handle_fiq_ipi(void)
+{
+	struct gic_chip_data *gic = &gic_data[0];
+	void __iomem *cpu_base = gic_data_cpu_base(gic);
+	unsigned long irqstat, irqnr;
+
+	if (WARN_ON(!in_nmi()))
+		return;
+
+	while ((1u << readl_relaxed(cpu_base + GIC_CPU_HIGHPRI)) &
+	       SMP_IPI_FIQ_MASK) {
+		irqstat = readl_relaxed(cpu_base + GIC_CPU_INTACK);
+		writel_relaxed(irqstat, cpu_base + GIC_CPU_EOI);
+
+		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
+		WARN_RATELIMIT(irqnr > 16,
+			       "Unexpected irqnr %lu (bad prioritization?)\n",
+			       irqnr);
+	}
+}
+
 void __init gic_cascade_irq(unsigned int gic_nr, unsigned int irq)
 {
 	if (gic_nr >= MAX_GIC_NR)
@@ -455,6 +538,7 @@ static u8 gic_get_cpumask(struct gic_chip_data *gic)
 static void gic_cpu_if_up(struct gic_chip_data *gic)
 {
 	void __iomem *cpu_base = gic_data_cpu_base(gic);
+	void __iomem *dist_base = gic_data_dist_base(&gic_data[0]);
 	u32 bypass = 0;
 	u32 mode = 0;
 
@@ -466,6 +550,14 @@ static void gic_cpu_if_up(struct gic_chip_data *gic)
 	*/
 	bypass = readl(cpu_base + GIC_CPU_CTRL);
 	bypass &= GICC_DIS_BYPASS_MASK;
+
+	/*
+	 * If EnableGrp1 is set in the distributor then enable group 1
+	 * support for this CPU (and route group 0 interrupts to FIQ).
+	 */
+	if (GICD_ENABLE_GRP1 & readl_relaxed(dist_base + GIC_DIST_CTRL))
+		bypass |= GICC_COMMON_BPR | GICC_FIQ_EN | GICC_ACK_CTL |
+			GICC_ENABLE_GRP1;
 
 	writel_relaxed(bypass | mode | GICC_ENABLE, cpu_base + GIC_CPU_CTRL);
 }
@@ -491,7 +583,23 @@ static void __init gic_dist_init(struct gic_chip_data *gic)
 
 	gic_dist_config(base, gic_irqs, NULL);
 
-	writel_relaxed(GICD_ENABLE, base + GIC_DIST_CTRL);
+	/*
+	 * Set EnableGrp1/EnableGrp0 (bit 1 and 0) or EnableGrp (bit 0 only,
+	 * bit 1 ignored) depending on current mode.
+	 */
+	writel_relaxed(GICD_ENABLE_GRP1 | GICD_ENABLE, base + GIC_DIST_CTRL);
+
+	/*
+	 * Set all global interrupts to be group 1 if (and only if) it
+	 * is possible to enable group 1 interrupts. This register is RAZ/WI
+	 * if not accessible or not implemented, however some GICv1 devices
+	 * do not implement the EnableGrp1 bit making it unsafe to set
+	 * this register unconditionally.
+	 */
+	if (GICD_ENABLE_GRP1 & readl_relaxed(base + GIC_DIST_CTRL))
+		for (i = 32; i < gic_irqs; i += 32)
+			writel_relaxed(0xffffffff,
+				       base + GIC_DIST_IGROUP + i * 4 / 32);
 }
 
 static void gic_cpu_init(struct gic_chip_data *gic)
@@ -500,6 +608,7 @@ static void gic_cpu_init(struct gic_chip_data *gic)
 	void __iomem *base = gic_data_cpu_base(gic);
 	unsigned int cpu_mask, cpu = smp_processor_id();
 	int i;
+	unsigned long secure_irqs, secure_irq;
 
 	/*
 	 * Setting up the CPU map is only relevant for the primary GIC
@@ -524,6 +633,20 @@ static void gic_cpu_init(struct gic_chip_data *gic)
 	}
 
 	gic_cpu_config(dist_base, NULL);
+
+	/*
+	 * If the distributor is configured to support interrupt grouping
+	 * then set any PPI and SGI interrupts not set in SMP_IPI_FIQ_MASK
+	 * to be group1 and ensure any remaining group 0 interrupts have
+	 * the right priority.
+	 */
+	if (GICD_ENABLE_GRP1 & readl_relaxed(dist_base + GIC_DIST_CTRL)) {
+		secure_irqs = SMP_IPI_FIQ_MASK;
+		writel_relaxed(~secure_irqs, dist_base + GIC_DIST_IGROUP + 0);
+		gic->igroup0_shadow = ~secure_irqs;
+		for_each_set_bit(secure_irq, &secure_irqs, 16)
+			gic_set_group_irq(gic, secure_irq, 0);
+	}
 
 	writel_relaxed(GICC_INT_PRI_THRESHOLD, base + GIC_CPU_PRIMASK);
 	gic_cpu_if_up(gic);
@@ -620,7 +743,8 @@ static void gic_dist_restore(unsigned int gic_nr)
 		writel_relaxed(gic_data[gic_nr].saved_spi_enable[i],
 			dist_base + GIC_DIST_ENABLE_SET + i * 4);
 
-	writel_relaxed(GICD_ENABLE, dist_base + GIC_DIST_CTRL);
+	writel_relaxed(GICD_ENABLE_GRP1 | GICD_ENABLE,
+		       dist_base + GIC_DIST_CTRL);
 }
 
 static void gic_cpu_save(unsigned int gic_nr)
@@ -748,6 +872,7 @@ static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 {
 	int cpu;
 	unsigned long map = 0;
+	unsigned long softint;
 
 	bl_migration_lock();
 
@@ -761,8 +886,14 @@ static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	 */
 	dmb(ishst);
 
-	/* this always happens on GIC0 */
-	writel_relaxed(map << 16 | irq, gic_data_dist_base(&gic_data[0]) + GIC_DIST_SOFTINT);
+	/* We avoid a readl here by using the shadow copy of IGROUP[0] */
+	softint = map << 16 | irq;
+	if (gic_data[0].igroup0_shadow & BIT(irq))
+		softint |= 0x8000;
+
+	/* This always happens on GIC0 */
+	writel_relaxed(softint,
+		       gic_data_dist_base(&gic_data[0]) + GIC_DIST_SOFTINT);
 
 	bl_migration_unlock();
 }
