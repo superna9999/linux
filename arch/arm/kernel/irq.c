@@ -49,13 +49,18 @@ unsigned long irq_err_count;
 
 int arch_show_interrupts(struct seq_file *p, int prec)
 {
+	int i;
+
 #ifdef CONFIG_FIQ
 	show_fiq_list(p, prec);
 #endif
 #ifdef CONFIG_SMP
 	show_ipi_list(p, prec);
 #endif
-	seq_printf(p, "%*s: %10lu\n", prec, "Err", irq_err_count);
+	seq_printf(p, "%*s: ", prec, "NMI");
+	for_each_online_cpu(i)
+		seq_printf(p, "%10u ", __get_irq_stat(i, __nmi_count));
+	seq_printf(p, "\n%*s: %10lu\n", prec, "Err", irq_err_count);
 	return 0;
 }
 

@@ -476,8 +476,10 @@ die_sig:
  */
 asmlinkage void __exception_irq_entry handle_fiq_as_nmi(struct pt_regs *regs)
 {
+	unsigned int cpu = smp_processor_id();
 	struct pt_regs *old_regs = set_irq_regs(regs);
 
+	__inc_irq_stat(cpu, __nmi_count);
 	nmi_enter();
 
 #ifdef CONFIG_ARM_GIC
