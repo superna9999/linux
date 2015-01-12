@@ -230,6 +230,28 @@ static inline void show_regs_print_info(const char *log_lvl)
 }
 #endif
 
+#ifdef CONFIG_ARCH_WANT_NMI_PRINTK
+extern __printf(1, 0) int nmi_vprintk(const char *fmt, va_list args);
+
+struct cpumask;
+extern int prepare_nmi_printk(struct cpumask *cpus);
+extern void complete_nmi_printk(struct cpumask *cpus);
+
+/*
+ * Replace printk to write into the NMI seq.
+ *
+ * To avoid include hell this is a macro rather than an inline function
+ * (printk_func is not declared in this header file).
+ */
+#define this_cpu_begin_nmi_printk() ({ \
+	printk_func_t __orig = this_cpu_read(printk_func); \
+	this_cpu_write(printk_func, nmi_vprintk); \
+	__orig; \
+})
+#define this_cpu_end_nmi_printk(fn) this_cpu_write(printk_func, fn)
+
+#endif
+
 extern asmlinkage void dump_stack(void) __cold;
 
 #ifndef pr_fmt

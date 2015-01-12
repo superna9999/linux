@@ -1847,6 +1847,127 @@ asmlinkage int printk_emit(int facility, int level,
 }
 EXPORT_SYMBOL(printk_emit);
 
+#ifdef CONFIG_ARCH_WANT_NMI_PRINTK
+
+#define NMI_BUF_SIZE		4096
+
+struct nmi_seq_buf {
+	unsigned char		buffer[NMI_BUF_SIZE];
+	struct seq_buf		seq;
+};
+
+/* Safe printing in NMI context */
+static DEFINE_PER_CPU(struct nmi_seq_buf, nmi_print_seq);
+
+/* "in progress" flag of NMI printing */
+static unsigned long nmi_print_flag;
+
+/*
+ * It is not safe to call printk() directly from NMI handlers.
+ * It may be fine if the NMI detected a lock up and we have no choice
+ * but to do so, but doing a NMI on all other CPUs to get a back trace
+ * can be done with a sysrq-l. We don't want that to lock up, which
+ * can happen if the NMI interrupts a printk in progress.
+ *
+ * Instead, we redirect the vprintk() to this nmi_vprintk() that writes
+ * the content into a per cpu seq_buf buffer. Then when the NMIs are
+ * all done, we can safely dump the contents of the seq_buf to a printk()
+ * from a non NMI context.
+ *
+ * This is not a generic printk() implementation and must be used with
+ * great care. In particular there is a static limit on the quantity of
+ * data that may be emitted during NMI, only one client can be active at
+ * one time (arbitrated by the return value of begin_nmi_printk() and
+ * it is required that something at task or interrupt context be scheduled
+ * to issue the output.
+ */
+int nmi_vprintk(const char *fmt, va_list args)
+{
+	struct nmi_seq_buf *s = this_cpu_ptr(&nmi_print_seq);
+	unsigned int len = seq_buf_used(&s->seq);
+
+	seq_buf_vprintf(&s->seq, fmt, args);
+	return seq_buf_used(&s->seq) - len;
+}
+EXPORT_SYMBOL_GPL(nmi_vprintk);
+
+/*
+ * Check for concurrent usage and set up per_cpu seq_buf buffers that the NMIs
+ * running on the other CPUs will write to. Provides the mask of CPUs it is
+ * safe to write from (i.e. a copy of the online mask).
+ */
+int prepare_nmi_printk(struct cpumask *cpus)
+{
+	struct nmi_seq_buf *s;
+	int cpu;
+
+	if (test_and_set_bit(0, &nmi_print_flag)) {
+		/*
+		 * If something is already using the NMI print facility we
+		 * can't allow a second one...
+		 */
+		return -EBUSY;
+	}
+
+	cpumask_copy(cpus, cpu_online_mask);
+
+	for_each_cpu(cpu, cpus) {
+		s = &per_cpu(nmi_print_seq, cpu);
+		seq_buf_init(&s->seq, s->buffer, NMI_BUF_SIZE);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(prepare_nmi_printk);
+
+static void print_seq_line(struct nmi_seq_buf *s, int start, int end)
+{
+	const char *buf = s->buffer + start;
+
+	printk("%.*s", (end - start) + 1, buf);
+}
+
+void complete_nmi_printk(struct cpumask *cpus)
+{
+	struct nmi_seq_buf *s;
+	int len;
+	int cpu;
+	int i;
+
+	/*
+	 * Now that all the NMIs have triggered, we can dump out their
+	 * back traces safely to the console.
+	 */
+	for_each_cpu(cpu, cpus) {
+		int last_i = 0;
+
+		s = &per_cpu(nmi_print_seq, cpu);
+
+		len = seq_buf_used(&s->seq);
+		if (!len)
+			continue;
+
+		/* Print line by line. */
+		for (i = 0; i < len; i++) {
+			if (s->buffer[i] == '\n') {
+				print_seq_line(s, last_i, i);
+				last_i = i + 1;
+			}
+		}
+		/* Check if there was a partial line. */
+		if (last_i < len) {
+			print_seq_line(s, last_i, len - 1);
+			pr_cont("\n");
+		}
+	}
+
+	clear_bit(0, &nmi_print_flag);
+	smp_mb__after_atomic();
+}
+EXPORT_SYMBOL_GPL(complete_nmi_printk);
+
+#endif /* CONFIG_ARCH_WANT_NMI_PRINTK */
+
 int vprintk_default(const char *fmt, va_list args)
 {
 	int r;
@@ -1870,6 +1991,7 @@ EXPORT_SYMBOL_GPL(vprintk_default);
  * box.
  */
 DEFINE_PER_CPU(printk_func_t, printk_func) = vprintk_default;
+
 
 /**
  * printk - print a kernel message
