@@ -121,6 +121,9 @@ static struct static_key supports_deactivate = STATIC_KEY_INIT_TRUE;
 
 static struct gic_chip_data gic_data[MAX_GIC_NR] __read_mostly;
 
+static int gic_set_group_irq(struct gic_chip_data *gic, unsigned int hwirq,
+			     int group);
+
 #ifdef CONFIG_GIC_NON_BANKED
 static void __iomem *gic_get_percpu_base(union gic_base *base)
 {
@@ -284,6 +287,18 @@ static int gic_irq_get_irqchip_state(struct irq_data *d,
 	return 0;
 }
 
+static int gic_set_nmi_routing(struct irq_data *d, unsigned int nmi)
+{
+	struct gic_chip_data *gic = irq_data_get_irq_chip_data(d);
+	int ret;
+
+	ret = gic_set_group_irq(gic, gic_irq(d), !nmi);
+	if (ret >= 0)
+		ret = !ret;
+
+	return ret;
+}
+
 static int gic_set_type(struct irq_data *d, unsigned int type)
 {
 	void __iomem *base = gic_dist_base(d);
@@ -403,6 +418,7 @@ static struct irq_chip gic_chip = {
 	.irq_mask		= gic_mask_irq,
 	.irq_unmask		= gic_unmask_irq,
 	.irq_eoi		= gic_eoi_irq,
+	.irq_set_nmi_routing    = gic_set_nmi_routing,
 	.irq_set_type		= gic_set_type,
 #ifdef CONFIG_SMP
 	.irq_set_affinity	= gic_set_affinity,
@@ -441,8 +457,8 @@ static struct irq_chip gic_eoimode1_chip = {
  * If is safe to call this function on systems which do not support
  * grouping (it will have no effect).
  */
-static void gic_set_group_irq(struct gic_chip_data *gic, unsigned int hwirq,
-			      int group)
+static int gic_set_group_irq(struct gic_chip_data *gic, unsigned int hwirq,
+			     int group)
 {
 	void __iomem *base = gic_data_dist_base(gic);
 	unsigned int grp_reg = hwirq / 32 * 4;
@@ -458,7 +474,7 @@ static void gic_set_group_irq(struct gic_chip_data *gic, unsigned int hwirq,
 	 * the EnableGrp1 bit set.
 	 */
 	if (!(GICD_ENABLE_GRP1 & readl_relaxed(base + GIC_DIST_CTRL)))
-		return;
+		return -EINVAL;
 
 	raw_spin_lock(&irq_controller_lock);
 
@@ -480,32 +496,42 @@ static void gic_set_group_irq(struct gic_chip_data *gic, unsigned int hwirq,
 	writel_relaxed(pri_val, base + GIC_DIST_PRI + pri_reg);
 
 	raw_spin_unlock(&irq_controller_lock);
+
+	return group;
 }
 
-
-/*
- * Fully acknowledge (both ack and eoi) any outstanding FIQ-based IPI,
- * otherwise do nothing.
- */
-void gic_handle_fiq_ipi(void)
+enum irqreturn gic_handle_fiq(void)
 {
 	struct gic_chip_data *gic = &gic_data[0];
 	void __iomem *cpu_base = gic_data_cpu_base(gic);
-	unsigned long irqstat, irqnr;
+	unsigned long irqstat, hwirq;
+	unsigned int irq = 0;
+
+	/*
+	 * This function is called unconditionally by the default FIQ
+	 * handler so first we must check that the driver it
+	 * initialized.
+	 */
+	if (!gic->gic_irqs)
+		return IRQ_NONE;
 
 	if (WARN_ON(!in_nmi()))
-		return;
+		return IRQ_NONE;
 
-	while ((1u << readl_relaxed(cpu_base + GIC_CPU_HIGHPRI)) &
-	       SMP_IPI_FIQ_MASK) {
-		irqstat = readl_relaxed(cpu_base + GIC_CPU_INTACK);
-		writel_relaxed(irqstat, cpu_base + GIC_CPU_EOI);
+	/* read intack with the priority mask set so we only acknowledge FIQs */
+	writel_relaxed(GICC_INT_PRI_THRESHOLD >> 1, cpu_base + GIC_CPU_PRIMASK);
+	irqstat = readl_relaxed(cpu_base + GIC_CPU_INTACK);
+	writel_relaxed(GICC_INT_PRI_THRESHOLD, cpu_base + GIC_CPU_PRIMASK);
 
-		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
-		WARN_RATELIMIT(irqnr > 16,
-			       "Unexpected irqnr %lu (bad prioritization?)\n",
-			       irqnr);
+	hwirq = irqstat & GICC_IAR_INT_ID_MASK;
+	if (likely(hwirq > 15 && hwirq < 1021)) {
+		irq = irq_find_mapping(gic->domain, hwirq);
+		handle_nmi_irq(irq);
 	}
+
+	writel_relaxed(irqstat, gic_data_cpu_base(gic) + GIC_CPU_EOI);
+
+	return IRQ_RETVAL(irq);
 }
 
 void __init gic_cascade_irq(unsigned int gic_nr, unsigned int irq)

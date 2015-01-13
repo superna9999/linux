@@ -26,6 +26,7 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/irqchip/arm-gic.h>
 
 #include <linux/atomic.h>
@@ -462,6 +463,23 @@ die_sig:
 	arm_notify_die("Oops - undefined instruction", regs, &info, 0, 6);
 }
 
+int arch_filter_nmi_handler(irq_handler_t handler)
+{
+	irq_handler_t whitelist[] = {
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(whitelist); i++)
+		if (handler == whitelist[i]) {
+			pr_debug("%pS accepted for use as NMI handler\n",
+				handler);
+			return 0;
+		}
+
+	pr_err("%pS cannot be used as an NMI handler\n", handler);
+	return -EPERM;
+}
+
 /*
  * Handle FIQ similarly to NMI on x86 systems.
  *
@@ -478,13 +496,20 @@ asmlinkage void __exception_irq_entry handle_fiq_as_nmi(struct pt_regs *regs)
 {
 	unsigned int cpu = smp_processor_id();
 	struct pt_regs *old_regs = set_irq_regs(regs);
+	enum irqreturn irqret = 0;
 
 	__inc_irq_stat(cpu, __nmi_count);
 	nmi_enter();
 
 #ifdef CONFIG_ARM_GIC
-	gic_handle_fiq_ipi();
+	irqret = gic_handle_fiq();
 #endif
+
+	if (irqret == IRQ_NONE) {
+#ifdef CONFIG_SMP
+		ipi_cpu_backtrace(regs);
+#endif
+	}
 
 	nmi_exit();
 

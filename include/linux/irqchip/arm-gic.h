@@ -130,7 +130,11 @@ static inline void __init register_routable_domain_ops
 	gic_routable_irq_domain_ops = ops;
 }
 
-void gic_handle_fiq_ipi(void);
+#ifdef CONFIG_ARM_GIC
+enum irqreturn gic_handle_fiq(void);
+#else
+enum irqreturn gic_handle_fiq(void) { return IRQ_NONE; }
+#endif
 
 #endif /* __ASSEMBLY */
 #endif
