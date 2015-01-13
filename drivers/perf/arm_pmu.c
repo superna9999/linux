@@ -22,6 +22,7 @@
 #include <linux/spinlock.h>
 #include <linux/irq.h>
 #include <linux/irqdesc.h>
+#include <linux/nmi.h>
 
 #include <asm/cputype.h>
 #include <asm/irq_regs.h>
@@ -585,6 +586,38 @@ int perf_num_counters(void)
 	return max_events;
 }
 EXPORT_SYMBOL_GPL(perf_num_counters);
+
+#ifdef CONFIG_HAVE_PERF_EVENTS_NMI
+/*
+ * Used by the hard lockup detector to determine how many PMU cycles
+ * would elapse in watchdog_thresh seconds.
+ */
+u64 hw_nmi_get_sample_period(int watchdog_thresh)
+{
+	/*
+	 * It is very difficult to determine the CPU frequency and, even
+	 * if we did, there's nothing to say it won't change
+	 * dramatically in the future.
+	 *
+	 * Therefore this code acts as though we have a 2GHz clock.
+	 * watchdog_thresh has a significant margin for error built into
+	 * it by the wadtchdog code, so this should keep the watchdog
+	 * working correctly even on chips that approach double this speed.
+	 *
+	 * The downside of taking such a large value is that on older
+	 * parts it will take a long time for the hard lockup detector
+	 * to fire.
+	 */
+	return 2000000000ull * watchdog_thresh;
+}
+#endif
+
+#ifdef CONFIG_OPROFILE_NMI_TIMER
+int op_nmi_timer_init(struct oprofile_operations *ops)
+{
+	return -ENODEV;
+}
+#endif
 
 static void cpu_pmu_enable_percpu_irq(void *data)
 {
