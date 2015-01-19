@@ -2336,6 +2336,36 @@ static void uart_poll_put_char(struct tty_driver *driver, int line, char ch)
 		port->ops->poll_put_char(port, '\r');
 	port->ops->poll_put_char(port, ch);
 }
+
+static int uart_poll_request_nmi(struct tty_driver *driver, int line,
+				 irq_handler_t handler)
+{
+	struct uart_driver *drv = driver->driver_state;
+	struct uart_state *state = drv->state + line;
+	struct uart_port *port;
+
+	if (!state || !state->uart_port)
+		return -1;
+
+	port = state->uart_port;
+	if (!port->ops->poll_request_nmi || !port->ops->poll_free_nmi)
+		return -1;
+
+	return port->ops->poll_request_nmi(port, handler);
+}
+
+static void uart_poll_free_nmi(struct tty_driver *driver, int line)
+{
+	struct uart_driver *drv = driver->driver_state;
+	struct uart_state *state = drv->state + line;
+	struct uart_port *port;
+
+	if (!state || !state->uart_port)
+		return;
+
+	port = state->uart_port;
+	port->ops->poll_free_nmi(port);
+}
 #endif
 
 static const struct tty_operations uart_ops = {
@@ -2368,6 +2398,8 @@ static const struct tty_operations uart_ops = {
 	.poll_init	= uart_poll_init,
 	.poll_get_char	= uart_poll_get_char,
 	.poll_put_char	= uart_poll_put_char,
+	.poll_request_nmi = uart_poll_request_nmi,
+	.poll_free_nmi  = uart_poll_free_nmi,
 #endif
 };
 

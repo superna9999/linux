@@ -240,6 +240,7 @@
 
 #include <linux/export.h>
 #include <linux/fs.h>
+#include <linux/interrupt.h>
 #include <linux/list.h>
 #include <linux/cdev.h>
 #include <linux/termios.h>
@@ -289,6 +290,17 @@ struct tty_operations {
 	int (*poll_init)(struct tty_driver *driver, int line, char *options);
 	int (*poll_get_char)(struct tty_driver *driver, int line);
 	void (*poll_put_char)(struct tty_driver *driver, int line, char ch);
+
+	/*
+	 * Request that the NMI be poked when there is data available.
+	 * This forms part of the polling API because the NMI handler will use
+	 * the polling API to service the interrupt. If hardware cannot
+	 * easily clearing the interrupt source using the polling API
+	 * the pointers should be set to NULL.
+	 */
+	int (*poll_request_nmi)(struct tty_driver *driver, int line,
+				irq_handler_t handler);
+	void (*poll_free_nmi)(struct tty_driver *driver, int line);
 #endif
 	const struct file_operations *proc_fops;
 };
