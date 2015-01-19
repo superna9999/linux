@@ -755,3 +755,8 @@ void arch_trigger_all_cpu_backtrace(bool include_self)
 {
 	nmi_trigger_all_cpu_backtrace(include_self, raise_nmi);
 }
+
+void send_nmi_ipi_mask(const struct cpumask *mask)
+{
+	smp_cross_call(mask, IPI_CPU_BACKTRACE);
+}
