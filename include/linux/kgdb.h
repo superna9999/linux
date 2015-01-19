@@ -16,6 +16,7 @@
 #include <linux/linkage.h>
 #include <linux/init.h>
 #include <linux/atomic.h>
+#include <linux/interrupt.h>
 #ifdef CONFIG_HAVE_ARCH_KGDB
 #include <asm/kgdb.h>
 #endif
@@ -274,6 +275,8 @@ struct kgdb_io {
 	const char		*name;
 	int			(*read_char) (void);
 	void			(*write_char) (u8);
+	int			(*request_nmi) (irq_handler_t);
+	void			(*free_nmi) (void);
 	void			(*flush) (void);
 	int			(*init) (void);
 	void			(*pre_exception) (void);
@@ -288,11 +291,9 @@ extern unsigned long kgdb_arch_pc(int exception, struct pt_regs *regs);
 #ifdef CONFIG_SERIAL_KGDB_NMI
 extern int kgdb_register_nmi_console(void);
 extern int kgdb_unregister_nmi_console(void);
-extern bool kgdb_nmi_poll_knock(void);
 #else
 static inline int kgdb_register_nmi_console(void) { return 0; }
 static inline int kgdb_unregister_nmi_console(void) { return 0; }
-static inline bool kgdb_nmi_poll_knock(void) { return 1; }
 #endif
 
 extern int kgdb_register_io_module(struct kgdb_io *local_kgdb_io_ops);

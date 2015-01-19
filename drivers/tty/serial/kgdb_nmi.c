@@ -29,6 +29,7 @@
 #include <linux/kfifo.h>
 #include <linux/kgdb.h>
 #include <linux/kdb.h>
+#include <linux/irq.h>
 
 static int kgdb_nmi_knock = 1;
 module_param_named(knock, kgdb_nmi_knock, int, 0600);
@@ -44,15 +45,12 @@ MODULE_PARM_DESC(magic, "magic sequence to enter NMI debugger (default $3#33)");
 
 static atomic_t kgdb_nmi_num_readers = ATOMIC_INIT(0);
 
+static int kgdb_nmi_set_enable(int enabled);
+
 static int kgdb_nmi_console_setup(struct console *co, char *options)
 {
-	arch_kgdb_ops.enable_nmi(1);
+	(void) kgdb_nmi_set_enable(1);
 
-	/* The NMI console uses the dbg_io_ops to issue console messages. To
-	 * avoid duplicate messages during kdb sessions we must inform kdb's
-	 * I/O utilities that messages sent to the console will automatically
-	 * be displayed on the dbg_io.
-	 */
 	dbg_io_ops->is_console = true;
 
 	return 0;
@@ -157,7 +155,7 @@ static int kgdb_nmi_poll_one_knock(void)
 }
 
 /**
- * kgdb_nmi_poll_knock - Check if it is time to enter the debugger
+ * kgdb_handle_nmi_poll_knock - Check if it is time to enter the debugger
  *
  * "Serial ports are often noisy, especially when muxed over another port (we
  * often use serial over the headset connector). Noise on the async command
@@ -170,22 +168,41 @@ static int kgdb_nmi_poll_one_knock(void)
  * of knocking, i.e. just pressing the return key is enough to enter the
  * debugger. And if knocking is disabled, the function always returns 1.
  */
-bool kgdb_nmi_poll_knock(void)
+static irqreturn_t kgdb_handle_nmi_poll_knock(int irq, void *unused)
 {
+	int ret = IRQ_NONE;
+
 	if (kgdb_nmi_knock < 0)
 		return true;
 
 	while (1) {
-		int ret;
-
-		ret = kgdb_nmi_poll_one_knock();
-		if (ret == NO_POLL_CHAR)
-			return false;
-		else if (ret == 1)
+		switch (kgdb_nmi_poll_one_knock()) {
+		case NO_POLL_CHAR:
+			return ret;
+		case 1:
+			kgdb_handle_exception(1, 0, 0, get_irq_regs());
+			return IRQ_HANDLED;
+		default:
+			ret = IRQ_HANDLED;
 			break;
+		}
 	}
-	return true;
+
+	return IRQ_HANDLED;
 }
+
+static int kgdb_nmi_set_enable(int enabled)
+{
+	int res = 0;
+
+	if (enabled)
+		res = dbg_io_ops->request_nmi(kgdb_handle_nmi_poll_knock);
+	else
+		dbg_io_ops->free_nmi();
+
+	return res;
+}
+
 
 /*
  * The tasklet is cheap, it does not cause wakeups when reschedules itself,
@@ -330,9 +347,6 @@ int kgdb_register_nmi_console(void)
 {
 	int ret;
 
-	if (!arch_kgdb_ops.enable_nmi)
-		return 0;
-
 	kgdb_nmi_tty_driver = alloc_tty_driver(1);
 	if (!kgdb_nmi_tty_driver) {
 		pr_err("%s: cannot allocate tty\n", __func__);
@@ -367,10 +381,6 @@ EXPORT_SYMBOL_GPL(kgdb_register_nmi_console);
 int kgdb_unregister_nmi_console(void)
 {
 	int ret;
-
-	if (!arch_kgdb_ops.enable_nmi)
-		return 0;
-	arch_kgdb_ops.enable_nmi(0);
 
 	ret = unregister_console(&kgdb_nmi_console);
 	if (ret)

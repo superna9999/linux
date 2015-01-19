@@ -245,6 +245,24 @@ static void kgdboc_put_char(u8 chr)
 					kgdb_tty_line, chr);
 }
 
+static int kgdboc_request_nmi(irq_handler_t handler)
+{
+	if (!kgdb_tty_driver || !kgdb_tty_driver->ops->poll_request_nmi ||
+				!kgdb_tty_driver->ops->poll_free_nmi)
+		return -EINVAL;
+
+	return kgdb_tty_driver->ops->poll_request_nmi(kgdb_tty_driver,
+						      kgdb_tty_line, handler);
+}
+
+static void kgdboc_free_nmi(void)
+{
+	if (!kgdb_tty_driver)
+		return;
+	return kgdb_tty_driver->ops->poll_free_nmi(kgdb_tty_driver,
+						   kgdb_tty_line);
+}
+
 static int param_set_kgdboc_var(const char *kmessage, struct kernel_param *kp)
 {
 	int len = strlen(kmessage);
@@ -308,6 +326,8 @@ static struct kgdb_io kgdboc_io_ops = {
 	.name			= "kgdboc",
 	.read_char		= kgdboc_get_char,
 	.write_char		= kgdboc_put_char,
+	.request_nmi		= kgdboc_request_nmi,
+	.free_nmi		= kgdboc_free_nmi,
 	.pre_exception		= kgdboc_pre_exp_handler,
 	.post_exception		= kgdboc_post_exp_handler,
 };
