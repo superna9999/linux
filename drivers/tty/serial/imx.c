@@ -24,6 +24,7 @@
 #include <linux/module.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/console.h>
 #include <linux/sysrq.h>
 #include <linux/platform_device.h>
@@ -1548,6 +1549,37 @@ static void imx_poll_put_char(struct uart_port *port, unsigned char c)
 		status = readl_relaxed(port->membase + USR2);
 	} while (~status & USR2_TXDC);
 }
+
+static int imx_poll_request_nmi(struct uart_port *port, irq_handler_t handler)
+{
+	struct imx_port *sport = (struct imx_port *)port;
+	int ret;
+
+	devm_free_irq(port->dev, port->irq, sport);
+
+	ret = devm_request_irq(port->dev, port->irq, handler, IRQF_NMI,
+			       dev_name(port->dev), sport);
+	if (ret != 0)
+		if (0 !=
+		    devm_request_irq(port->dev, port->irq,
+				     (sport->txirq > 0 ? imx_rxint : imx_int),
+				     0, dev_name(port->dev), sport))
+			pr_err("Failed to restore interrupt handler\n");
+
+	return ret;
+}
+
+static void imx_poll_free_nmi(struct uart_port *port)
+{
+	struct imx_port *sport = (struct imx_port *)port;
+
+	devm_free_irq(port->dev, port->irq, sport);
+
+	if (0 != devm_request_irq(port->dev, port->irq,
+				  (sport->txirq > 0 ? imx_rxint : imx_int),
+				  0, dev_name(port->dev), sport))
+		pr_err("Failed to restore interrupt handler\n");
+}
 #endif
 
 static int imx_rs485_config(struct uart_port *port,
@@ -1602,6 +1634,8 @@ static struct uart_ops imx_pops = {
 	.poll_init      = imx_poll_init,
 	.poll_get_char  = imx_poll_get_char,
 	.poll_put_char  = imx_poll_put_char,
+	.poll_request_nmi = imx_poll_request_nmi,
+	.poll_free_nmi  = imx_poll_free_nmi,
 #endif
 };
 
