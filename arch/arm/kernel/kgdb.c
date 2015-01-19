@@ -178,14 +178,26 @@ static struct undef_hook kgdb_compiled_brkpt_hook = {
 
 static void kgdb_call_nmi_hook(void *ignored)
 {
-       kgdb_nmicallback(raw_smp_processor_id(), get_irq_regs());
+	kgdb_nmicallback(raw_smp_processor_id(), get_irq_regs());
 }
 
 void kgdb_roundup_cpus(unsigned long flags)
 {
-       local_irq_enable();
-       smp_call_function(kgdb_call_nmi_hook, NULL, 0);
-       local_irq_disable();
+#if defined CONFIG_KGDB_FIQ && defined CONFIG_SMP
+	struct cpumask mask;
+
+	if (in_nmi()) {
+		cpumask_copy(&mask, cpu_online_mask);
+		cpumask_clear_cpu(raw_smp_processor_id(), &mask);
+		if (!cpumask_empty(&mask))
+			send_nmi_ipi_mask(&mask);
+		return;
+	}
+#endif
+
+	local_irq_enable();
+	smp_call_function(kgdb_call_nmi_hook, NULL, 0);
+	local_irq_disable();
 }
 
 static int __kgdb_notify(struct die_args *args, unsigned long cmd)
@@ -282,8 +294,8 @@ int kgdb_arch_remove_breakpoint(struct kgdb_bkpt *bpt)
  */
 struct kgdb_arch arch_kgdb_ops = {
 #ifndef __ARMEB__
-	.gdb_bpt_instr		= {0xfe, 0xde, 0xff, 0xe7}
+	.gdb_bpt_instr		= {0xfe, 0xde, 0xff, 0xe7},
 #else /* ! __ARMEB__ */
-	.gdb_bpt_instr		= {0xe7, 0xff, 0xde, 0xfe}
+	.gdb_bpt_instr		= {0xe7, 0xff, 0xde, 0xfe},
 #endif
 };

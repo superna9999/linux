@@ -28,6 +28,7 @@
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/irqchip/arm-gic.h>
+#include <linux/kgdb.h>
 
 #include <linux/atomic.h>
 #include <asm/cacheflush.h>
@@ -492,6 +493,9 @@ asmlinkage void __exception_irq_entry handle_fiq_as_nmi(struct pt_regs *regs)
 	if (irqret == IRQ_NONE) {
 #ifdef CONFIG_SMP
 		ipi_cpu_backtrace(regs);
+#endif
+#ifdef CONFIG_KGDB
+		kgdb_nmicallback(raw_smp_processor_id(), regs);
 #endif
 	}
 

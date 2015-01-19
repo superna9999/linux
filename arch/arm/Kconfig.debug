@@ -2,6 +2,21 @@ menu "Kernel hacking"
 
 source "lib/Kconfig.debug"
 
+config KGDB_FIQ
+	bool "KGDB FIQ support"
+	depends on KGDB && MIGHT_HAVE_FIQ
+	help
+	  The FIQ debugger may be used to debug situations when the
+	  kernel stuck in uninterruptable sections, e.g. the kernel
+	  infinitely loops or deadlocked in an interrupt or with
+	  interrupts disabled.
+
+	  By default KGDB FIQ is disabled at runtime, but can be enabled
+	  by setting the console to ttyNMI0 (and choosing an underlying
+	  serial port using kgdboc)
+
+	  If unsure, say N.
+
 config ARM_PTDUMP
 	bool "Export kernel pagetable layout to userspace via debugfs"
 	depends on DEBUG_KERNEL

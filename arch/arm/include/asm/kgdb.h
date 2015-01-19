@@ -48,6 +48,12 @@ static inline void arch_kgdb_breakpoint(void)
 extern void kgdb_handle_bus_error(void);
 extern int kgdb_fault_expected;
 
+#ifdef CONFIG_KGDB_FIQ
+extern void kgdb_handle_fiq(struct pt_regs *regs);
+#else
+static inline void kgdb_handle_fiq(struct pt_regs *regs) {}
+#endif
+
 #endif /* !__ASSEMBLY__ */
 
 /*
