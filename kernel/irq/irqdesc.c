@@ -645,3 +645,51 @@ unsigned int kstat_irqs_usr(unsigned int irq)
 	irq_unlock_sparse();
 	return sum;
 }
+
+/**
+ * handle_nmi_irq_desc - Call an NMI handler
+ * @irq:	the interrupt number
+ * @desc:	the interrupt description structure for this irq
+ *
+ * To the caller this function is similar in scope to generic_handle_irq_desc()
+ * but without any attempt to manage the handler flow. We assume that if the
+ * flow is complex then NMI routing is a bad idea; the caller is expected to
+ * handle the ack, clear, mask and unmask issues if necessary.
+ *
+ * Note that this function does not take any of the usual locks. Instead
+ * is relies on NMIs being prohibited from sharing interrupts (i.e.
+ * there will be exactly one irqaction) and that no call to free_irq()
+ * will be made whilst the handler is running.
+ */
+int handle_nmi_irq_desc(unsigned int irq, struct irq_desc *desc)
+{
+	struct irqaction *action = desc->action;
+
+	BUG_ON(action->next);
+
+	return action->handler(irq, action->dev_id);
+}
+EXPORT_SYMBOL_GPL(handle_nmi_irq_desc);
+
+/**
+ * handle_nmi - Call an NMI handler
+ * @irq:	the interrupt number
+ * @desc:	the interrupt description structure for this irq
+ *
+ * To the caller this function is similar in scope to generic_handle_irq(),
+ * see handle_nmi_irq_desc for more detail.
+ */
+int handle_nmi_irq(unsigned int irq)
+{
+	/*
+	 * irq_to_desc is either simple arithmetic (no locking) or a radix
+	 * tree lookup (RCU). Both are safe from NMI.
+	 */
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	if (!desc)
+		return -EINVAL;
+	handle_nmi_irq_desc(irq, desc);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(handle_nmi_irq);

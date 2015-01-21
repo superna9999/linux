@@ -247,4 +247,7 @@ __irq_set_preflow_handler(unsigned int irq, irq_preflow_handler_t handler)
 }
 #endif
 
+int handle_nmi_irq_desc(unsigned int irq, struct irq_desc *desc);
+int handle_nmi_irq(unsigned int irq);
+
 #endif
