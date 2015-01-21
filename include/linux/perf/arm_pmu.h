@@ -111,6 +111,10 @@ struct arm_pmu {
 
 #define to_arm_pmu(p) (container_of(p, struct arm_pmu, pmu))
 
+extern const struct dev_pm_ops armpmu_dev_pm_ops;
+
+irqreturn_t armpmu_dispatch_irq(int irq, void *dev);
+
 int armpmu_register(struct arm_pmu *armpmu, int type);
 
 u64 armpmu_event_update(struct perf_event *event);

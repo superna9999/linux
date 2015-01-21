@@ -39,6 +39,7 @@
 #include <asm/tls.h>
 #include <asm/system_misc.h>
 #include <asm/opcodes.h>
+#include <asm/pmu.h>
 
 
 static const char *handler[]= {
@@ -466,6 +467,9 @@ die_sig:
 int arch_filter_nmi_handler(irq_handler_t handler)
 {
 	irq_handler_t whitelist[] = {
+#ifdef CONFIG_HW_PERF_EVENTS
+		armpmu_dispatch_irq,
+#endif
 	};
 	int i;
 

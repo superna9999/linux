@@ -322,7 +322,7 @@ validate_group(struct perf_event *event)
 	return 0;
 }
 
-static irqreturn_t armpmu_dispatch_irq(int irq, void *dev)
+irqreturn_t armpmu_dispatch_irq(int irq, void *dev)
 {
 	struct arm_pmu *armpmu;
 	struct platform_device *plat_device;
@@ -710,8 +710,12 @@ static int cpu_pmu_request_irq(struct arm_pmu *cpu_pmu, irq_handler_t handler)
 			}
 
 			err = request_irq(irq, handler,
-					  IRQF_NOBALANCING | IRQF_NO_THREAD, "arm-pmu",
+					  IRQF_NOBALANCING | IRQF_NMI, "arm-pmu",
 					  per_cpu_ptr(&hw_events->percpu_pmu, cpu));
+			if (err)
+				err = request_irq(irq, handler,
+						  IRQF_NOBALANCING | IRQF_NO_THREAD, "arm-pmu",
+						  per_cpu_ptr(&hw_events->percpu_pmu, cpu));
 			if (err) {
 				pr_err("unable to request IRQ%d for ARM PMU counters\n",
 					irq);
