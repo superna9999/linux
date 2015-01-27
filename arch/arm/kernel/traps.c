@@ -464,26 +464,6 @@ die_sig:
 	arm_notify_die("Oops - undefined instruction", regs, &info, 0, 6);
 }
 
-int arch_filter_nmi_handler(irq_handler_t handler)
-{
-	irq_handler_t whitelist[] = {
-#ifdef CONFIG_HW_PERF_EVENTS
-		armpmu_dispatch_irq,
-#endif
-	};
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(whitelist); i++)
-		if (handler == whitelist[i]) {
-			pr_debug("%pS accepted for use as NMI handler\n",
-				handler);
-			return 0;
-		}
-
-	pr_err("%pS cannot be used as an NMI handler\n", handler);
-	return -EPERM;
-}
-
 /*
  * Handle FIQ similarly to NMI on x86 systems.
  *
