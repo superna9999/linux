@@ -287,10 +287,18 @@ static int gic_irq_get_irqchip_state(struct irq_data *d,
 	return 0;
 }
 
+static bool nofiq;
+module_param(nofiq, bool, S_IRUSR | S_IWUSR);
+
 static int gic_set_nmi_routing(struct irq_data *d, unsigned int nmi)
 {
 	struct gic_chip_data *gic = irq_data_get_irq_chip_data(d);
 	int ret;
+
+	if (nofiq) {
+		(void) gic_set_group_irq(gic, gic_irq(d), 1);
+		return -EPERM;
+	}
 
 	ret = gic_set_group_irq(gic, gic_irq(d), !nmi);
 	if (ret >= 0)
