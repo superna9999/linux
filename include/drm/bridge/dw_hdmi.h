@@ -156,6 +156,9 @@ void dw_hdmi_set_sample_rate(struct dw_hdmi *hdmi, unsigned int rate);
 void dw_hdmi_audio_enable(struct dw_hdmi *hdmi);
 void dw_hdmi_audio_disable(struct dw_hdmi *hdmi);
 
+void dw_hdmi_cec_enable(struct dw_hdmi *hdmi);
+void dw_hdmi_cec_disable(struct dw_hdmi *hdmi);
+
 /* PHY configuration */
 void dw_hdmi_phy_i2c_write(struct dw_hdmi *hdmi, unsigned short data,
 			   unsigned char addr);

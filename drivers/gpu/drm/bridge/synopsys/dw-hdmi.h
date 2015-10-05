@@ -509,6 +509,7 @@ enum {
 	HDMI_PRODUCT_ID1_HDMI_TX = 0x01,
 
 /* CONFIG0_ID field values */
+	HDMI_CONFIG0_CEC = 0x2,
 	HDMI_CONFIG0_I2S = 0x10,
 
 /* CONFIG1_ID field values */
