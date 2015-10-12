@@ -63,6 +63,9 @@ reusable (optional) - empty property
       able to reclaim it back. Typically that means that the operating
       system can use that region to store volatile or cached data that
       can be otherwise regenerated or migrated elsewhere.
+no-exclusive (optional) - empty property
+    - Indicates the operating system can fall back to the default allocation
+      mechanism if no more enough memory is available from this pool.
 
 Linux implementation note:
 - If a "linux,cma-default" property is present, then Linux will use the
