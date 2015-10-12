@@ -276,13 +276,14 @@ EXPORT_SYMBOL(dma_mmap_from_coherent);
 #include <linux/of_fdt.h>
 #include <linux/of_reserved_mem.h>
 
-static int rmem_dma_device_init(struct reserved_mem *rmem, struct device *dev)
+static int rmem_dma_device_flags_init(struct reserved_mem *rmem,
+				      struct device *dev, int flags)
 {
 	struct dma_coherent_mem *mem = rmem->priv;
 
 	if (!mem &&
 	    dma_init_coherent_memory(rmem->base, rmem->base, rmem->size,
-				     DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE,
+				     DMA_MEMORY_MAP | flags,
 				     &mem) != DMA_MEMORY_MAP) {
 		pr_err("Reserved memory: failed to init DMA memory pool at %pa, size %ld MiB\n",
 			&rmem->base, (unsigned long)rmem->size / SZ_1M);
@@ -293,6 +294,17 @@ static int rmem_dma_device_init(struct reserved_mem *rmem, struct device *dev)
 	return 0;
 }
 
+static int rmem_dma_device_init(struct reserved_mem *rmem, struct device *dev)
+{
+	return rmem_dma_device_flags_init(rmem, dev, 0);
+}
+
+static int rmem_dma_device_exclusive_init(struct reserved_mem *rmem,
+					  struct device *dev)
+{
+	return rmem_dma_device_flags_init(rmem, dev, DMA_MEMORY_EXCLUSIVE);
+}
+
 static void rmem_dma_device_release(struct reserved_mem *rmem,
 				    struct device *dev)
 {
@@ -301,6 +313,11 @@ static void rmem_dma_device_release(struct reserved_mem *rmem,
 
 static const struct reserved_mem_ops rmem_dma_ops = {
 	.device_init	= rmem_dma_device_init,
+	.device_release	= rmem_dma_device_release,
+};
+
+static const struct reserved_mem_ops rmem_dma_exclusive_ops = {
+	.device_init	= rmem_dma_device_exclusive_init,
 	.device_release	= rmem_dma_device_release,
 };
 
@@ -318,7 +335,10 @@ static int __init rmem_dma_setup(struct reserved_mem *rmem)
 	}
 #endif
 
-	rmem->ops = &rmem_dma_ops;
+	if (of_get_flat_dt_prop(node, "no-exclusive", NULL))
+		rmem->ops = &rmem_dma_ops;
+	else
+		rmem->ops = &rmem_dma_exclusive_ops;
 	pr_info("Reserved memory: created DMA memory pool at %pa, size %ld MiB\n",
 		&rmem->base, (unsigned long)rmem->size / SZ_1M);
 	return 0;
