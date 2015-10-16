@@ -1,0 +1,55 @@
+Cadence USB2.0 Device Controller
+
+The Cadence USB2.0 Device Controller as verilog IP core library.
+
+Required properties:
+- compatible	: Should be "cdns,usbhs-udc"
+- reg		: Physical base address and size of the USB2
+			device registers map.
+- interrupts	: Should contain single irq line of USB2 device
+			controller
+- cdns,ep-in	: Should be an array of u32 containing 1 for each available
+			IN endpoint, endpoint 0 is mandatory,
+			0 means not available, 16 entries max
+- cdns,ep-out	: Should be an array of u32 containing 1 for each available
+			OUT endpoint, endpoint 0 is mandatory
+			0 means not available, 16 entries max
+- cdns,ep-in-size	: Should be an array of u32 containing the max buffer
+				size available for each IN endpoint,
+				i.e. 64 for EP0, 512 for BULK, 1024 for ISO
+- cdns,ep-in-buffers	: Should be an array of u32 containing the buffer
+				count available for each IN endpoint,
+				i.e. 1 for EP0 or BULK, 2 to 4 for ISO
+- cdns,ep-in-buffstart	: Should be an array of u32 containing the buffer
+				start offset for each IN endpoint
+- cdns,ep-out-size	: Should be an array of u32 containing the max buffer
+				size available for each OUT endpoint,
+				i.e. 64 for EP0, 512 for BULK, 1024 for ISO
+- cdns,ep-out-buffers	: Should be an array of u32 containing the buffer
+				count available for each OUT endpoint,
+				i.e. 1 for EP0 or BULK, 2 to 4 for ISO
+- cdns,ep-out-buffstart	: Should be an array of u32 containing the buffer
+				start offset for each OUT endpoint
+
+Optional Properties :
+- cdns,dma-enable	: Present of dma is present and must be enabled
+- cdns,dma-channels	: If cdns,dma-enable is present, should be an u32
+				containing the count of DMA channels
+- clocks		: Should contain a phandle to the bus clock to enable
+
+Example :
+	usbd@80402000 {
+		compatible = "cdns,usbhs-udc";
+		interrupts = <25>;
+		reg = <0x80402000 0x1000>;
+		cdns,ep-in = <1 1 1>;
+		cdns,ep-out = <1 1 1>;
+		cdns,ep-in-size = <64 512 512>;
+		cdns,ep-out-size = <64 512 512>;
+		cdns,ep-in-buffers = <1 1 1>;
+		cdns,ep-out-buffers = <1 1 1>;
+		cdns,ep-in-buffstart = <0 64 576>;
+		cdns,ep-out-buffstart = <0 64 576>;
+		cdns,dma-enable;
+		cdns,dma-channels = <4>;
+	};
