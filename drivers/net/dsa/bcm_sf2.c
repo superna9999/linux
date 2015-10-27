@@ -742,6 +742,25 @@ out_unmap:
 	return ret;
 }
 
+static void bcm_sf2_sw_remove(struct dsa_switch *ds)
+{
+	struct bcm_sf2_priv *priv = ds_to_priv(ds);
+	void __iomem **base;
+	unsigned int i;
+
+	/* Disable all interrupts and free them */
+	bcm_sf2_intr_disable(priv);
+
+	free_irq(priv->irq0, priv);
+	free_irq(priv->irq1, priv);
+
+	base = &priv->core;
+	for (i = 0; i < BCM_SF2_REGS_NUM; i++) {
+		iounmap(*base);
+		base++;
+	}
+}
+
 static int bcm_sf2_sw_set_addr(struct dsa_switch *ds, u8 *addr)
 {
 	return 0;
@@ -1055,6 +1074,7 @@ static struct dsa_switch_driver bcm_sf2_switch_driver = {
 	.tag_protocol		= DSA_TAG_PROTO_BRCM,
 	.priv_size		= sizeof(struct bcm_sf2_priv),
 	.probe			= bcm_sf2_sw_probe,
+	.remove			= bcm_sf2_sw_remove,
 	.setup			= bcm_sf2_sw_setup,
 	.set_addr		= bcm_sf2_sw_set_addr,
 	.get_phy_flags		= bcm_sf2_sw_get_phy_flags,
