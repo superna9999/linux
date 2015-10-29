@@ -122,6 +122,7 @@ struct dsa_switch_driver mv88e6123_61_65_switch_driver = {
 	.priv_size		= sizeof(struct mv88e6xxx_priv_state),
 	.probe			= mv88e6123_61_65_probe,
 	.setup			= mv88e6123_61_65_setup,
+	.remove			= mv88e6xxx_remove_common,
 	.set_addr		= mv88e6xxx_set_addr_indirect,
 	.phy_read		= mv88e6xxx_phy_read,
 	.phy_write		= mv88e6xxx_phy_write,
