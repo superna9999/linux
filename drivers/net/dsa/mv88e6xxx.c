@@ -2531,6 +2531,14 @@ int mv88e6xxx_setup_common(struct dsa_switch *ds)
 	return 0;
 }
 
+void mv88e6xxx_remove_common(struct dsa_switch *ds)
+{
+	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
+
+	cancel_work_sync(&ps->bridge_work);
+	flush_work(&ps->bridge_work);
+}
+
 int mv88e6xxx_setup_global(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
