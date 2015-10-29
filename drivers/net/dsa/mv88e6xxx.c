@@ -360,6 +360,16 @@ void mv88e6xxx_ppu_state_init(struct dsa_switch *ds)
 	ps->ppu_timer.function = mv88e6xxx_ppu_reenable_timer;
 }
 
+void mv88e6xxx_ppu_state_remove(struct dsa_switch *ds)
+{
+	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
+
+	del_timer_sync(&ps->ppu_timer);
+
+	cancel_work_sync(&ps->ppu_work);
+	flush_work(&ps->ppu_work);
+}
+
 int mv88e6xxx_phy_read_ppu(struct dsa_switch *ds, int addr, int regnum)
 {
 	int ret;

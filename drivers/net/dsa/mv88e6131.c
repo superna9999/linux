@@ -137,6 +137,13 @@ static int mv88e6131_setup(struct dsa_switch *ds)
 	return mv88e6xxx_setup_ports(ds);
 }
 
+static void mv88e6131_remove(struct dsa_switch *ds)
+{
+	mv88e6xxx_ppu_state_remove(ds);
+
+	mv88e6xxx_remove_common(ds);
+}
+
 static int mv88e6131_port_to_phy_addr(struct dsa_switch *ds, int port)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
@@ -175,7 +182,7 @@ struct dsa_switch_driver mv88e6131_switch_driver = {
 	.priv_size		= sizeof(struct mv88e6xxx_priv_state),
 	.probe			= mv88e6131_probe,
 	.setup			= mv88e6131_setup,
-	.remove			= mv88e6xxx_remove_common,
+	.remove			= mv88e6131_remove,
 	.set_addr		= mv88e6xxx_set_addr_direct,
 	.phy_read		= mv88e6131_phy_read,
 	.phy_write		= mv88e6131_phy_write,
