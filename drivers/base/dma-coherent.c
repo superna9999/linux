@@ -279,10 +279,14 @@ EXPORT_SYMBOL(dma_mmap_from_coherent);
 static int rmem_dma_device_init(struct reserved_mem *rmem, struct device *dev)
 {
 	struct dma_coherent_mem *mem = rmem->priv;
+	unsigned flags = 0;
+
+	if (!of_get_flat_dt_prop(rmem->fdt_node, "no-exclusive", NULL))
+		flags |= DMA_MEMORY_EXCLUSIVE;
 
 	if (!mem &&
 	    dma_init_coherent_memory(rmem->base, rmem->base, rmem->size,
-				     DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE,
+				     DMA_MEMORY_MAP | flags,
 				     &mem) != DMA_MEMORY_MAP) {
 		pr_err("Reserved memory: failed to init DMA memory pool at %pa, size %ld MiB\n",
 			&rmem->base, (unsigned long)rmem->size / SZ_1M);
