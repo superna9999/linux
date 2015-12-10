@@ -8,6 +8,7 @@ PROPERTIES
 	Definition: must be one of:
 		    "qcom,pm8058-pwrkey"
 		    "qcom,pm8921-pwrkey"
+		    "qcom,pm8018-pwrkey"
 
 - reg:
 	Usage: required
