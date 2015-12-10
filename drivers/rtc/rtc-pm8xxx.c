@@ -393,6 +393,16 @@ static int pm8xxx_rtc_enable(struct pm8xxx_rtc *rtc_dd)
 	return 0;
 }
 
+static const struct pm8xxx_rtc_regs pm8018_regs = {
+	.ctrl		= 0x11d,
+	.write		= 0x11f,
+	.read		= 0x123,
+	.alarm_rw	= 0x127,
+	.alarm_ctrl	= 0x11d,
+	.alarm_ctrl2	= 0x11e,
+	.alarm_en	= BIT(1),
+};
+
 static const struct pm8xxx_rtc_regs pm8921_regs = {
 	.ctrl		= 0x11d,
 	.write		= 0x11f,
@@ -428,6 +438,7 @@ static const struct pm8xxx_rtc_regs pm8941_regs = {
  */
 static const struct of_device_id pm8xxx_id_table[] = {
 	{ .compatible = "qcom,pm8921-rtc", .data = &pm8921_regs },
+	{ .compatible = "qcom,pm8018-rtc", .data = &pm8018_regs },
 	{ .compatible = "qcom,pm8058-rtc", .data = &pm8058_regs },
 	{ .compatible = "qcom,pm8941-rtc", .data = &pm8941_regs },
 	{ },
