@@ -1,0 +1,350 @@
+#include <dt-bindings/input/input.h>
+
+#include "swi-wp8548.dtsi"
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "MangOH Green with WP8548 Module";
+	compatible = "swi,mangoh-green-wp8548", "swi,wp8548", "qcom,mdm9615";
+
+	iot_switches {
+		compatible = "gpio-leds";
+
+		uart1_switch_en: uart1_switch_en {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext0 10 GPIO_ACTIVE_LOW>;
+			/* enable switch by default */
+			default-state = "on";
+		};
+
+		uart1_switch: uart1_switch {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext0 11 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
+		};
+
+		uart2_switch_en: uart2_switch_en {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext2 8 GPIO_ACTIVE_LOW>;
+			/* enable switch by default */
+			default-state = "on";
+		};
+
+		uart2_switch: uart2_switch {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext0 12 GPIO_ACTIVE_HIGH>;
+			/* select on-board UART by default */
+			default-state = "off";
+		};
+
+		spi_switch_en: spi_switch_en {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext0 14 GPIO_ACTIVE_LOW>;
+			/* enable switch by default */
+			default-state = "on";
+		};
+
+		spi_switch: spi_switch {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext0 15 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
+		};
+
+		pcm_switch_en: pcm_switch_en {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext2 9 GPIO_ACTIVE_LOW>;
+			/* enable switch by default */
+			default-state = "on";
+		};
+
+		pcm_switch: pcm_switch {
+			compatible = "ti,ts3a5018";
+			gpios = <&gpioext2 10 GPIO_ACTIVE_HIGH>;
+			default-state = "keep";
+		};
+
+		sdio_switch: sdio_switch {
+			compatible = "ti,txs02612";
+			gpios = <&gpioext0 13 GPIO_ACTIVE_HIGH>;
+			/* select on-board card by default */
+			default-state = "on";
+		};
+
+		led_on: led_on {
+			compatible = "ti,sn74lvc8t245";
+			gpios = <&gpioext0 3 GPIO_ACTIVE_LOW>;
+			/* enable leds by default */
+			default-state = "on";
+		};
+
+		rs232_enable: rs232_enable {
+			compatible = "generic,gpio-switch";
+			gpios = <&gpioext2 15 GPIO_ACTIVE_HIGH>;
+			/* enable rs232 port by default */
+			default-state = "on";
+		};
+	};
+};
+
+&msmgpio {
+	/* MangOH GPIO Mapping :
+	   - 2 : GPIOEXP_INT2
+	   - 7 : SIM_SELECT_MAIN
+	   - 8 : SIM_SELECT_SECONDARY
+	   - 13: CN602 pin 16
+	   - 21: GPIO_TEST1
+	   - 22: GPIO_TEST2
+	   - 23: VCC_1V8CTRL
+	   - 24: VCC_3V3CTRL
+	   - 25: VCC_5V0CTRL
+	   - 32: GPIO_TEST3
+	   - 33: SD CARD Det
+	   - 42: GPIO_TEST4
+	*/
+	pinctrl-0 = <&cf3_pins>;
+	pinctrl-names = "default";
+
+	gpioext1_pins: gpioext1_pins {
+		pins {
+			pins = "gpio2";
+			function = "gpio";
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	gpio_test_pins: gpio_test_pins {
+		pins {
+			pins = "gpio13", "gpio21", "gpio22", "gpio32", "gpio42";
+			function = "gpio";
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	vcc_ctrl_pins: vcc_ctrl_pins {
+		pins {
+			pins = "gpio23", "gpio24", "gpio25";
+			function = "gpio";
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	sim_select_pins: sim_select_pins {
+		pins {
+			pins = "gpio7", "gpio8";
+			function = "gpio";
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	cf3_pins: cf3_pins {
+		pins {
+			pins = "gpio66";
+			function = "gpio";
+			drive-strength = <2>;
+			bias-pull-up;
+			output-high;
+		};
+	};
+
+	sdc_cd_pins: sdc_cd_pins {
+		pins {
+			pins = "gpio33";
+			function = "gpio";
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+	};
+};
+
+&gsbi3_spi {
+	spi@0 {
+		compatible = "spidev";
+		spi-max-frequency = <24000000>;
+		reg = <0>;
+	};
+};
+
+&gsbi5_i2c {
+	mux@71 {
+		compatible = "nxp,pca9548";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x71>;
+
+		i2c_iot0: i2c@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0>;
+		};
+
+		i2c_iot1: i2c@1 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <1>;
+		};
+
+		i2c_iot2: i2c@2 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <2>;
+		};
+
+		i2c@3 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <3>;
+
+			usbhub: hub@8 {
+				compatible = "smsc,usb3503a";
+				reg = <0x8>;
+				connect-gpios = <&gpioext2 1 GPIO_ACTIVE_HIGH>;
+				intn-gpios = <&gpioext2 0 GPIO_ACTIVE_LOW>;
+				initial-mode = <1>;
+			};
+		};
+
+		i2c@4 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <4>;
+
+			gpioext0: gpio@3e {
+				/* GPIO Expander 0 Mapping :
+				   - 0: ARDUINO_RESET_Level shift
+				   - 1: BattChrgr_PG_N
+				   - 2: BattGauge_GPIO
+				   - 3: LED_ON (out active high)
+				   - 4: ATmega_reset_GPIO
+				   - 5: X
+				   - 6: PCM_ANALOG_SELECT (out active high)
+				   - 7: X
+				   - 8: Board_rev_res1 (in)
+				   - 9: Board_rev_res2 (in)
+				   - 10: UART_EXP1_ENn (out active low / pull-down)
+				   - 11: UART_EXP1_IN (out pull-down)
+				   - 12: UART_EXP2_IN (out pull-down)
+				   - 13: SDIO_SEL (out pull-down)
+				   - 14: SPI_EXP1_ENn (out active low / pull-down)
+				   - 15: SPI_EXP1_IN (out pull-down)
+				*/
+				#gpio-cells = <2>;
+				#interrupt-cells = <2>;
+				compatible = "semtech,sx1509q";
+				reg = <0x3e>;
+				interrupt-parent = <&gpioext1>;
+				interrupts = <0 IRQ_TYPE_EDGE_FALLING>;
+
+				probe-reset;
+
+				gpio-controller;
+				interrupt-controller;
+			};
+		};
+
+		i2c@5 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <5>;
+
+			gpioext1: gpio@3f {
+				/* GPIO Expander 1 Mapping :
+				   - 0: GPIOEXP_INT1
+				   - 1: Battery detect
+				   - 2: GPIO_SCF3_RESET
+				   - 3: LED_CARD_DETECT_IOT0 (in)
+				   - 4: LED_CARD_DETECT_IOT1 (in)
+				   - 5: LED_CARD_DETECT_IOT2 (in)
+				   - 6: UIM2_PWM_SELECT
+				   - 7: UIM2_M2_S_SELECT
+				   - 8: TP900
+				   - 9: SENSOR_INT1 (in)
+				   - 10: SENSOR_INT2 (in)
+				   - 11: CARD_DETECT_IOT0 (in pull-up)
+				   - 12: CARD_DETECT_IOT2 (in pull-up)
+				   - 13: CARD_DETECT_IOT1 (in pull-up)
+				   - 14: GPIOEXP_INT3 (in active low / pull-up)
+				   - 15: BattChrgr_INT_N
+				*/
+				pinctrl-0 = <&gpioext1_pins>;
+				pinctrl-names = "default";
+
+				#gpio-cells = <2>;
+				#interrupt-cells = <2>;
+				compatible = "semtech,sx1509q";
+				reg = <0x3f>;
+				interrupt-parent = <&pmicintc>;
+				interrupts = <0 IRQ_TYPE_EDGE_FALLING>;
+
+				probe-reset;
+
+				gpio-controller;
+				interrupt-controller;
+			};
+		};
+
+		i2c@6 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <6>;
+
+			gpioext2: gpio@70 {
+				/* GPIO Expander 1 Mapping :
+				   - 0: USB_HUB_INTn
+				   - 1: HUB_CONNECT
+				   - 2: GPIO_IOT2_RESET (out active low / pull-up)
+				   - 3: GPIO_IOT1_RESET (out active low / pull-up)
+				   - 4: GPIO_IOT0_RESET (out active low / pull-up)
+				   - 5: TP901
+				   - 6: TP902
+				   - 7: TP903
+				   - 8: UART_EXP2_ENn (out active low / pull-down)
+				   - 9: PCM_EXP1_ENn (out active low)
+				   - 10: PCM_EXP1_SEL (out)
+				   - 11: ARD_FTDI
+				   - 12: TP904
+				   - 13: TP905
+				   - 14: TP906
+				   - 15: RS232_Enable (out active high / pull-up)
+				*/
+				#gpio-cells = <2>;
+				#interrupt-cells = <2>;
+				compatible = "semtech,sx1509q";
+				reg = <0x70>;
+				interrupt-parent = <&gpioext1>;
+				interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
+
+				pull-down-ports = <9 10>;
+				probe-reset;
+
+				gpio-controller;
+				interrupt-controller;
+			};
+		};
+
+		i2c@7 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <7>;
+		};
+	};
+};
+
+&usb2_phy {
+	status = "ok";
+};
+
+&usb2 {
+	status = "ok";
+};
+
+&sdcc1 {
+	pinctrl-0 = <&sdc_cd_pins>;
+	pinctrl-names = "default";
+	disable-wp;
+	cd-gpios = <&msmgpio 33 GPIO_ACTIVE_LOW>; /* Active low CD */
+};
