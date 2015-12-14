@@ -22,6 +22,17 @@ Required properties:
 
 - interrupt-controller: Marks the device as a interrupt controller.
 
+Optional Properties:
+- oscio-is-gpo: Boolean, Indicated the oscio pin can be used as additional
+		output gpo port.
+
+- pull-up-ports: Array of port numbers which must have pull-up enabled.
+- pull-down-ports: Array of port numbers which must have pull-down enabled.
+- open-drain-ports: Array of port numbers which must be configured as open-drain,
+			Push-Pull mode is default.
+- polarity-invert-ports: Array of port numbers whih port polarity must be inverted.
+- probe-reset: Boolean, Indicates the expander must be resetted.
+
 The GPIO expander can optionally be used as an interrupt controller, in
 which case it uses the default two cell specifier as described in
 Documentation/devicetree/bindings/interrupt-controller/interrupts.txt.
@@ -38,4 +49,10 @@ Example:
 
 		gpio-controller;
 		interrupt-controller;
+
+		pull-up-ports = <0 12>;
+		pull-down-ports = <1 8>;
+		open-drain-ports = <6 7 11>;
+		polarity-invert-ports = <3>;
+		probe-reset;
 	};
