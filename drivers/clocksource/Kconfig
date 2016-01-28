@@ -222,6 +222,12 @@ config VF_PIT_TIMER
 	help
 	  Support for Period Interrupt Timer on Freescale Vybrid Family SoCs.
 
+config CLKSRC_RPS_TIMER
+	bool
+	select CLKSRC_MMIO
+	help
+	  This option enables support for the oxnas rps timers.
+
 config SYS_SUPPORTS_SH_CMT
         bool
 
