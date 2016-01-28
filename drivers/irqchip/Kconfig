@@ -119,6 +119,7 @@ config ORION_IRQCHIP
 
 config PLXTECH_RPS
 	bool
+	select GENERIC_IRQ_CHIP
 	select IRQ_DOMAIN
 
 config RENESAS_INTC_IRQPIN
