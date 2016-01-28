@@ -1,0 +1,21 @@
+menuconfig ARCH_OXNAS
+	bool "PLXTech OxNas Family SoCs"
+	select ARCH_REQUIRE_GPIOLIB
+	select PCI
+	select PINCTRL
+	depends on ARCH_MULTI_V5 || ARCH_MULTI_V6
+	help
+	  Support for OxNas SoC family developed by PLX Tech.
+	  (Formely Oxford Semiconductor)
+
+if ARCH_OXNAS
+
+config MACH_OX810SE
+	bool "Support OX810SE Based Products"
+	select CPU_ARM926T
+	select PLXTECH_RPS
+	select CLKSRC_RPS_TIMER
+	help
+	  Include Support for the PLX Tech OX810SE SoC Based Products.
+
+endif
