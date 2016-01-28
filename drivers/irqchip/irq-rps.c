@@ -21,15 +21,15 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
-#include <linux/irqchip/chained_irq.h>
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/version.h>
 #include <linux/irqchip.h>
 
+#include <asm/exception.h>
+
 struct rps_chip_data {
 	void __iomem *base;
-	struct irq_chip chip;
 	struct irq_domain *domain;
 } rps_data;
 
@@ -49,115 +49,72 @@ enum {
  */
 static void rps_mask_irq(struct irq_data *d)
 {
-	struct rps_chip_data *chip_data = irq_data_get_irq_chip_data(d);
 	u32 mask = BIT(d->hwirq);
 
-	iowrite32(mask, chip_data->base + RPS_MASK);
+	iowrite32(mask, rps_data.base + RPS_MASK);
 }
 
 static void rps_unmask_irq(struct irq_data *d)
 {
-	struct rps_chip_data *chip_data = irq_data_get_irq_chip_data(d);
 	u32 mask = BIT(d->hwirq);
 
-	iowrite32(mask, chip_data->base + RPS_UNMASK);
+	iowrite32(mask, rps_data.base + RPS_UNMASK);
 }
 
-static struct irq_chip rps_chip = {
-	.name			= "RPS",
-	.irq_mask		= rps_mask_irq,
-	.irq_unmask		= rps_unmask_irq,
-};
-
-static int rps_irq_domain_xlate(struct irq_domain *d,
-				struct device_node *controller,
-				const u32 *intspec, unsigned int intsize,
-				unsigned long *out_hwirq,
-				unsigned int *out_type)
+static void rps_ack_irq(struct irq_data *d)
 {
-	if (irq_domain_get_of_node(d) != controller)
-		return -EINVAL;
-
-	if (intsize < 1)
-		return -EINVAL;
-
-	*out_hwirq = intspec[0];
-	/* Honestly I do not know the type */
-	*out_type = IRQ_TYPE_LEVEL_HIGH;
-
-	return 0;
+	/* NOP */
 }
 
-static int rps_irq_domain_map(struct irq_domain *d, unsigned int irq,
-				irq_hw_number_t hw)
+static void __exception_irq_entry handle_irq(struct pt_regs *regs)
 {
-	irq_set_chip_and_handler(irq, &rps_chip, handle_level_irq);
-	irq_set_probe(irq);
-	irq_set_chip_data(irq, d->host_data);
-	return 0;
-}
+	u32 irqstat;
+	int hwirq;
 
-const struct irq_domain_ops rps_irq_domain_ops = {
-	.map = rps_irq_domain_map,
-	.xlate = rps_irq_domain_xlate,
-};
+	irqstat = ioread32(rps_data.base + RPS_STATUS);
+	hwirq = __ffs(irqstat);
 
-static void rps_handle_cascade_irq(struct irq_desc *desc)
-{
-	struct rps_chip_data *chip_data = irq_desc_get_handler_data(desc);
-	struct irq_chip *chip = irq_desc_get_chip(desc);
-	unsigned int cascade_irq, rps_irq;
-	u32 status;
-
-	chained_irq_enter(chip, desc);
-
-	status = ioread32(chip_data->base + RPS_STATUS);
-	rps_irq = __ffs(status);
-	cascade_irq = irq_find_mapping(chip_data->domain, rps_irq);
-
-	if (unlikely(rps_irq >= RPS_IRQ_COUNT))
-		handle_bad_irq(desc);
-	else
-		generic_handle_irq(cascade_irq);
-
-	chained_irq_exit(chip, desc);
+	generic_handle_irq(irq_find_mapping(rps_data.domain, hwirq));
 }
 
 int __init rps_of_init(struct device_node *node, struct device_node *parent)
 {
-	void __iomem *rps_base;
-	int irq_start = RPS_IRQ_BASE;
-	int irq_base;
-	int irq;
+	int ret;
+	struct irq_chip_generic *gc;
 
 	if (WARN_ON(!node))
 		return -ENODEV;
 
-	rps_base = of_iomap(node, 0);
-	WARN(!rps_base, "unable to map rps registers\n");
-	rps_data.base = rps_base;
+	rps_data.base = of_iomap(node, 0);
+	WARN(!rps_data.base, "unable to map rps registers\n");
 
-	irq_base = irq_alloc_descs(irq_start, 0, RPS_IRQ_COUNT, numa_node_id());
-	if (IS_ERR_VALUE(irq_base)) {
-		WARN(1, "Cannot allocate irq_descs @ IRQ%d, assuming pre-allocated\n",
-		     irq_start);
-		irq_base = irq_start;
-	}
-
-	rps_data.domain = irq_domain_add_legacy(node, RPS_IRQ_COUNT, irq_base,
-			PRS_HWIRQ_BASE, &rps_irq_domain_ops, &rps_data);
-
-	if (WARN_ON(!rps_data.domain))
+	rps_data.domain = irq_domain_add_linear(node, RPS_IRQ_COUNT,
+						&irq_generic_chip_ops,
+						NULL);
+	if (!rps_data.domain) {
+		pr_err("%s: could add irq domain\n",
+		       node->full_name);
 		return -ENOMEM;
-
-	if (parent) {
-		irq = irq_of_parse_and_map(node, 0);
-		if (irq_set_handler_data(irq, &rps_data) != 0)
-			BUG();
-		irq_set_chained_handler(irq, rps_handle_cascade_irq);
 	}
-	return 0;
 
+	ret = irq_alloc_domain_generic_chips(rps_data.domain, 32, 1,
+					     "RPS", handle_level_irq,
+					     0, 0, IRQ_GC_INIT_NESTED_LOCK);
+	if (ret) {
+		pr_err("%s: could not allocate generic chip\n",
+		       node->full_name);
+		irq_domain_remove(rps_data.domain);
+		return -EINVAL;
+	}
+
+	gc = irq_get_domain_generic_chip(rps_data.domain, 0);
+	gc->chip_types[0].chip.irq_ack = rps_ack_irq;
+	gc->chip_types[0].chip.irq_mask = rps_mask_irq;
+	gc->chip_types[0].chip.irq_unmask = rps_unmask_irq;
+
+	set_handle_irq(handle_irq);
+
+	return 0;
 }
 
 IRQCHIP_DECLARE(nas782x, "plxtech,nas782x-rps", rps_of_init);
