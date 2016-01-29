@@ -68,20 +68,15 @@ static irqreturn_t rps_timer_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int rps_timer_shutdown(struct clock_event_device *evt)
+static void rps_timer_config(unsigned long period, unsigned periodic)
 {
-	if (!clockevent_state_periodic(evt))
-		return 0;
+	uint32_t cfg = 0;
 
-	iowrite32(0, timer_base + TIMER_CTRL);
-	iowrite32(0, timer_base + TIMER_LOAD);
+	if (period)
+		cfg |= TIMER_ENABLE;
 
-	return 0;
-}
-
-static void rps_timer_config(unsigned long period)
-{
-	uint32_t cfg = TIMER_PERIODIC | TIMER_ENABLE;
+	if (periodic)
+		cfg |= TIMER_PERIODIC;
 
 	switch (timer_prescaler) {
 	case 1:
@@ -99,9 +94,26 @@ static void rps_timer_config(unsigned long period)
 	iowrite32(cfg, timer_base + TIMER_CTRL);
 }
 
+static int rps_timer_shutdown(struct clock_event_device *evt)
+{
+	if (!clockevent_state_periodic(evt))
+		return 0;
+
+	rps_timer_config(0, 0);
+
+	return 0;
+}
+
 static int rps_timer_set_periodic(struct clock_event_device *evt)
 {
-	rps_timer_config(timer_period);
+	rps_timer_config(timer_period, 1);
+
+	return 0;
+}
+
+static int rps_timer_set_oneshot(struct clock_event_device *evt)
+{
+	rps_timer_config(timer_period, 0);
 
 	return 0;
 }
@@ -109,21 +121,25 @@ static int rps_timer_set_periodic(struct clock_event_device *evt)
 static int rps_timer_next_event(unsigned long delta,
 				struct clock_event_device *evt)
 {
-	rps_timer_config(delta);
+	rps_timer_config(delta, 0);
 
 	return 0;
 }
 
 static struct clock_event_device rps_clockevent = {
 	.name = "rps",
-	.features = CLOCK_EVT_FEAT_PERIODIC,
+	.features = CLOCK_EVT_FEAT_PERIODIC |
+		    CLOCK_EVT_FEAT_ONESHOT,
+	.tick_resume = rps_timer_shutdown,
 	.set_state_shutdown = rps_timer_shutdown,
 	.set_state_periodic = rps_timer_set_periodic,
+	.set_state_oneshot = rps_timer_set_oneshot,
 	.set_next_event = rps_timer_next_event,
 	.rating = 200,
 };
 
-static void __init rps_clockevent_init(void __iomem *base, ulong ref_rate)
+static void __init rps_clockevent_init(void __iomem *base, ulong ref_rate,
+				       int irq)
 {
 	timer_base = base;
 
@@ -140,12 +156,17 @@ static void __init rps_clockevent_init(void __iomem *base, ulong ref_rate)
 		timer_period = DIV_ROUND_UP(ref_rate / timer_prescaler, HZ);
 	}
 
-	rps_clockevent.cpumask = cpumask_of(smp_processor_id());
-
+	rps_clockevent.cpumask = cpu_possible_mask;
+	rps_clockevent.irq = irq;
 	clockevents_config_and_register(&rps_clockevent,
 					ref_rate / timer_prescaler,
 					1,
 					TIMER_MAX_VAL);
+
+	pr_info("rps: Registered clock event rate %luHz prescaler %d period %lu\n",
+			ref_rate,
+			timer_prescaler,
+			timer_period);
 }
 
 /* Clocksource */
@@ -168,15 +189,23 @@ static void __init rps_clocksource_init(void __iomem *base, ulong ref_rate)
 	iowrite32(TIMER_PERIODIC | TIMER_ENABLE | TIMER_DIV16,
 			base + TIMER_CTRL);
 
+	timer_curr = base + TIMER_CURR;
+	sched_clock_register(rps_read_sched_clock, TIMER_BITS, clock_rate);
 	ret = clocksource_mmio_init(base + TIMER_CURR, "rps_clocksource_timer",
 					clock_rate, 250, TIMER_BITS,
 					clocksource_mmio_readl_down);
 	if (ret)
 		panic("can't register clocksource\n");
 
-	timer_curr = base + TIMER_CURR;
-	sched_clock_register(rps_read_sched_clock, TIMER_BITS, clock_rate);
+	pr_info("rps: Registered clocksource rate %luHz\n", clock_rate);
 }
+
+static struct irqaction rps_timer_irqaction = {
+	.name		= "rps_timer",
+	.flags		= IRQF_TIMER | IRQF_IRQPOLL,
+	.handler	= rps_timer_irq,
+	.dev_id		= &rps_clockevent,
+};
 
 static void __init rps_timer_init(struct device_node *np)
 {
@@ -196,13 +225,22 @@ static void __init rps_timer_init(struct device_node *np)
 		panic("rps_timer_init: failed to map io\n");
 
 	irq = irq_of_parse_and_map(np, 0);
+	if (irq < 0)
+		panic("rps_timer_init: failed to parse IRQ\n");
 
-	rps_clockevent_init(base + TIMER1_OFFSET, ref_rate);
+	/* Disable timers */
+	iowrite32(0, base + TIMER1_OFFSET + TIMER_CTRL);
+	iowrite32(0, base + TIMER2_OFFSET + TIMER_CTRL);
+	iowrite32(0, base + TIMER1_OFFSET + TIMER_LOAD);
+	iowrite32(0, base + TIMER2_OFFSET + TIMER_LOAD);
+	iowrite32(0, base + TIMER1_OFFSET + TIMER_CLRINT);
+	iowrite32(0, base + TIMER2_OFFSET + TIMER_CLRINT);
+
 	rps_clocksource_init(base + TIMER2_OFFSET, ref_rate);
+	rps_clockevent_init(base + TIMER1_OFFSET, ref_rate, irq);
 
-	ret = request_irq(irq, rps_timer_irq, IRQF_TIMER,
-			"rps", &rps_clockevent);
-	if (!ret)
+	ret = setup_irq(irq, &rps_timer_irqaction);
+	if (ret)
 		panic("rps_timer_init: failed to request irq\n");
 }
 
