@@ -13,12 +13,22 @@
  */
 
 #include <asm/mach/arch.h>
+#include <linux/of.h>
+#include <linux/of_platform.h>
 
 static const char * const oxnas_dt_compat[] __initconst = {
 	"plxtech,ox810se",
 	NULL,
 };
 
+static void __init oxnas_init(void)
+{
+	pr_info("OXNAS Device Tree boot\n");
+
+	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+}
+
 DT_MACHINE_START(OXNAS, "PLX OxNas Family")
 	.dt_compat	= oxnas_dt_compat,
+	.init_machine 	= oxnas_init,
 MACHINE_END
