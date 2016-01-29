@@ -1,5 +1,5 @@
 /*
- * 810se.dtsi - Device tree file for PLXTech OX810SE SoC
+ * ox810se.dtsi - Device tree file for PLXTech OX810SE SoC
  *
  * Copyright (C) 2016 Neil Armstrong <narmstrong@baylibre.com>
  *
@@ -35,26 +35,16 @@
 	};
 
 	clocks {
-		osc: oscillator {
+		rpsclk: rspclk {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency  = <25000000>;
 		};
 
-		rpsclk: rpsclk {
-			compatible = "fixed-factor-clock";
-			#clock-cells = <0>;
-			clock-div = <4>;
-			clock-mult = <1>;
-			clocks = <&osc>;
-		};
-
 		pll400: pll400 {
-			compatible = "fixed-factor-clock";
+			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-div = <1>;
-			clock-mult = <8>;
-			clocks = <&osc>;
+			clock-frequency  = <733333333>;
 		};
 
 		sysclk: sysclk {
@@ -98,7 +88,7 @@
 		uart0: uart@44200000 {
 		       compatible = "ns16550a";
 		       reg = <0x44200000 0x100>;
-		       clock-frequency = <6250000>;
+		       clocks = <&sysclk>;
 		       interrupts = <23>;
 		       reg-shift = <0>;
 		       fifo-size = <16>;
@@ -111,7 +101,7 @@
 		uart1: uart@44300000 {
 		       compatible = "ns16550a";
 		       reg = <0x44300000 0x100>;
-		       clock-frequency = <6250000>;
+		       clocks = <&sysclk>;
 		       interrupts = <24>;
 		       reg-shift = <0>;
 		       fifo-size = <16>;
@@ -124,7 +114,7 @@
 		uart2: uart@44900000 {
 		       compatible = "ns16550a";
 		       reg = <0x44900000 0x100>;
-		       clock-frequency = <6250000>;
+		       clocks = <&sysclk>;
 		       interrupts = <29>;
 		       reg-shift = <0>;
 		       fifo-size = <16>;
@@ -137,7 +127,7 @@
 		uart3: uart@44a00000 {
 		       compatible = "ns16550a";
 		       reg = <0x44a00000 0x100>;
-		       clock-frequency = <6250000>;
+		       clocks = <&sysclk>;
 		       interrupts = <30>;
 		       reg-shift = <0>;
 		       fifo-size = <16>;

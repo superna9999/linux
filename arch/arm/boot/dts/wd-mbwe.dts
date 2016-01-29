@@ -15,14 +15,15 @@
 	compatible = "wd,mbwe", "plxtech,ox810se";
 
 	chosen {
-		bootargs = "console=ttyS0,115200n8 earlyprintk=serial";
+		bootargs = "console=ttyS1,115200n8 earlyprintk=serial";
 	};
 
 	memory {
-		reg = <0x48000000 0x2000000>;
+		/* 128Mbytes DDR */
+		reg = <0x48000000 0x8000000>;
 	};
 };
 
-&uart0 {
+&uart1 {
 	status = "okay";
 };
