@@ -34,9 +34,7 @@ struct rps_chip_data {
 } rps_data;
 
 enum {
-	RPS_IRQ_BASE = 64,
 	RPS_IRQ_COUNT = 32,
-	PRS_HWIRQ_BASE = 0,
 
 	RPS_STATUS = 0,
 	RPS_RAW_STATUS = 4,
@@ -74,7 +72,12 @@ static void __exception_irq_entry handle_irq(struct pt_regs *regs)
 	irqstat = ioread32(rps_data.base + RPS_STATUS);
 	hwirq = __ffs(irqstat);
 
-	generic_handle_irq(irq_find_mapping(rps_data.domain, hwirq));
+	do {
+		handle_IRQ(irq_find_mapping(rps_data.domain, hwirq), regs);
+
+		irqstat = ioread32(rps_data.base + RPS_STATUS);
+		hwirq = __ffs(irqstat);
+	} while (irqstat);
 }
 
 int __init rps_of_init(struct device_node *node, struct device_node *parent)
@@ -97,7 +100,7 @@ int __init rps_of_init(struct device_node *node, struct device_node *parent)
 		return -ENOMEM;
 	}
 
-	ret = irq_alloc_domain_generic_chips(rps_data.domain, 32, 1,
+	ret = irq_alloc_domain_generic_chips(rps_data.domain, RPS_IRQ_COUNT, 1,
 					     "RPS", handle_level_irq,
 					     0, 0, IRQ_GC_INIT_NESTED_LOCK);
 	if (ret) {
@@ -112,7 +115,12 @@ int __init rps_of_init(struct device_node *node, struct device_node *parent)
 	gc->chip_types[0].chip.irq_mask = rps_mask_irq;
 	gc->chip_types[0].chip.irq_unmask = rps_unmask_irq;
 
+	/* Disable all IRQs */
+	iowrite32(~0, rps_data.base + RPS_MASK);
+
 	set_handle_irq(handle_irq);
+
+	pr_info("Registered %d rps interrupts\n", RPS_IRQ_COUNT);
 
 	return 0;
 }
