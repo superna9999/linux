@@ -44,9 +44,8 @@ static int oxnas_reset_reset(struct reset_controller_dev *rcdev,
 	struct oxnas_reset *data =
 		container_of(rcdev, struct oxnas_reset, rcdev);
 
-	/*regmap_write(data->regmap, RST_SET_REGOFFSET, BIT(id));
-	regmap_write(data->regmap, RST_CLR_REGOFFSET, BIT(id));*/
-	pr_info("do reset %d\n", id);
+	regmap_write(data->regmap, RST_SET_REGOFFSET, BIT(id));
+	regmap_write(data->regmap, RST_CLR_REGOFFSET, BIT(id));
 
 	return 0;
 }
@@ -57,8 +56,7 @@ static int oxnas_reset_assert(struct reset_controller_dev *rcdev,
 	struct oxnas_reset *data =
 		container_of(rcdev, struct oxnas_reset, rcdev);
 
-	pr_info("do assert reset %d\n", id);
-	//regmap_write(data->regmap, RST_SET_REGOFFSET, BIT(id));
+	regmap_write(data->regmap, RST_SET_REGOFFSET, BIT(id));
 
 	return 0;
 }
@@ -69,8 +67,7 @@ static int oxnas_reset_deassert(struct reset_controller_dev *rcdev,
 	struct oxnas_reset *data =
 		container_of(rcdev, struct oxnas_reset, rcdev);
 
-	pr_info("do deassert reset %d\n", id);
-	//regmap_write(data->regmap, RST_CLR_REGOFFSET, BIT(id));
+	regmap_write(data->regmap, RST_CLR_REGOFFSET, BIT(id));
 
 	return 0;
 }
