@@ -18,6 +18,7 @@ config MACH_OX810SE
 	select CLKSRC_RPS_TIMER
 	select RESET_OXNAS
 	select COMMON_CLK_OXNAS
+	select PINCTRL_OXNAS
 	help
 	  Include Support for the PLX Tech OX810SE SoC Based Products.
 
