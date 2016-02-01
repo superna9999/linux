@@ -35,10 +35,24 @@
 	};
 
 	clocks {
-		rpsclk: rspclk {
+		osc: oscillator {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency  = <25000000>;
+		};
+
+		gmacclk: gmacclk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency  = <125000000>;
+		};
+
+		rpsclk: rspclk {
+			compatible = "fixed-factor-clock";
+			#clock-cells = <0>;
+			clock-div = <1>;
+			clock-mult = <1>;
+			clocks = <&osc>;
 		};
 
 		pll400: pll400 {
@@ -71,71 +85,268 @@
 		ranges;
 		interrupt-parent = <&intc>;
 
-		intc: interrupt-controller@45300000 {
-			compatible = "plxtech,nas782x-rps";
-			interrupt-controller;
-			reg = <0x45300000 0x200>;
-			#interrupt-cells = <1>;
+		usb@40200000 {
+			compatible = "plxtech,nas782x-usb";
+			reg = <0x40200000 0x200000>;
+			interrupts = <7>;
+			status = "disabled";
 		};
 
-		timer@45300200 {
-			compatible = "plxtech,nas782x-rps-timer";
-			reg = <0x45300200 0x40>;
-			clocks = <&rpsclk>;
-		       	interrupts = <4>;
+		mac@40400000 {
+			compatible = "plxtech,nas782x-mac";
+			reg = <0x40200000 0x200000>;
+			interrupts = <8>;
+			status = "disabled";
 		};
 
-		uart0: uart@44200000 {
-		       compatible = "ns16550a";
-		       reg = <0x44200000 0x100>;
-		       clocks = <&sysclk>;
-		       interrupts = <23>;
-		       reg-shift = <0>;
-		       fifo-size = <16>;
-		       reg-io-width = <1>;
-		       current-speed = <115200>;
-		       no-loopback-test;
-		       status = "disabled";
-	       	};
+		pci-csrs@40600000 {
+			compatible = "plxtech,nas782x-pci-csrs";
+			reg = <0x40600000 0x200000>;
+			status = "disabled";
+		};
 
-		uart1: uart@44300000 {
-		       compatible = "ns16550a";
-		       reg = <0x44300000 0x100>;
-		       clocks = <&sysclk>;
-		       interrupts = <24>;
-		       reg-shift = <0>;
-		       fifo-size = <16>;
-		       reg-io-width = <1>;
-		       current-speed = <115200>;
-		       no-loopback-test;
-		       status = "disabled";
-	       	};
+		pci@40800000 {
+			compatible = "plxtech,nas782x-pci";
+			reg = <0x40800000 0x200000>;
+			status = "disabled";
+		};
 
-		uart2: uart@44900000 {
-		       compatible = "ns16550a";
-		       reg = <0x44900000 0x100>;
-		       clocks = <&sysclk>;
-		       interrupts = <29>;
-		       reg-shift = <0>;
-		       fifo-size = <16>;
-		       reg-io-width = <1>;
-		       current-speed = <115200>;
-		       no-loopback-test;
-		       status = "disabled";
-	       	};
+		nand@41000000 {
+			compatible = "plxtech,nas782x-nand";
+			reg = <0x41000000 0x1000000>;
+			status = "disabled";
+		};
 
-		uart3: uart@44a00000 {
-		       compatible = "ns16550a";
-		       reg = <0x44a00000 0x100>;
-		       clocks = <&sysclk>;
-		       interrupts = <30>;
-		       reg-shift = <0>;
-		       fifo-size = <16>;
-		       reg-io-width = <1>;
-		       current-speed = <115200>;
-		       no-loopback-test;
-		       status = "disabled";
-	       	};
+		sata@42000000 {
+			compatible = "plxtech,nas782x-sata-data";
+			reg = <0x42000000 0x1000000>;
+			status = "disabled";
+		};
+
+		dpe@43000000 {
+			compatible = "plxtech,nas782x-nand";
+			reg = <0x43000000 0x1000000>;
+			status = "disabled";
+		};
+
+		apb-bridge@44000000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "simple-bus";
+			ranges = <0 0x44000000 0x1000000>;
+
+			gpio0: gpio@000000 {
+			       compatible = "plxtech,nas782x-gpio";
+			       reg = <0x000000 0x100000>;
+			       interrupts = <21>;
+			       status = "disabled";
+			};
+
+			gpio1: gpio@100000 {
+			       compatible = "plxtech,nas782x-gpio";
+			       reg = <0x100000 0x100000>;
+			       interrupts = <22>;
+			       status = "disabled";
+			};
+
+			uart0: uart@200000 {
+			       compatible = "ns16550a";
+			       reg = <0x200000 0x100000>;
+			       clocks = <&sysclk>;
+			       interrupts = <23>;
+			       reg-shift = <0>;
+			       fifo-size = <16>;
+			       reg-io-width = <1>;
+			       current-speed = <115200>;
+			       no-loopback-test;
+			       status = "disabled";
+			       resets = <&reset 17>;
+			};
+
+			uart1: uart@300000 {
+			       compatible = "ns16550a";
+			       reg = <0x300000 0x100000>;
+			       clocks = <&sysclk>;
+			       interrupts = <24>;
+			       reg-shift = <0>;
+			       fifo-size = <16>;
+			       reg-io-width = <1>;
+			       current-speed = <115200>;
+			       no-loopback-test;
+			       status = "disabled";
+			       resets = <&reset 18>;
+			};
+
+			i2c0: i2c@400000 {
+			       compatible = "plxtech,nas782x-i2c";
+			       reg = <0x400000 0x100000>;
+			       interrupts = <28>;
+			       status = "disabled";
+			};
+
+			i2s@500000 {
+			       compatible = "plxtech,nas782x-i2s";
+			       reg = <0x500000 0x100000>;
+			       interrupts = <25>;
+			       status = "disabled";
+			       resets = <&reset 20>;
+			};
+
+			fan-monitor@600000 {
+			       compatible = "plxtech,nas782x-fan-mon";
+			       reg = <0x600000 0x100000>;
+			       status = "disabled";
+			};
+
+			pwm: pwm@500000 {
+			       compatible = "plxtech,nas782x-pwm";
+			       reg = <0x700000 0x100000>;
+			       status = "disabled";
+			};
+
+			ir: irrx@800000 {
+			       compatible = "plxtech,nas782x-irrx";
+			       reg = <0x800000 0x100000>;
+			       status = "disabled";
+			};
+
+			uart2: uart@900000 {
+			       compatible = "ns16550a";
+			       reg = <0x900000 0x100000>;
+			       clocks = <&sysclk>;
+			       interrupts = <29>;
+			       reg-shift = <0>;
+			       fifo-size = <16>;
+			       reg-io-width = <1>;
+			       current-speed = <115200>;
+			       no-loopback-test;
+			       status = "disabled";
+			       resets = <&reset 22>;
+			};
+
+			uart3: uart@a00000 {
+			       compatible = "ns16550a";
+			       reg = <0xa00000 0x100000>;
+			       clocks = <&sysclk>;
+			       interrupts = <30>;
+			       reg-shift = <0>;
+			       fifo-size = <16>;
+			       reg-io-width = <1>;
+			       current-speed = <115200>;
+			       no-loopback-test;
+			       status = "disabled";
+			       resets = <&reset 23>;
+			};
+		};
+
+		apb-bridge@45000000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "simple-bus";
+			ranges = <0 0x45000000 0x1000000>;
+
+			sys: sys-ctrl@000000 {
+				compatible = "plxtech,ox810se-sys-ctrl", "syscon", "simple-mfd";
+			      	reg = <0x000000 0x100000>;
+
+				reset: reset-controller {
+					compatible = "plxtech,nas782x-reset";	
+			       	};
+
+				stdclks {
+					compatible = "plxtech,nas782x-stdclk";
+				};
+			};
+
+			clk: clk-ctrl@100000 {
+			       	compatible = "plxtech,ox810se-clk-ctrl", "syscon", "simple-mfd";
+			       	reg = <0x000000 0x100000>;
+			};
+
+			rtc@100000 {
+			       	compatible = "plxtech,plxtech,nas782x-rtc";
+			       	reg = <0x000000 0x100000>;
+			};
+
+			rps@300000 {
+				#address-cells = <1>;
+				#size-cells = <1>;
+				compatible = "simple-bus";
+				ranges = <0 0x300000 0x100000>;
+
+				intc: interrupt-controller@0 {
+					compatible = "plxtech,nas782x-rps";
+					interrupt-controller;
+					reg = <0 0x200>;
+					#interrupt-cells = <1>;
+				};
+
+				timer@200 {
+					compatible = "plxtech,nas782x-rps-timer";
+					reg = <0x200 0x40>;
+					clocks = <&rpsclk>;
+					interrupts = <4 5>;
+				};
+			};
+
+			rps@400000 {
+				#address-cells = <1>;
+				#size-cells = <1>;
+				compatible = "simple-bus";
+				ranges = <0 0x400000 0x100000>;
+
+				copro-gpio {
+					compatible = "plxtech,nas782x--copro-gpio";
+					reg = <0x3c0 0x10>;
+					interrupts = <4>;
+					status = "disabled";
+				};
+			};
+
+			dma@600000 {
+				compatible = "plxtech,nas782x-dma";
+				reg = <0x600000 0x100000>;
+				interrupts = <13 14 15 16 20>;
+			};
+
+			dpe@700000 {
+				compatible = "plxtech,nas782x-dpe";
+				reg = <0x700000 0x80000>;
+				interrupts = <17>;
+			};
+
+			ibw@780000 {
+				compatible = "plxtech,nas782x-ibw";
+				reg = <0x780000 0x80000>;
+			};
+
+			ddr@800000 {
+			       	compatible = "plxtech,nas782x-ddr";
+			       	reg = <0x800000 0x100000>;
+			};
+
+			sata@900000 {
+			       	compatible = "plxtech,nas782x-sata";
+			       	reg = <0x900000 0x100000>;
+				interrupts = <18 19 26 27>;
+				interrupts-names = "sata1", "sata2", "error1", "error2";
+			};
+
+			dma-chksum@a00000 {
+			       compatible = "plxtech,nas782x-dma-checksum";
+			       reg = <0xa00000 0x100000>;
+			};
+
+			copro@b00000 {
+			       compatible = "plxtech,nas782x-copro";
+			       reg = <0xb00000 0x100000>;
+			};
+
+			dma@c00000 {
+			       compatible = "plxtech,nas782x-dma-sg";
+			       reg = <0xc00000 0x100000>;
+			};
+		};
 	};
 };
 
