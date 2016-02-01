@@ -86,7 +86,7 @@ static void rps_timer_config(unsigned long period, unsigned periodic)
 		cfg |= TIMER_DIV16;
 		break;
 	case 256:
-		cfg |= TIMER_DIV16;
+		cfg |= TIMER_DIV256;
 		break;
 	}
 
