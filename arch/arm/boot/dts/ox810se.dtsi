@@ -32,6 +32,8 @@
 		serial1 = &uart1;
 		serial2 = &uart2;
 		serial3 = &uart3;
+		gpio0 = &gpio0;
+		gpio1 = &gpio1;
 	};
 
 	clocks {
@@ -135,18 +137,69 @@
 			compatible = "simple-bus";
 			ranges = <0 0x44000000 0x1000000>;
 
-			gpio0: gpio@000000 {
-			       compatible = "plxtech,nas782x-gpio";
-			       reg = <0x000000 0x100000>;
-			       interrupts = <21>;
-			       status = "disabled";
-			};
+			pinctrl {
+				compatible = "plxtech,nas782x-pinctrl", "simple-bus";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges;
 
-			gpio1: gpio@100000 {
-			       compatible = "plxtech,nas782x-gpio";
-			       reg = <0x100000 0x100000>;
-			       interrupts = <22>;
-			       status = "disabled";
+				/* Regmap for sys registers */
+				plxtech,sys-ctrl = <&sys>;
+
+				/* Should define the ox810se mux-map */
+				plxtech,mux-mask = <
+					0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF
+					0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF 0xFFFFFFFF
+					>;
+
+				gpio0: gpio@000000 {
+					compatible = "plxtech,nas782x-gpio";
+					reg = <0x000000 0x100000>;
+					interrupts = <21>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					#gpio-lines = <32>;
+				};
+
+				gpio1: gpio@100000 {
+					compatible = "plxtech,nas782x-gpio";
+					reg = <0x100000 0x100000>;
+					interrupts = <22>;
+					#gpio-cells = <2>;
+					gpio-controller;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					#gpio-lines = <3>;
+				};
+
+				uart0 {
+					pinctrl_uart0: uart0 {
+						plxtech,pins = <0 30 4 0
+								0 31 4 0>;
+					};
+				};
+
+				uart1 {
+					pinctrl_uart1: uart1 {
+						plxtech,pins = <0 21 4 0
+								0 30 4 0>;
+					};
+				};
+
+				uart2 {
+					pinctrl_uart2: uart2 {
+						plxtech,pins = <0 6 4 0
+								0 7 4 0>;
+					};
+				};
+
+				usb {
+					pinctrl_usb_clko: usb_clko {
+						plxtech,pins = <0 10 3 0>;
+					};
+				};
 			};
 
 			uart0: uart@200000 {
@@ -251,7 +304,15 @@
 
 				reset: reset-controller {
 					compatible = "plxtech,nas782x-reset";	
+					#reset-cells = <1>;
 			       	};
+
+				reboot {
+					compatible = "syscon-reboot";
+					regmap = <&sys>;
+					offset = <0x34>;
+					mask = <0x1>;
+				};
 
 				stdclks {
 					compatible = "plxtech,nas782x-stdclk";
