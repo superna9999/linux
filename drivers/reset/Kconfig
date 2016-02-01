@@ -12,4 +12,8 @@ menuconfig RESET_CONTROLLER
 
 	  If unsure, say no.
 
+config RESET_OXNAS
+	bool
+	select MFD_SYSCON
+
 source "drivers/reset/sti/Kconfig"
