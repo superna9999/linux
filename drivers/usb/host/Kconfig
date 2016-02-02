@@ -215,6 +215,14 @@ config USB_EHCI_MSM
 	  This driver is not supported on boards like trout which
 	  has an external PHY.
 
+config USB_EHCI_OXNAS
+	tristate "Support for PlxTech nas782x EHCI USB controller"
+	depends on ARCH_OXNAS
+	select MFD_SYSCON
+	---help---
+	  Enables support for the USB Host controller present on the
+	  PLX Tech nas782x SoCs.
+
 config USB_EHCI_TEGRA
        tristate "NVIDIA Tegra HCD support"
        depends on ARCH_TEGRA
