@@ -345,6 +345,13 @@ config SATA_NV
 
 	  If unsure, say N.
 
+config SATA_OXNAS
+	tristate "PLXTECH NAS782X SATA support"
+	help
+	  This option enables support for Nas782x Serial ATA controller.
+
+	  If unsure, say N.
+
 config SATA_PROMISE
 	tristate "Promise SATA TX2/TX4 support"
 	depends on PCI
