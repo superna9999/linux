@@ -100,8 +100,29 @@
 
 &uart1 {
 	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart1>;
 };
 
 &gmac {
 	status = "okay";
+};
+
+&sata {
+	status = "okay";
+
+	/* SATA POWER Line */
+	power-gpios = <&gpio0 31 0
+		       &gpio1 0 0>;
+};
+
+&usb {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usb_clko &pinctrl_usb_porta>;
+
+	/* USB HUB Reset Line */
+	hub-gpio = <&gpio0 27 1>;
 };

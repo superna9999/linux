@@ -87,11 +87,20 @@
 		ranges;
 		interrupt-parent = <&intc>;
 
-		usb@40200000 {
-			compatible = "plxtech,nas782x-usb";
+		usb: usb@40200000 {
+			compatible = "plxtech,nas782x-ehci";
 			reg = <0x40200000 0x200000>;
 			interrupts = <7>;
+			clocks = <&stdclk 5>;
+			clock-names = "usb";
+			resets = <&reset 4>, <&reset 5>;
+			reset-names = "host", "phy";
 			status = "disabled";
+
+			plxtech,polarity-invert;
+
+			/* Regmap for sys registers */
+			plxtech,sys-ctrl = <&sys>;
 		};
 
 		gmac: mac@40400000 {
@@ -135,6 +144,20 @@
 			status = "disabled";
 		};
 
+		sata: sata@45900000 {
+			compatible = "plxtech,nas782x-sata";
+			      /*   ports		dmactl		   sgdma */
+			reg = <0x45900000 0x100000>, <0x459A0000 0x40>, <0x459B0000 0x20>,
+			      /*   core 		phy 	     descriptors (optional) */
+			      <0x459E0000 0x2000>, <0x44900000 0x0C>, <0x50000000 0x1000>;
+			interrupts = <18>;
+			clocks = <&stdclk 3>;
+			resets = <&reset 11>, <&reset 12>, <&reset 13>;
+			reset-names = "sata", "link", "phy";
+			nr-ports = <2>;
+			status = "disabled";
+		};
+
 		dpe@43000000 {
 			compatible = "plxtech,nas782x-nand";
 			reg = <0x43000000 0x1000000>;
@@ -147,7 +170,7 @@
 			compatible = "simple-bus";
 			ranges = <0 0x44000000 0x1000000>;
 
-			pinctrl {
+			pinctrl: pinctrl {
 				compatible = "plxtech,nas782x-pinctrl", "simple-bus";
 				#address-cells = <1>;
 				#size-cells = <1>;
@@ -186,28 +209,67 @@
 
 				uart0 {
 					pinctrl_uart0: uart0 {
-						plxtech,pins = <0 30 4 0
-								0 31 4 0>;
+						plxtech,pins = <0 31 3 0
+								0 32 3 0>;
+					};
+					pinctrl_uart0_modem: uart0_modem {
+						plxtech,pins = <0 27 3 0
+								0 28 3 0
+								0 29 3 0
+								0 30 3 0
+								0 33 3 0
+								0 34 3 0>;
 					};
 				};
 
 				uart1 {
 					pinctrl_uart1: uart1 {
-						plxtech,pins = <0 21 4 0
-								0 30 4 0>;
+						plxtech,pins = <0 20 3 0
+								0 22 3 0>;
+					};
+					pinctrl_uart1_modem: uart1_modem {
+						plxtech,pins = <0 8 3 0
+								0 9 3 0
+								0 23 3 0
+								0 24 3 0
+								0 25 3 0
+								0 26 3 0>;
 					};
 				};
 
 				uart2 {
 					pinctrl_uart2: uart2 {
-						plxtech,pins = <0 6 4 0
-								0 7 4 0>;
+						plxtech,pins = <0 6 3 0
+								0 7 3 0>;
+					};
+					pinctrl_uart2_modem: uart2_modem {
+						plxtech,pins = <0 0 3 0
+								0 1 3 0
+								0 2 3 0
+								0 3 3 0
+								0 4 3 0
+								0 5 3 0>;
 					};
 				};
 
 				usb {
 					pinctrl_usb_clko: usb_clko {
-						plxtech,pins = <0 10 3 0>;
+						plxtech,pins = <0 10 2 0>;
+					};
+				};
+
+				usbport {
+					pinctrl_usb_porta: usb_porta {
+						plxtech,pins = <0 23 1 0
+								0 24 1 0>;
+					};
+					pinctrl_usb_portb: usb_portb {
+						plxtech,pins = <0 25 1 0
+								0 26 1 0>;
+					};
+					pinctrl_usb_portc: usb_portc {
+						plxtech,pins = <0 27 1 0
+								0 28 1 0>;
 					};
 				};
 			};
@@ -395,13 +457,6 @@
 			ddr@800000 {
 			       	compatible = "plxtech,nas782x-ddr";
 			       	reg = <0x800000 0x100000>;
-			};
-
-			sata@900000 {
-			       	compatible = "plxtech,nas782x-sata";
-			       	reg = <0x900000 0x100000>;
-				interrupts = <18 19 26 27>;
-				interrupts-names = "sata1", "sata2", "error1", "error2";
 			};
 
 			dma-chksum@a00000 {
