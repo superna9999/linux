@@ -25,6 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/reset-controller.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include <linux/types.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
@@ -45,6 +46,7 @@ static int oxnas_reset_reset(struct reset_controller_dev *rcdev,
 		container_of(rcdev, struct oxnas_reset, rcdev);
 
 	regmap_write(data->regmap, RST_SET_REGOFFSET, BIT(id));
+	msleep(50);
 	regmap_write(data->regmap, RST_CLR_REGOFFSET, BIT(id));
 
 	return 0;
