@@ -69,6 +69,17 @@ config DWMAC_MESON
 	  the stmmac device driver. This driver is used for Meson6 and
 	  Meson8 SoCs.
 
+config DWMAC_OXNAS
+	tristate "PlxTech OXNAS dwmac support"
+	default ARCH_OXNAS
+	depends on OF
+	help
+	  Support for Ethernet controller on PLXTech OXNAS SoC Family.
+
+	  This selects the PLXTech OXNAS SoC glue layer support for
+	  the stmmac device driver. This driver is used for ox810se and
+	  later SoCs.
+
 config DWMAC_ROCKCHIP
 	tristate "Rockchip dwmac support"
 	default ARCH_ROCKCHIP
