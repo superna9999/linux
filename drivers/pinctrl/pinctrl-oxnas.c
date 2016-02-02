@@ -41,6 +41,7 @@ struct oxnas_gpio_chip {
 	struct pinctrl_gpio_range range;
 	void __iomem		*regbase;  /* GPIOA/B virtual address */
 	struct irq_domain	*domain;   /* associated irq domain */
+	struct regmap		*regmap;
 };
 
 #define to_oxnas_gpio_chip(c) container_of(c, struct oxnas_gpio_chip, chip)
@@ -369,7 +370,7 @@ static void oxnas_mux_set_debounce(void __iomem *pio, unsigned mask,
 }
 
 static void oxnas_mux_set_func1(struct oxnas_pinctrl *ctrl,
-				int bank, unsigned mask)
+				unsigned bank, unsigned mask)
 {
 	if (!bank) {
 		regmap_write_bits(ctrl->regmap,
@@ -389,7 +390,7 @@ static void oxnas_mux_set_func1(struct oxnas_pinctrl *ctrl,
 }
 
 static void oxnas_mux_set_func2(struct oxnas_pinctrl *ctrl,
-				int bank, unsigned mask)
+				unsigned bank, unsigned mask)
 {
 	if (!bank) {
 		regmap_write_bits(ctrl->regmap,
@@ -409,7 +410,7 @@ static void oxnas_mux_set_func2(struct oxnas_pinctrl *ctrl,
 }
 
 static void oxnas_mux_set_func3(struct oxnas_pinctrl *ctrl,
-				int bank, unsigned mask)
+				unsigned bank, unsigned mask)
 {
 	if (!bank) {
 		regmap_write_bits(ctrl->regmap,
@@ -429,7 +430,7 @@ static void oxnas_mux_set_func3(struct oxnas_pinctrl *ctrl,
 }
 
 static void oxnas_mux_set_gpio(struct oxnas_pinctrl *ctrl,
-			       int bank, unsigned mask)
+			       unsigned bank, unsigned mask)
 {
 	if (!bank) {
 		regmap_write_bits(ctrl->regmap,
@@ -448,29 +449,29 @@ static void oxnas_mux_set_gpio(struct oxnas_pinctrl *ctrl,
 	}
 }
 
-static enum oxnas_mux oxnas_mux_get_func(struct oxnas_pinctrl *ctrl,
-					 int bank, unsigned mask)
+static enum oxnas_mux oxnas_mux_get_func(struct regmap *regmap,
+					 unsigned bank, unsigned mask)
 {
 	unsigned int val;
 
 	if (!bank) {
-		if (!regmap_read(ctrl->regmap, PINMUX_PRIMARY_SEL0, &val) &&
+		if (!regmap_read(regmap, PINMUX_PRIMARY_SEL0, &val) &&
 		    (val & mask))
 			return OXNAS_PINMUX_FUNC1;
-		if (!regmap_read(ctrl->regmap, PINMUX_SECONDARY_SEL0, &val) &&
+		if (!regmap_read(regmap, PINMUX_SECONDARY_SEL0, &val) &&
 		    (val & mask))
 			return OXNAS_PINMUX_FUNC2;
-		if (!regmap_read(ctrl->regmap, PINMUX_TERTIARY_SEL0, &val) &&
+		if (!regmap_read(regmap, PINMUX_TERTIARY_SEL0, &val) &&
 		    (val & mask))
 			return OXNAS_PINMUX_FUNC3;
 	} else {
-		if (!regmap_read(ctrl->regmap, PINMUX_PRIMARY_SEL1, &val) &&
+		if (!regmap_read(regmap, PINMUX_PRIMARY_SEL1, &val) &&
 		    (val & mask))
 			return OXNAS_PINMUX_FUNC1;
-		if (!regmap_read(ctrl->regmap, PINMUX_SECONDARY_SEL1, &val) &&
+		if (!regmap_read(regmap, PINMUX_SECONDARY_SEL1, &val) &&
 		    (val & mask))
 			return OXNAS_PINMUX_FUNC2;
-		if (!regmap_read(ctrl->regmap, PINMUX_TERTIARY_SEL1, &val) &&
+		if (!regmap_read(regmap, PINMUX_TERTIARY_SEL1, &val) &&
 		    (val & mask))
 			return OXNAS_PINMUX_FUNC3;
 	}
@@ -1147,24 +1148,33 @@ static void oxnas_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 	int i;
 	struct oxnas_gpio_chip *oxnas_gpio = to_oxnas_gpio_chip(chip);
 	void __iomem *pio = oxnas_gpio->regbase;
+	enum oxnas_mux mux;
 
 	for (i = 0; i < chip->ngpio; i++) {
 		unsigned pin = chip->base + i;
 		unsigned mask = pin_to_mask(pin);
+		unsigned bank = pin_to_bank(pin);
 		const char *gpio_label;
 		u32 pdsr;
 
 		gpio_label = gpiochip_is_requested(chip, i);
-		if (!gpio_label)
-			continue;
+		if (gpio_label) {
+			seq_printf(s, "[%s]\tGPIO%s%d: ",
+				   gpio_label, chip->label, i);
+			pdsr = readl_relaxed(pio + INPUT_VALUE);
 
-		seq_printf(s, "[%s] GPIO%s%d: ",
-			   gpio_label, chip->label, i);
-		pdsr = readl_relaxed(pio + INPUT_VALUE);
+			seq_printf(s, "[gpio] %s\n",
+					pdsr & mask ?
+					"set" : "clear");
+		}
+		else {
+			mux = oxnas_mux_get_func(oxnas_gpio->regmap,
+						 bank,
+						 mask);
+			seq_printf(s, "\tGPIO%s%d: [func%d]\n",
+				   chip->label, i, mux);
+		}
 
-		seq_printf(s, "[gpio] %s\n",
-				pdsr & mask ?
-				"set" : "clear");
 	}
 }
 #else
@@ -1374,6 +1384,15 @@ static int oxnas_gpio_probe(struct platform_device *pdev)
 	if (!oxnas_chip) {
 		ret = -ENOMEM;
 		goto err;
+	}
+
+	/* Get pinctrl sys control regmap */
+	oxnas_chip->regmap =
+		syscon_regmap_lookup_by_phandle(of_get_parent(pdev->dev.of_node),
+						"plxtech,sys-ctrl");
+	if (IS_ERR(oxnas_chip->regmap)) {
+		dev_err(&pdev->dev, "failed to get sys ctrl regmap\n");
+		return -ENODEV;
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
