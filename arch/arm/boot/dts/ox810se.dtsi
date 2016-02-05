@@ -97,7 +97,9 @@
 			reset-names = "host", "phy";
 			status = "disabled";
 
-			plxtech,polarity-invert;
+			plxtech,input-pol-invert;
+			plxtech,output-pol-invert;
+			plxtech,patch-detect;
 
 			/* Regmap for sys registers */
 			plxtech,sys-ctrl = <&sys>;
@@ -111,9 +113,8 @@
 			mac-address = [000000000000];
 			phy-mode = "rgmii";
 			clocks = <&stdclk 6>, <&gmacclk>;
-			clock-names = "pclk", "stmmaceth";
+			clock-names = "gmac", "stmmaceth";
 			resets = <&reset 6>;
-			reset-names = "stmmaceth";
 			status = "disabled";
 
 			/* Regmap for sys registers */
@@ -138,23 +139,17 @@
 			status = "disabled";
 		};
 
-		sata@42000000 {
-			compatible = "plxtech,nas782x-sata-data";
-			reg = <0x42000000 0x1000000>;
-			status = "disabled";
-		};
-
 		sata: sata@45900000 {
 			compatible = "plxtech,nas782x-sata";
 			      /*   ports		dmactl		   sgdma */
 			reg = <0x45900000 0x100000>, <0x459A0000 0x40>, <0x459B0000 0x20>,
-			      /*   core 		phy 	     descriptors (optional) */
-			      <0x459E0000 0x2000>, <0x44900000 0x0C>, <0x50000000 0x1000>;
+			      /*   core        */
+			      <0x459E0000 0x2000>;
 			interrupts = <18>;
 			clocks = <&stdclk 3>;
 			resets = <&reset 11>, <&reset 12>, <&reset 13>;
 			reset-names = "sata", "link", "phy";
-			nr-ports = <2>;
+			nr-ports = <1>;
 			status = "disabled";
 		};
 
@@ -430,17 +425,30 @@
 				ranges = <0 0x400000 0x100000>;
 
 				copro-gpio {
-					compatible = "plxtech,nas782x--copro-gpio";
+					compatible = "plxtech,nas782x-copro-gpio";
 					reg = <0x3c0 0x10>;
 					interrupts = <4>;
 					status = "disabled";
 				};
 			};
 
-			dma@600000 {
+			dma: dma@600000 {
 				compatible = "plxtech,nas782x-dma";
-				reg = <0x600000 0x100000>;
+				reg = <0x600000 0x100000
+				       0xc00000 0x100000>;
+				reg-names = "dma", "sgdma";
 				interrupts = <13 14 15 16 20>;
+				clocks = <&stdclk 1>;
+				resets = <&reset 8>, <&reset 24>;
+				reset-names = "dma", "sgdma";
+
+				/* Encodes the authorized memory types */
+				plxtech,targets-types = <
+					0x45900000 0x45a00000 0  /* SATA */
+					0x42000000 0x43000000 0  /* SATA DATA */
+					0x48000000 0x58000000 15 /* DDR */
+					0x58000000 0x58020000 15 /* SRAM */
+					>;
 			};
 
 			dpe@700000 {
@@ -467,11 +475,6 @@
 			copro@b00000 {
 			       compatible = "plxtech,nas782x-copro";
 			       reg = <0xb00000 0x100000>;
-			};
-
-			dma@c00000 {
-			       compatible = "plxtech,nas782x-dma-sg";
-			       reg = <0xc00000 0x100000>;
 			};
 		};
 	};
