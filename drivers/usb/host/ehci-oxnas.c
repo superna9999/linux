@@ -1,6 +1,7 @@
 /*
  * drivers/usb/host/ehci-oxnas.c
  *
+ * Neil Armstrong <narmstrong@baylibre.com>
  * Tzachi Perelstein <tzachi@marvell.com>
  *
  * This file is licensed under  the terms of the GNU General Public
@@ -30,7 +31,9 @@ struct oxnas_hcd {
 	struct reset_control *rst_host;
 	struct reset_control *rst_phy;
 	struct regmap *regmap;
-	unsigned polarity_invert;
+	unsigned input_pol_invert;
+	unsigned output_pol_invert;
+	unsigned patch_detect;
 	struct gpio_desc *hub_reset;
 };
 
@@ -63,20 +66,23 @@ static void start_oxnas_usb_ehci(struct oxnas_hcd *oxnas)
 
 	if (oxnas->hub_reset) {
 		gpiod_direction_output(oxnas->hub_reset, 0);
-		msleep(10);
+		msleep(100);
 		gpiod_direction_output(oxnas->hub_reset, 1);
 	}
 
-	if (oxnas->polarity_invert) {
-		reg = ((1UL << USBHSMPH_IP_POL_A_BIT) |
-                       (1UL << USBHSMPH_IP_POL_B_BIT) |
-                       (1UL << USBHSMPH_IP_POL_C_BIT))|
-		      ((1UL << USBHSMPH_OP_POL_A_BIT) |
-                       (1UL << USBHSMPH_OP_POL_B_BIT) |
-                       (1UL << USBHSMPH_OP_POL_C_BIT))|
-		      BIT(6);
-		regmap_write(oxnas->regmap, USBHSMPH_CTRL_REGOFFSET, reg);
-	}
+	reg = 0;
+	if (oxnas->input_pol_invert) 
+		reg |= ((1UL << USBHSMPH_IP_POL_A_BIT) |
+                        (1UL << USBHSMPH_IP_POL_B_BIT) |
+                        (1UL << USBHSMPH_IP_POL_C_BIT));
+	if (oxnas->output_pol_invert) 
+		reg |= ((1UL << USBHSMPH_OP_POL_A_BIT) |
+                        (1UL << USBHSMPH_OP_POL_B_BIT) |
+                        (1UL << USBHSMPH_OP_POL_C_BIT));
+	if (oxnas->patch_detect)
+		reg |= BIT(6);
+
+	regmap_write(oxnas->regmap, USBHSMPH_CTRL_REGOFFSET, reg);
 
 	/* Ensure the USB block is properly reset */
 	if (!IS_ERR(oxnas->rst_host))
@@ -113,6 +119,7 @@ static void stop_oxnas_usb_ehci(struct oxnas_hcd *oxnas)
 	clk_disable_unprepare(oxnas->clk);
 }
 
+#if 0
 static int ehci_oxnas_reset(struct usb_hcd *hcd)
 {
 	#define  txttfill_tuning	reserved2[0]
@@ -136,6 +143,7 @@ static int ehci_oxnas_reset(struct usb_hcd *hcd)
 
 	return retval;
 }
+#endif
 
 static int ehci_oxnas_drv_probe(struct platform_device *ofdev)
 {
@@ -171,13 +179,13 @@ static int ehci_oxnas_drv_probe(struct platform_device *ofdev)
 	if (IS_ERR(hcd->regs)) {
 		dev_err(&ofdev->dev, "devm_ioremap_resource failed\n");
 		err = PTR_ERR(hcd->regs);
-		goto err_ioremap;
+		goto err_res;
 	}
 
 	oxnas = (struct oxnas_hcd *)hcd_to_ehci(hcd)->priv;
 
-	oxnas->regmap = syscon_regmap_lookup_by_phandle(np,
-						       "plxtech,sys-ctrl");
+	oxnas->regmap =
+		syscon_regmap_lookup_by_phandle(np, "plxtech,sys-ctrl");
 	if (IS_ERR(oxnas->regmap)) {
 		dev_err(&ofdev->dev, "failed to get sys ctrl regmap\n");
 		return -ENODEV;
@@ -185,12 +193,17 @@ static int ehci_oxnas_drv_probe(struct platform_device *ofdev)
 
 	oxnas->hub_reset = devm_gpiod_get_optional(&ofdev->dev, "hub", 0);
 
-	oxnas->polarity_invert = of_property_read_bool(np, "plxtech,polarity-invert");
+	oxnas->input_pol_invert =
+		of_property_read_bool(np, "plxtech,input-pol-invert");
+	oxnas->output_pol_invert =
+		of_property_read_bool(np, "plxtech,output-pol-invert");
+	oxnas->patch_detect =
+		of_property_read_bool(np, "plxtech,patech-detect");
 
 	oxnas->clk = of_clk_get_by_name(np, "usb");
 	if (IS_ERR(oxnas->clk)) {
 		err = PTR_ERR(oxnas->clk);
-		goto err_clk;
+		goto err_res;
 	}
 
 	rstc = devm_reset_control_get(&ofdev->dev, "host");
@@ -211,7 +224,7 @@ static int ehci_oxnas_drv_probe(struct platform_device *ofdev)
 	if (!irq) {
 		dev_err(&ofdev->dev, "irq_of_parse_and_map failed\n");
 		err = -EBUSY;
-		goto err_irq;
+		goto err_rst;
 	}
 
 	hcd->has_tt = 1;
@@ -228,11 +241,8 @@ static int ehci_oxnas_drv_probe(struct platform_device *ofdev)
 
 err_hcd:
 	stop_oxnas_usb_ehci(oxnas);
-err_irq:
 err_rst:
 	clk_put(oxnas->clk);
-err_clk:
-err_ioremap:
 err_res:
 	usb_put_hcd(hcd);
 
@@ -267,7 +277,7 @@ static struct platform_driver ehci_oxnas_driver = {
 };
 
 static const struct ehci_driver_overrides oxnas_overrides __initconst = {
-	.reset = ehci_oxnas_reset,
+	//.reset = ehci_oxnas_reset,
 	.extra_priv_size = sizeof(struct oxnas_hcd),
 };
 
