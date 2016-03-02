@@ -29,6 +29,7 @@
 #include <linux/stmmac.h>
 #include <linux/version.h>
 #include <linux/regmap.h>
+#include <linux/clk.h>
 #include <linux/mfd/syscon.h>
 
 #include "stmmac.h"
@@ -37,6 +38,7 @@
 #define SYS_GMAC_CTRL_REGOFFSET		0x78
 
 struct oxnas_gmac {
+	struct clk *clk;
 	struct regmap *regmap;
 };
 
@@ -53,6 +55,9 @@ static int oxnas_gmac_init(struct platform_device *pdev, void *priv)
 	ret = device_reset(&pdev->dev);
 	if (ret)
 		return ret;
+
+	clk_prepare_enable(bsp_priv->clk);
+	msleep(20);
 
 	ret = regmap_read(bsp_priv->regmap, SYS_GMAC_CTRL_REGOFFSET, &value);
 	if (ret)
@@ -87,6 +92,12 @@ static int oxnas_gmac_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	bsp_priv->clk = devm_clk_get(&pdev->dev, "gmac");
+	if (IS_ERR(bsp_priv->clk)) {
+		dev_err(&pdev->dev, "failed to get gmac clk\n");
+		return -ENODEV;
+	}
+
 	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
 	if (ret)
 		return ret;
@@ -97,6 +108,13 @@ static int oxnas_gmac_probe(struct platform_device *pdev)
 
 	plat_dat->bsp_priv = bsp_priv;
 	plat_dat->init = oxnas_gmac_init;
+
+#if 0
+	clk_prepare_enable(bsp_priv->clk);
+	msleep(20);
+	clk_disable_unprepare(bsp_priv->clk);
+	msleep(20);
+#endif
 
 	ret = oxnas_gmac_init(pdev, bsp_priv);
 	if (ret)
