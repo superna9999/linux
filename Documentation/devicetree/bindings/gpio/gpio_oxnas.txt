@@ -1,0 +1,47 @@
+* PLX Technology OXNAS SoC GPIO Controller
+
+Required properties:
+ - compatible: "oxsemi,ox810se-gpio"
+ - reg: Base address and length for the device.
+ - interrupts: The port interrupt shared by all pins.
+ - gpio-controller: Marks the port as GPIO controller.
+ - #gpio-cells: Two. The first cell is the pin number and
+   the second cell is used to specify the gpio polarity as defined in
+   defined in <dt-bindings/gpio/gpio.h>:
+      0 = GPIO_ACTIVE_HIGH
+      1 = GPIO_ACTIVE_LOW
+ - interrupt-controller: Marks the device node as an interrupt controller.
+ - #interrupt-cells: Two. The first cell is the GPIO number and second cell
+   is used to specify the trigger type as defined in
+   <dt-bindings/interrupt-controller/irq.h>:
+      IRQ_TYPE_EDGE_RISING
+      IRQ_TYPE_EDGE_FALLING
+      IRQ_TYPE_EDGE_BOTH
+ - plxtech,gpio-bank: Specifies which bank a controller owns.
+ - gpio-ranges: Interaction with the PINCTRL subsystem.
+ - ngpios: Specifies the gpio lines count in this specific bank.
+
+Example:
+
+gpio0: gpio@0 {
+	compatible = "oxsemi,ox810se-gpio";
+	reg = <0x000000 0x100000>;
+	interrupts = <21>;
+	#gpio-cells = <2>;
+	gpio-controller;
+	interrupt-controller;
+	#interrupt-cells = <2>;
+	plxtech,gpio-bank = <0>;
+	gpio-ranges = <&pinctrl 0 0 32>;
+	ngpios = <32>;
+};
+
+keys {
+	...
+
+	button@sw1 {
+		label = "ESC";
+		linux,code = <1>;
+		gpios = <&gpio0 12 0>;
+	};
+};
