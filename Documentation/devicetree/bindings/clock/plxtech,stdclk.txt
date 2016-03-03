@@ -1,0 +1,24 @@
+PLX Technology OXNAS SoC Family Standard Clocks
+================================================
+
+Please also refer to clock-bindings.txt in this directory for common clock
+bindings usage.
+
+Required properties:
+- compatible: Should be "plxtech,ox810se-stdclk" or "plxtech,nas782x-stdclk"
+- #clock-cells: 1, see below
+
+Parent node should have the following properties :
+- compatible: Should be "plxtech,ox810se-sys-ctrl", "syscon", "simple-mfd"
+
+example:
+
+sys: sys-ctrl@000000 {
+	compatible = "plxtech,ox810se-sys-ctrl", "syscon", "simple-mfd";
+	reg = <0x000000 0x100000>;
+
+	stdclk: stdclk {
+		compatible = "plxtech,ox810se-stdclk", "plxtech,nas782x-stdclk";
+		#reset-cells = <1>;
+	};
+};
