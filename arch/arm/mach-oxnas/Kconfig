@@ -1,0 +1,24 @@
+menuconfig ARCH_OXNAS
+	bool "PLX Technology OXNAS Family SoCs"
+	select ARCH_REQUIRE_GPIOLIB
+	select ARCH_HAS_RESET_CONTROLLER
+	select PINCTRL
+	depends on ARCH_MULTI_V5
+	help
+	  Support for OxNas SoC family developed by PLX Technology.
+	  (Formely Oxford Semiconductor)
+
+if ARCH_OXNAS
+
+config MACH_OX810SE
+	bool "Support OX810SE Based Products"
+	select CPU_ARM926T
+	select PLXTECH_RPS
+	select CLKSRC_RPS_TIMER
+	select RESET_OXNAS
+	select COMMON_CLK_OXNAS
+	select PINCTRL_OXNAS
+	help
+	  Include Support for the PLX Technology OX810SE SoC Based Products.
+
+endif
