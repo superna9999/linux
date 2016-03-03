@@ -175,6 +175,7 @@ option	Option NV
 ortustech	Ortus Technology Co., Ltd.
 ovti	OmniVision Technologies
 ORCL	Oracle Corporation
+oxsemi	Oxford Semiconductors, Ltd.
 panasonic	Panasonic Corporation
 parade	Parade Technologies Inc.
 pericom	Pericom Technology Inc.
