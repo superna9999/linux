@@ -1,0 +1,25 @@
+PLX Technology OXNAS SoC Family RESET Controller
+================================================
+
+Please also refer to reset.txt in this directory for common reset
+controller binding usage.
+
+Required properties:
+- compatible: Should be "plxtech,nas782x-reset"
+- #reset-cells: 1, see below
+
+Parent node should have the following properties :
+- compatible: Should be "plxtech,ox810se-sys-ctrl", "syscon", "simple-mfd"
+
+example:
+
+sys: sys-ctrl@000000 {
+	compatible = "plxtech,ox810se-sys-ctrl", "syscon", "simple-mfd";
+	reg = <0x000000 0x100000>;
+
+	reset: reset-controller {
+		compatible = "plxtech,nas782x-reset";
+		#reset-cells = <1>;
+
+	};
+};
