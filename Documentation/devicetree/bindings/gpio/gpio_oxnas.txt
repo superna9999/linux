@@ -1,0 +1,27 @@
+PLX Technology OXNAS SoC GPIO Controller
+==========================================
+
+Required properties:
+- compatible: "oxsemi,ox810se-gpio".
+- reg: Should contain GPIO controller registers location and length
+- interrupts: Should be the port interrupt shared by all the pins.
+- #gpio-cells: Should be two.  The first cell is the pin number and
+  the second cell is used to specify optional parameters (currently
+  unused).
+- gpio-controller: Marks the device node as a GPIO controller.
+
+optional properties:
+- #gpio-lines: Number of gpio if absent 32.
+
+
+Example:
+	gpio0: gpio@000000 {
+		compatible = "oxsemi,ox810se-gpio";
+		reg = <0x000000 0x100000>;
+		interrupts = <21>;
+		#gpio-cells = <2>;
+		gpio-controller;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		#gpio-lines = <32>;
+	};
