@@ -2,7 +2,7 @@ ARM sp804 Dual Timers
 ---------------------------------------
 
 Required properties:
-- compatible: Should be "arm,sp804" & "arm,primecell"
+- compatible: Should be "arm,sp804" & "arm,primecell", or "oxsemi,ox810se-rps-timer"
 - interrupts: Should contain the list of Dual Timer interrupts. This is the
 	interrupt for timer 1 and timer 2. In the case of a single entry, it is
 	the combined interrupt or if "arm,sp804-has-irq" is present that
