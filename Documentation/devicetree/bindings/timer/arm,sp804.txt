@@ -17,6 +17,8 @@ Optional properties:
 - arm,sp804-has-irq = <#>: In the case of only 1 timer irq line connected, this
 	specifies if the irq connection is for timer 1 or timer 2. A value of 1
 	or 2 should be used.
+- arm,timer-width: Should contain the width in number of bits of the counter,
+	is considered by default 32 but can be changed for vendor variants.
 
 Example:
 
