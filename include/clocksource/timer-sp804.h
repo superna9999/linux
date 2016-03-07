@@ -3,26 +3,54 @@
 
 struct clk;
 
-void __sp804_clocksource_and_sched_clock_init(void __iomem *,
-					      const char *, struct clk *, int);
-void __sp804_clockevents_init(void __iomem *, unsigned int,
-			      struct clk *, const char *);
+struct timer_sp804 {
+	void __iomem *clockevent_base;
+	void __iomem *clocksource_base;
+	const char *name;
+	struct clk *clockevent_clk;
+	struct clk *clocksource_clk;
+	unsigned int irq;
+	unsigned int width;
+};
+
+void __sp804_clocksource_and_sched_clock_init(struct timer_sp804 *sp804, bool);
+void __sp804_clockevents_init(struct timer_sp804 *sp804);
 void sp804_timer_disable(void __iomem *);
 
 static inline void sp804_clocksource_init(void __iomem *base, const char *name)
 {
-	__sp804_clocksource_and_sched_clock_init(base, name, NULL, 0);
+	struct timer_sp804 sp804 = {
+		.clocksource_base = base,
+		.name = name,
+		.clocksource_clk = NULL,
+		.width = 32,
+	};
+
+	__sp804_clocksource_and_sched_clock_init(&sp804, false);
 }
 
 static inline void sp804_clocksource_and_sched_clock_init(void __iomem *base,
 							  const char *name)
 {
-	__sp804_clocksource_and_sched_clock_init(base, name, NULL, 1);
+	struct timer_sp804 sp804 = {
+		.clocksource_base = base,
+		.name = name,
+		.clocksource_clk = NULL,
+		.width = 32,
+	};
+
+	__sp804_clocksource_and_sched_clock_init(&sp804, true);
 }
 
 static inline void sp804_clockevents_init(void __iomem *base, unsigned int irq, const char *name)
 {
-	__sp804_clockevents_init(base, irq, NULL, name);
+	struct timer_sp804 sp804 = {
+		.clockevent_base = base,
+		.name = name,
+		.clockevent_clk = NULL,
+		.width = 32,
+	};
 
+	__sp804_clockevents_init(&sp804);
 }
 #endif
