@@ -47,6 +47,29 @@ static void meson6_dwmac_fix_mac_speed(void *priv, unsigned int speed)
 	writel(val, dwmac->reg);
 }
 
+#define BITS_PER_REG 32
+int kjh_reset_hack(struct platform_device *pdev, int id, bool assert)
+{
+	struct device *dev = &pdev->dev;
+	resource_size_t phys_base = 0xc883c000;
+	resource_size_t size = 0x1000;
+	void __iomem *addr, *base = devm_ioremap(dev, phys_base, size);
+	unsigned int offset = 0x140;
+	unsigned int bank = id / BITS_PER_REG;
+	unsigned int bit = id % BITS_PER_REG;
+	u32 reg;
+
+	addr = base + offset + (bank << 2);
+	printk("KJH: %s: base=0x%p,addr=0x%p id=%d, bank=%u, bit=%u, assert=%d\n",
+	       __func__, base, addr, id, bank, bit, assert);
+	reg = readl(addr);
+	if (assert)
+		reg &= ~BIT(bit);
+	else
+		reg |= BIT(bit);
+	writel(reg, addr);
+}
+
 static int meson6_dwmac_probe(struct platform_device *pdev)
 {
 	struct plat_stmmacenet_data *plat_dat;
@@ -75,6 +98,10 @@ static int meson6_dwmac_probe(struct platform_device *pdev)
 	plat_dat->bsp_priv = dwmac;
 	plat_dat->fix_mac_speed = meson6_dwmac_fix_mac_speed;
 
+	/* HACK: from Amlogic BSP */
+       	/* writel(0x1621, dwmac->reg); */
+
+	kjh_reset_hack(pdev, 35, false);
 	return stmmac_dvr_probe(&pdev->dev, plat_dat, &stmmac_res);
 }
 
