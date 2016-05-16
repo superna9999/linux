@@ -136,6 +136,63 @@
 				clocks = <&xtal>;
 				status = "disabled";
 			};
+
+			pwm_ab: pwm@8550 {
+				compatible = "amlogic,meson-gxbb-pwm", "simple-bus";
+				reg = <0x0 0x08550 0x0 0x10>;
+				ranges = <0x0 0x0 0x0 0x08550 0x0 0x10>;
+				#address-cells = <2>;
+				#size-cells = <2>;
+				#pwm-cells = <3>;
+				status = "disabled";
+				clocks = <&pwm_ab_mux 0 &pwm_ab_mux 1>;
+				clock-names = "clkin0", "clkin1";
+
+				pwm_ab_mux: pwm-mux@8 {
+					compatible = "amlogic,meson-gxbb-pwm-mux";
+					reg = <0x0 0x8 0x0 0x4>;
+					#clock-cells = <1>;
+					clock-output-names = "pwm_a_mux", "pwm_b_mux";
+				};
+			};
+
+			pwm_cd: pwm@8650 {
+				compatible = "amlogic,meson-gxbb-pwm", "simple-bus";
+				reg = <0x0 0x08650 0x0 0x10>;
+				ranges = <0x0 0x0 0x0 0x08650 0x0 0x10>;
+				#address-cells = <2>;
+				#size-cells = <2>;
+				#pwm-cells = <3>;
+				status = "disabled";
+				clocks = <&pwm_cd_mux 0 &pwm_cd_mux 1>;
+				clock-names = "clkin0", "clkin1";
+
+				pwm_cd_mux: pwm-mux@8 {
+					compatible = "amlogic,meson-gxbb-pwm-mux";
+					reg = <0x0 0x8 0x0 0x4>;
+					#clock-cells = <1>;
+					clock-output-names = "pwm_c_mux", "pwm_d_mux";
+				};
+			};
+
+			pwm_ef: pwm@86c0 {
+				compatible = "amlogic,meson-gxbb-pwm", "simple-bus";
+				reg = <0x0 0x086c0 0x0 0x10>;
+				ranges = <0x0 0x0 0x0 0x086c0 0x0 0x10>;
+				#address-cells = <2>;
+				#size-cells = <2>;
+				#pwm-cells = <3>;
+				status = "disabled";
+				clocks = <&pwm_ef_mux 0 &pwm_ef_mux 1>;
+				clock-names = "clkin0", "clkin1";
+
+				pwm_ef_mux: pwm-mux@8 {
+					compatible = "amlogic,meson-gxbb-pwm-mux";
+					reg = <0x0 0x8 0x0 0x4>;
+					#clock-cells = <1>;
+					clock-output-names = "pwm_e_mux", "pwm_f_mux";
+				};
+			};
 		};
 
 		gic: interrupt-controller@c4301000 {
@@ -164,6 +221,25 @@
 				interrupts = <GIC_SPI 193 IRQ_TYPE_EDGE_RISING>;
 				clocks = <&xtal>;
 				status = "disabled";
+			};
+
+			pwm_ab_AO: pwm@550 {
+				compatible = "amlogic,meson-gxbb-pwm", "simple-bus";
+				reg = <0x0 0x0550 0x0 0x10>;
+				ranges = <0x0 0x0 0x0 0x0550 0x0 0x10>;
+				#address-cells = <2>;
+				#size-cells = <2>;
+				#pwm-cells = <3>;
+				status = "disabled";
+				clocks = <&pwm_ab_mux_AO 0 &pwm_ab_mux_AO 1>;
+				clock-names = "clkin0", "clkin1";
+
+				pwm_ab_mux_AO: pwm-mux@8 {
+					compatible = "amlogic,meson-gxbb-pwm-mux";
+					reg = <0x0 0x8 0x0 0x4>;
+					#clock-cells = <1>;
+					clock-output-names = "pwm_a_mux_ao", "pwm_b_mux_ao";
+				};
 			};
 		};
 
