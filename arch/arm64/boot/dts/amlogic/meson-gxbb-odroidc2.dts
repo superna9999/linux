@@ -62,8 +62,53 @@
 		device_type = "memory";
 		reg = <0x0 0x0 0x0 0x80000000>;
 	};
+
+	fclk_div4: fclk-div4 {
+		compatible = "fixed-clock";
+		clock-frequency = <500000000>;
+		clock-output-names = "fclk_div4";
+		#clock-cells = <0>;
+	};
+
+	fclk_div3: fclk-div3 {
+		compatible = "fixed-clock";
+		clock-frequency = <600000000>;
+		clock-output-names = "fclk_div3";
+		#clock-cells = <0>;
+	};
+
+	vid_pll: vid_pll {
+		compatible = "fixed-clock";
+		clock-frequency = <400000000>;
+		clock-output-names = "vid_pll";
+		#clock-cells = <0>;
+	};
 };
 
 &uart_AO {
 	status = "okay";
+};
+
+&pwm_ab {
+	status = "okay";
+	clocks = <&fclk_div4 &xtal>;
+	clock-names = "clkin0", "clkin1";
+};
+
+&pwm_cd {
+	status = "okay";
+	clocks = <&xtal &fclk_div3>;
+	clock-names = "clkin0", "clkin1";
+};
+
+&pwm_ef {
+	status = "okay";
+	clocks = <&vid_pll>;
+	clock-names = "clkin1";
+};
+
+&pwm_ab_AO {
+	status = "okay";
+	clocks = <&fclk_div4>;
+	clock-names = "clkin0";
 };
