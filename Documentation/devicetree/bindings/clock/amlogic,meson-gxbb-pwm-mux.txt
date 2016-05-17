@@ -1,0 +1,15 @@
+Amlogic Meson GXBB PWM Clock Mux
+================================
+
+Required properties:
+- compatible: Shall contain "amlogic,meson-gxbb-pwm-mux".
+- #clock-cells: Should be 2.
+- clock-output-names: Should contain unique 2 strings for each PWM mux
+
+Example:
+pwm_cd_mux: pwm-mux@8 {
+	compatible = "amlogic,meson-gxbb-pwm-mux";
+	reg = <0x0 0x8 0x0 0x4>;
+	#clock-cells = <1>;
+	clock-output-names = "pwm_c_mux", "pwm_d_mux";
+};
