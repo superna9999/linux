@@ -146,18 +146,89 @@ void __weak arch_release_thread_info(struct thread_info *ti)
  * kmemcache based allocator.
  */
 # if THREAD_SIZE >= PAGE_SIZE
+bool stack_mem_create = false;
+bool stack_mem_create_try = false;
+struct list_head stack_mem_list;
+DEFINE_SPINLOCK(stack_lock);
 static struct thread_info *alloc_thread_info_node(struct task_struct *tsk,
 						  int node)
 {
-	struct page *page = alloc_pages_node(node, THREADINFO_GFP_ACCOUNTED,
-					     THREAD_SIZE_ORDER);
+	struct page *page = NULL;
+#if 1
+	void *vaddr = NULL;
+	if (!stack_mem_create_try && !stack_mem_create) {
+		struct page *tmp_page1 = NULL;
+		struct page *tmp_page2 = NULL;
+		int i = 0;
+		int total = (1 << (MAX_ORDER - 1)) >> THREAD_SIZE_ORDER;
 
+		spin_lock_irq(&stack_lock);
+		INIT_LIST_HEAD(&stack_mem_list);
+		tmp_page1 = alloc_pages_node(node, THREADINFO_GFP_ACCOUNTED,
+						 MAX_ORDER - 1);
+		if (!tmp_page1) {
+			stack_mem_create_try = true;
+			spin_unlock_irq(&stack_lock);
+			page = alloc_pages_node(node, THREADINFO_GFP_ACCOUNTED,
+						 THREAD_SIZE_ORDER);
+			goto out;
+		}
+		tmp_page2 = alloc_pages_node(node, THREADINFO_GFP_ACCOUNTED,
+					 MAX_ORDER - 1);
+		if (!tmp_page2) {
+			stack_mem_create_try = true;
+			__free_pages(tmp_page1, MAX_ORDER - 1);
+			spin_unlock_irq(&stack_lock);
+			page = alloc_pages_node(node, THREADINFO_GFP_ACCOUNTED,
+						 THREAD_SIZE_ORDER);
+			goto out;
+		}
+		vaddr = page_address(tmp_page1);
+		for (i = 0; i < (total << 1); i++) {
+			list_add((struct list_head *)vaddr, &stack_mem_list);
+			vaddr += THREAD_SIZE;
+			if (i == (total - 1))
+				vaddr = page_address(tmp_page2);
+		}
+		stack_mem_create = true;
+		spin_unlock_irq(&stack_lock);
+	}
+	if (stack_mem_create) {
+		spin_lock_irq(&stack_lock);
+		if (!list_empty(&stack_mem_list)) {
+			vaddr = (void *)stack_mem_list.next;
+			list_del(stack_mem_list.next);
+			page = phys_to_page(__pa(vaddr));
+			spin_unlock_irq(&stack_lock);
+		} else {
+			spin_unlock_irq(&stack_lock);
+			page = alloc_pages_node(node, THREADINFO_GFP_ACCOUNTED,
+						 THREAD_SIZE_ORDER);
+		}
+	}
+out:
+#else
+	page = alloc_pages_node(node, THREADINFO_GFP_ACCOUNTED,
+						 THREAD_SIZE_ORDER);
+#endif
 	return page ? page_address(page) : NULL;
 }
 
 static inline void free_thread_info(struct thread_info *ti)
 {
+#if 1
+	struct list_head *list = NULL;
+
+	if (ti) {
+		list = (struct list_head *)(ti);
+		spin_lock_irq(&stack_lock);
+		list_add_tail(list, &stack_mem_list);
+		stack_mem_create = true;
+		spin_unlock_irq(&stack_lock);
+	}
+#else
 	free_memcg_kmem_pages((unsigned long)ti, THREAD_SIZE_ORDER);
+#endif
 }
 # else
 static struct kmem_cache *thread_info_cache;
@@ -200,6 +271,9 @@ struct kmem_cache *vm_area_cachep;
 /* SLAB cache for mm_struct structures (tsk->mm) */
 static struct kmem_cache *mm_cachep;
 
+/* Notifier list called when a task struct is freed */
+static ATOMIC_NOTIFIER_HEAD(task_free_notifier);
+
 static void account_kernel_stack(struct thread_info *ti, int account)
 {
 	struct zone *zone = page_zone(virt_to_page(ti));
@@ -233,6 +307,18 @@ static inline void put_signal_struct(struct signal_struct *sig)
 		free_signal_struct(sig);
 }
 
+int task_free_register(struct notifier_block *n)
+{
+	return atomic_notifier_chain_register(&task_free_notifier, n);
+}
+EXPORT_SYMBOL(task_free_register);
+
+int task_free_unregister(struct notifier_block *n)
+{
+	return atomic_notifier_chain_unregister(&task_free_notifier, n);
+}
+EXPORT_SYMBOL(task_free_unregister);
+
 void __put_task_struct(struct task_struct *tsk)
 {
 	WARN_ON(!tsk->exit_state);
@@ -244,6 +330,7 @@ void __put_task_struct(struct task_struct *tsk)
 	delayacct_tsk_free(tsk);
 	put_signal_struct(tsk->signal);
 
+	atomic_notifier_call_chain(&task_free_notifier, 0, tsk);
 	if (!profile_handoff_task(tsk))
 		free_task(tsk);
 }
@@ -313,6 +400,15 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 		goto free_ti;
 
 	tsk->stack = ti;
+#ifdef CONFIG_SECCOMP
+	/*
+	 * We must handle setting up seccomp filters once we're under
+	 * the sighand lock in case orig has changed between now and
+	 * then. Until then, filter must be NULL to avoid messing up
+	 * the usage counts on the error path calling free_task.
+	 */
+	tsk->seccomp.filter = NULL;
+#endif
 
 	setup_thread_stack(tsk, orig);
 	clear_user_return_notifier(tsk);
@@ -692,7 +788,8 @@ struct mm_struct *mm_access(struct task_struct *task, unsigned int mode)
 
 	mm = get_task_mm(task);
 	if (mm && mm != current->mm &&
-			!ptrace_may_access(task, mode)) {
+			!ptrace_may_access(task, mode) &&
+			!capable(CAP_SYS_RESOURCE)) {
 		mmput(mm);
 		mm = ERR_PTR(-EACCES);
 	}
@@ -1083,6 +1180,39 @@ static void copy_flags(unsigned long clone_flags, struct task_struct *p)
 	p->flags = new_flags;
 }
 
+static void copy_seccomp(struct task_struct *p)
+{
+#ifdef CONFIG_SECCOMP
+	/*
+	 * Must be called with sighand->lock held, which is common to
+	 * all threads in the group. Holding cred_guard_mutex is not
+	 * needed because this new task is not yet running and cannot
+	 * be racing exec.
+	 */
+	assert_spin_locked(&current->sighand->siglock);
+
+	/* Ref-count the new filter user, and assign it. */
+	get_seccomp_filter(current);
+	p->seccomp = current->seccomp;
+
+	/*
+	 * Explicitly enable no_new_privs here in case it got set
+	 * between the task_struct being duplicated and holding the
+	 * sighand lock. The seccomp state and nnp must be in sync.
+	 */
+	if (task_no_new_privs(current))
+		task_set_no_new_privs(p);
+
+	/*
+	 * If the parent gained a seccomp mode after copying thread
+	 * flags and between before we held the sighand lock, we have
+	 * to manually enable the seccomp thread flag here.
+	 */
+	if (p->seccomp.mode != SECCOMP_MODE_DISABLED)
+		set_tsk_thread_flag(p, TIF_SECCOMP);
+#endif
+}
+
 SYSCALL_DEFINE1(set_tid_address, int __user *, tidptr)
 {
 	current->clear_child_tid = tidptr;
@@ -1198,7 +1328,6 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 		goto fork_out;
 
 	ftrace_graph_init_task(p);
-	get_seccomp_filter(p);
 
 	rt_mutex_init_task(p);
 
@@ -1243,6 +1372,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 
 	p->utime = p->stime = p->gtime = 0;
 	p->utimescaled = p->stimescaled = 0;
+	p->cpu_power = 0;
 #ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
 	p->prev_cputime.utime = p->prev_cputime.stime = 0;
 #endif
@@ -1437,6 +1567,12 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	}
 
 	spin_lock(&current->sighand->siglock);
+
+	/*
+	 * Copy seccomp details explicitly here, in case they were changed
+	 * before holding sighand lock.
+	 */
+	copy_seccomp(p);
 
 	/*
 	 * Process group and session signals need to be delivered to just the
