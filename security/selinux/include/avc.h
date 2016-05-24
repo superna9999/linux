@@ -102,7 +102,7 @@ static inline u32 avc_audit_required(u32 requested,
 }
 
 int slow_avc_audit(u32 ssid, u32 tsid, u16 tclass,
-		   u32 requested, u32 audited, u32 denied,
+		   u32 requested, u32 audited, u32 denied, int result,
 		   struct common_audit_data *a,
 		   unsigned flags);
 
@@ -137,11 +137,12 @@ static inline int avc_audit(u32 ssid, u32 tsid,
 	if (likely(!audited))
 		return 0;
 	return slow_avc_audit(ssid, tsid, tclass,
-			      requested, audited, denied,
+			      requested, audited, denied, result,
 			      a, 0);
 }
 
 #define AVC_STRICT 1 /* Ignore permissive mode. */
+#define AVC_OPERATION_CMD 2	/* ignore command when updating operations */
 int avc_has_perm_noaudit(u32 ssid, u32 tsid,
 			 u16 tclass, u32 requested,
 			 unsigned flags,
@@ -150,6 +151,9 @@ int avc_has_perm_noaudit(u32 ssid, u32 tsid,
 int avc_has_perm(u32 ssid, u32 tsid,
 		 u16 tclass, u32 requested,
 		 struct common_audit_data *auditdata);
+
+int avc_has_operation(u32 ssid, u32 tsid, u16 tclass, u32 requested,
+		u16 cmd, struct common_audit_data *ad);
 
 u32 avc_policy_seqno(void);
 
@@ -161,6 +165,7 @@ u32 avc_policy_seqno(void);
 #define AVC_CALLBACK_AUDITALLOW_DISABLE	32
 #define AVC_CALLBACK_AUDITDENY_ENABLE	64
 #define AVC_CALLBACK_AUDITDENY_DISABLE	128
+#define AVC_CALLBACK_ADD_OPERATION	256
 
 int avc_add_callback(int (*callback)(u32 event), u32 events);
 
