@@ -136,6 +136,49 @@
 				clocks = <&xtal>;
 				status = "disabled";
 			};
+
+			i2c_A: i2c@8500 {
+				compatible = "amlogic,meson-gxbb-i2c";
+				reg = <0x0 0x08500 0x0 0x20>;
+				interrupts = <GIC_SPI 17 IRQ_TYPE_EDGE_RISING>; /* 49 ? */
+				/* clocks = <&clocks GATE_I2C>, <&clocks CLK_81>; */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+				/* resets = <&reset RESET_I2C_MASTER_0>; */
+			};
+
+			i2c_B: i2c@87c0 {
+				compatible = "amlogic,meson-gxbb-i2c";
+				reg = <0x0 0x087c0 0x0 0x20>;
+				interrupts = <GIC_SPI 214 IRQ_TYPE_EDGE_RISING>; /* 246 ? /*
+				/* clocks = <&clocks GATE_I2C>, <&clocks CLK_81>; */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+				/* resets = <&reset RESET_I2C_MASTER_1>; */
+			};
+
+			i2c_C: i2c@87e0 {
+				compatible = "amlogic,meson-gxbb-i2c";
+				reg = <0x0 0x087e0 0x0 0x20>;
+				interrupts = <GIC_SPI 215 IRQ_TYPE_EDGE_RISING>; /* 247 ? */
+				/* clocks = <&clocks GATE_I2C>, <&clocks CLK_81>; */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+				/* resets = <&reset RESET_I2C_MASTER_2>; */
+			};
+
+			i2c_D: i2c@8d20 {
+				compatible = "amlogic,meson-gxbb-i2c";
+				reg = <0x0 0x08d20 0x0 0x20>;
+				interrupts = <GIC_SPI 36 IRQ_TYPE_EDGE_RISING>; /* 68 ? */
+				/* clocks = <&clocks GATE_I2C>, <&clocks CLK_81>; */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+			};
 		};
 
 		gic: interrupt-controller@c4301000 {
@@ -163,6 +206,16 @@
 				reg = <0x0 0x004c0 0x0 0x14>;
 				interrupts = <GIC_SPI 193 IRQ_TYPE_EDGE_RISING>;
 				clocks = <&xtal>;
+				status = "disabled";
+			};
+
+			i2c_AO: i2c@500 {
+				compatible = "amlogic,meson-gxbb-i2c";
+				reg = <0x0 0x500 0x0 0x20>;
+				interrupts = <GIC_SPI 195 IRQ_TYPE_EDGE_RISING>; /* 227 ? */
+				/* clocks = <&clocks GATE_AO_I2C>, <&clocks CLK_81>; */
+				#address-cells = <1>;
+				#size-cells = <0>;
 				status = "disabled";
 			};
 		};
