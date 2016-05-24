@@ -1,10 +1,5 @@
 /*
- * Copyright (C) 2008 Google, Inc.
- *
- * Based on, but no longer compatible with, the original
- * OpenBinder.org binder driver interface, which is:
- *
- * Copyright (c) 2005 Palmsource, Inc.
+ * Copyright (C) 2014 Google, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -17,14 +12,9 @@
  *
  */
 
-#ifndef _LINUX_BINDER_H
-#define _LINUX_BINDER_H
+#ifndef _FIQ_WATCHDOG_H_
+#define _FIQ_WATCHDOG_H_
 
-#ifdef CONFIG_ANDROID_BINDER_IPC_32BIT
-#define BINDER_IPC_32BIT 1
+void fiq_watchdog_triggered(const struct pt_regs *regs, void *svc_sp);
+
 #endif
-
-#include "uapi/binder.h"
-
-#endif /* _LINUX_BINDER_H */
-

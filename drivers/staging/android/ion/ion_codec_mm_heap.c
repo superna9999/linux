@@ -1,5 +1,5 @@
 /*
- * drivers/staging/android/ion/ion_carveout_heap.c
+ * drivers/staging/android/ion/ion_codec_mm_heap.c
  *
  * Copyright (C) 2011 Google, Inc.
  *
@@ -24,39 +24,55 @@
 #include <linux/vmalloc.h>
 #include "ion.h"
 #include "ion_priv.h"
+#include <linux/amlogic/codec_mm/codec_mm.h>
 
-struct ion_carveout_heap {
+struct ion_codec_mm_heap {
 	struct ion_heap heap;
-	struct gen_pool *pool;
-	ion_phys_addr_t base;
+	int max_can_alloc_size;
+	int alloced_size;
 };
-
-ion_phys_addr_t ion_carveout_allocate(struct ion_heap *heap,
+#define CODEC_MM_ION "ION"
+ion_phys_addr_t ion_codec_mm_allocate(struct ion_heap *heap,
 				      unsigned long size,
 				      unsigned long align)
 {
-	struct ion_carveout_heap *carveout_heap =
-		container_of(heap, struct ion_carveout_heap, heap);
-	unsigned long offset = gen_pool_alloc(carveout_heap->pool, size);
+	struct ion_codec_mm_heap *codec_heap =
+		container_of(heap, struct ion_codec_mm_heap, heap);
+	unsigned long offset;
 
-	if (!offset)
+	if (codec_heap->alloced_size + size > codec_heap->max_can_alloc_size) {
+		pr_err("ion_codec_mm_allocate failed out size %d,alloced %d\n",
+			(int)size, (int)codec_heap->alloced_size);
 		return ION_CARVEOUT_ALLOCATE_FAIL;
+	}
 
+	offset = codec_mm_alloc_for_dma(CODEC_MM_ION,
+		size/PAGE_SIZE,
+		0,
+		CODEC_MM_FLAGS_DMA_CPU);
+
+	if (!offset) {
+		pr_err("ion_codec_mm_allocate failed out size %d\n",
+			(int)size);
+		return ION_CARVEOUT_ALLOCATE_FAIL;
+	}
+	codec_heap->alloced_size += size;
 	return offset;
 }
 
-void ion_carveout_free(struct ion_heap *heap, ion_phys_addr_t addr,
+void ion_codec_mm_free(struct ion_heap *heap, ion_phys_addr_t addr,
 		       unsigned long size)
 {
-	struct ion_carveout_heap *carveout_heap =
-		container_of(heap, struct ion_carveout_heap, heap);
+	struct ion_codec_mm_heap *codec_heap =
+		container_of(heap, struct ion_codec_mm_heap, heap);
 
 	if (addr == ION_CARVEOUT_ALLOCATE_FAIL)
 		return;
-	gen_pool_free(carveout_heap->pool, addr, size);
+	codec_mm_free_for_dma(CODEC_MM_ION, addr);
+	codec_heap->alloced_size -= size;
 }
 
-static int ion_carveout_heap_phys(struct ion_heap *heap,
+static int ion_codec_mm_heap_phys(struct ion_heap *heap,
 				  struct ion_buffer *buffer,
 				  ion_phys_addr_t *addr, size_t *len)
 {
@@ -69,7 +85,7 @@ static int ion_carveout_heap_phys(struct ion_heap *heap,
 	return 0;
 }
 
-static int ion_carveout_heap_allocate(struct ion_heap *heap,
+static int ion_codec_mm_heap_allocate(struct ion_heap *heap,
 				      struct ion_buffer *buffer,
 				      unsigned long size, unsigned long align,
 				      unsigned long flags)
@@ -88,7 +104,7 @@ static int ion_carveout_heap_allocate(struct ion_heap *heap,
 	if (ret)
 		goto err_free;
 
-	paddr = ion_carveout_allocate(heap, size, align);
+	paddr = ion_codec_mm_allocate(heap, size, align);
 	if (paddr == ION_CARVEOUT_ALLOCATE_FAIL) {
 		ret = -ENOMEM;
 		goto err_free_table;
@@ -106,7 +122,7 @@ err_free:
 	return ret;
 }
 
-static void ion_carveout_heap_free(struct ion_buffer *buffer)
+static void ion_codec_mm_heap_free(struct ion_buffer *buffer)
 {
 	struct ion_heap *heap = buffer->heap;
 	struct sg_table *table = buffer->priv_virt;
@@ -119,77 +135,56 @@ static void ion_carveout_heap_free(struct ion_buffer *buffer)
 		dma_sync_sg_for_device(NULL, table->sgl, table->nents,
 							DMA_BIDIRECTIONAL);
 
-	ion_carveout_free(heap, paddr, buffer->size);
+	ion_codec_mm_free(heap, paddr, buffer->size);
 	sg_free_table(table);
 	kfree(table);
 }
 
-static struct sg_table *ion_carveout_heap_map_dma(struct ion_heap *heap,
+static struct sg_table *ion_codec_mm_heap_map_dma(struct ion_heap *heap,
 						  struct ion_buffer *buffer)
 {
 	return buffer->priv_virt;
 }
 
-static void ion_carveout_heap_unmap_dma(struct ion_heap *heap,
+static void ion_codec_mm_heap_unmap_dma(struct ion_heap *heap,
 					struct ion_buffer *buffer)
 {
 	return;
 }
 
-static struct ion_heap_ops carveout_heap_ops = {
-	.allocate = ion_carveout_heap_allocate,
-	.free = ion_carveout_heap_free,
-	.phys = ion_carveout_heap_phys,
-	.map_dma = ion_carveout_heap_map_dma,
-	.unmap_dma = ion_carveout_heap_unmap_dma,
+static struct ion_heap_ops codec_mm_heap_ops = {
+	.allocate = ion_codec_mm_heap_allocate,
+	.free = ion_codec_mm_heap_free,
+	.phys = ion_codec_mm_heap_phys,
+	.map_dma = ion_codec_mm_heap_map_dma,
+	.unmap_dma = ion_codec_mm_heap_unmap_dma,
 	.map_user = ion_heap_map_user,
 	.map_kernel = ion_heap_map_kernel,
 	.unmap_kernel = ion_heap_unmap_kernel,
 };
 
-struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
+struct ion_heap *ion_codec_mm_heap_create(struct ion_platform_heap *heap_data)
 {
-	struct ion_carveout_heap *carveout_heap;
+	struct ion_codec_mm_heap *codec_heap;
 	/* int ret; */
-
-	struct page *page;
-	size_t size;
-
-	page = pfn_to_page(PFN_DOWN(heap_data->base));
-	size = heap_data->size;
-
-	ion_pages_sync_for_device(NULL, page, size, DMA_BIDIRECTIONAL);
-
-	/*ret = ion_heap_pages_zero(page, size,
-				pgprot_writecombine(PAGE_KERNEL));
-	if (ret)
-		return ERR_PTR(ret);*/
-
-	carveout_heap = kzalloc(sizeof(struct ion_carveout_heap), GFP_KERNEL);
-	if (!carveout_heap)
+	codec_heap = kzalloc(sizeof(struct ion_codec_mm_heap), GFP_KERNEL);
+	if (!codec_heap)
 		return ERR_PTR(-ENOMEM);
 
-	carveout_heap->pool = gen_pool_create(12, -1);
-	if (!carveout_heap->pool) {
-		kfree(carveout_heap);
-		return ERR_PTR(-ENOMEM);
-	}
-	carveout_heap->base = heap_data->base;
-	gen_pool_add(carveout_heap->pool, carveout_heap->base, heap_data->size,
-		     -1);
-	carveout_heap->heap.ops = &carveout_heap_ops;
-	carveout_heap->heap.type = ION_HEAP_TYPE_CARVEOUT;
-	carveout_heap->heap.flags = ION_HEAP_FLAG_DEFER_FREE;
-
-	return &carveout_heap->heap;
+	codec_heap->max_can_alloc_size = heap_data->size;
+	codec_heap->alloced_size = 0;
+	codec_heap->heap.ops = &codec_mm_heap_ops;
+	codec_heap->heap.type = ION_HEAP_TYPE_CUSTOM;
+	codec_heap->heap.flags = ION_HEAP_FLAG_DEFER_FREE;
+	return &codec_heap->heap;
 }
 
-void ion_carveout_heap_destroy(struct ion_heap *heap)
+void ion_codec_mm_heap_destroy(struct ion_heap *heap)
 {
-	struct ion_carveout_heap *carveout_heap =
-	     container_of(heap, struct  ion_carveout_heap, heap);
+	struct ion_codec_mm_heap *codec_heap =
+	     container_of(heap, struct  ion_codec_mm_heap, heap);
 
-	gen_pool_destroy(carveout_heap->pool);
-	kfree(carveout_heap);
-	carveout_heap = NULL;
+
+	kfree(codec_heap);
+	codec_heap = NULL;
 }
