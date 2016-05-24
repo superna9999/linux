@@ -277,6 +277,7 @@ static unsigned long isolate_freepages_block(struct compact_control *cc,
 	unsigned long flags;
 	bool locked = false;
 	bool checked_pageblock = false;
+	enum migrate_type page_type = cc->page_type;
 
 	cursor = pfn_to_page(blockpfn);
 
@@ -324,7 +325,7 @@ static unsigned long isolate_freepages_block(struct compact_control *cc,
 			goto isolate_fail;
 
 		/* Found a free page, break it into order-0 pages */
-		isolated = split_free_page(page);
+		isolated = split_free_page(page, page_type);
 		total_isolated += isolated;
 		for (i = 0; i < isolated; i++) {
 			list_add(&page->lru, freelist);
@@ -387,7 +388,7 @@ unsigned long
 isolate_freepages_range(struct compact_control *cc,
 			unsigned long start_pfn, unsigned long end_pfn)
 {
-	unsigned long isolated, pfn, block_end_pfn;
+	unsigned long isolated = 0, pfn, block_end_pfn;
 	LIST_HEAD(freelist);
 
 	for (pfn = start_pfn; pfn < end_pfn; pfn += isolated) {
@@ -648,7 +649,7 @@ isolate_migratepages_range(struct zone *zone, struct compact_control *cc,
 		lruvec = mem_cgroup_page_lruvec(page, zone);
 
 		/* Try isolate the page */
-		if (__isolate_lru_page(page, mode) != 0)
+		if (__isolate_lru_page(page, mode, cc->migratetype) != 0)
 			continue;
 
 		VM_BUG_ON_PAGE(PageTransCompound(page), page);
@@ -703,7 +704,7 @@ next_pageblock:
  * suitable for isolating free pages from and then isolate them.
  */
 static void isolate_freepages(struct zone *zone,
-				struct compact_control *cc)
+			struct compact_control *cc, struct page *migratepage)
 {
 	struct page *page;
 	unsigned long block_start_pfn;	/* start of current pageblock */
@@ -711,7 +712,18 @@ static void isolate_freepages(struct zone *zone,
 	unsigned long low_pfn;	     /* lowest pfn scanner is able to scan */
 	int nr_freepages = cc->nr_freepages;
 	struct list_head *freelist = &cc->freepages;
+#ifdef CONFIG_CMA
+	struct address_space *mapping = NULL;
+	bool use_cma = true;
+	int migrate_type = 0;
 
+	mapping = page_mapping(migratepage);
+	if ((unsigned long)mapping & PAGE_MAPPING_ANON)
+		mapping = NULL;
+
+	if (mapping && (mapping_gfp_mask(mapping) & __GFP_BDEV))
+		use_cma = false;
+#endif
 	/*
 	 * Initialise the free scanner. The starting point is where we last
 	 * successfully isolated from, zone-cached value, or the end of the
@@ -769,6 +781,13 @@ static void isolate_freepages(struct zone *zone,
 		if (!isolation_suitable(cc, page))
 			continue;
 
+#ifdef CONFIG_CMA
+		migrate_type = get_pageblock_migratetype(page);
+		if (is_migrate_isolate(migrate_type))
+			continue;
+		if (!use_cma && is_migrate_cma(migrate_type))
+			continue;
+#endif
 		/* Found a block suitable for isolating free pages from */
 		cc->free_pfn = block_start_pfn;
 		isolated = isolate_freepages_block(cc, block_start_pfn,
@@ -822,7 +841,7 @@ static struct page *compaction_alloc(struct page *migratepage,
 	 */
 	if (list_empty(&cc->freepages)) {
 		if (!cc->contended)
-			isolate_freepages(cc->zone, cc);
+			isolate_freepages(cc->zone, cc, migratepage);
 
 		if (list_empty(&cc->freepages))
 			return NULL;
@@ -1102,6 +1121,7 @@ static unsigned long compact_zone_order(struct zone *zone, int order,
 		.migratetype = allocflags_to_migratetype(gfp_mask),
 		.zone = zone,
 		.mode = mode,
+		.page_type = COMPACT_NORMAL,
 	};
 	INIT_LIST_HEAD(&cc.freepages);
 	INIT_LIST_HEAD(&cc.migratepages);
@@ -1115,7 +1135,7 @@ static unsigned long compact_zone_order(struct zone *zone, int order,
 	return ret;
 }
 
-int sysctl_extfrag_threshold = 500;
+int sysctl_extfrag_threshold = 200;
 
 /**
  * try_to_compact_pages - Direct compact to satisfy a high-order allocation
@@ -1207,6 +1227,7 @@ void compact_pgdat(pg_data_t *pgdat, int order)
 	struct compact_control cc = {
 		.order = order,
 		.mode = MIGRATE_ASYNC,
+		.page_type = COMPACT_NORMAL,
 	};
 
 	if (!order)
@@ -1220,6 +1241,7 @@ static void compact_node(int nid)
 	struct compact_control cc = {
 		.order = -1,
 		.mode = MIGRATE_SYNC,
+		.page_type = COMPACT_NORMAL,
 		.ignore_skip_hint = true,
 	};
 
