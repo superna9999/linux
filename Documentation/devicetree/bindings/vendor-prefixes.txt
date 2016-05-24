@@ -95,3 +95,9 @@ winbond Winbond Electronics corp.
 wlf	Wolfson Microelectronics
 wm	Wondermedia Technologies, Inc.
 xlnx	Xilinx
+AMLOGIC Amlogic, Inc
+amlogic Amlogic, Inc
+shared-dma-pool	shared dma pool
+i2c-gpio
+i2c-gpio-edid
+gpio-leds
