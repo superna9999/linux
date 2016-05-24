@@ -48,7 +48,7 @@
 #define CMD_ID_MASK		0x7f
 #define CMD_TOKEN_ID_SHIFT	8
 #define CMD_TOKEN_ID_MASK	0xff
-#define CMD_DATA_SIZE_SHIFT	16
+#define CMD_DATA_SIZE_SHIFT	20	
 #define CMD_DATA_SIZE_MASK	0x1ff
 #define PACK_SCPI_CMD(cmd_id, tx_sz)			\
 	((((cmd_id) & CMD_ID_MASK) << CMD_ID_SHIFT) |	\
@@ -62,8 +62,8 @@
 
 #define SCPI_SLOT		0
 
-#define MAX_DVFS_DOMAINS	8
-#define MAX_DVFS_OPPS		8
+#define MAX_DVFS_DOMAINS	3
+#define MAX_DVFS_OPPS		16
 #define DVFS_LATENCY(hdr)	(le32_to_cpu(hdr) >> 16)
 #define DVFS_OPP_COUNT(hdr)	((le32_to_cpu(hdr) >> 8) & 0xff)
 
@@ -103,37 +103,40 @@ enum scpi_std_cmd {
 	SCPI_CMD_INVALID		= 0x00,
 	SCPI_CMD_SCPI_READY		= 0x01,
 	SCPI_CMD_SCPI_CAPABILITIES	= 0x02,
-	SCPI_CMD_SET_CSS_PWR_STATE	= 0x03,
-	SCPI_CMD_GET_CSS_PWR_STATE	= 0x04,
-	SCPI_CMD_SET_SYS_PWR_STATE	= 0x05,
-	SCPI_CMD_SET_CPU_TIMER		= 0x06,
-	SCPI_CMD_CANCEL_CPU_TIMER	= 0x07,
-	SCPI_CMD_DVFS_CAPABILITIES	= 0x08,
-	SCPI_CMD_GET_DVFS_INFO		= 0x09,
-	SCPI_CMD_SET_DVFS		= 0x0a,
-	SCPI_CMD_GET_DVFS		= 0x0b,
-	SCPI_CMD_GET_DVFS_STAT		= 0x0c,
-	SCPI_CMD_CLOCK_CAPABILITIES	= 0x0d,
-	SCPI_CMD_GET_CLOCK_INFO		= 0x0e,
-	SCPI_CMD_SET_CLOCK_VALUE	= 0x0f,
-	SCPI_CMD_GET_CLOCK_VALUE	= 0x10,
-	SCPI_CMD_PSU_CAPABILITIES	= 0x11,
-	SCPI_CMD_GET_PSU_INFO		= 0x12,
-	SCPI_CMD_SET_PSU		= 0x13,
-	SCPI_CMD_GET_PSU		= 0x14,
-	SCPI_CMD_SENSOR_CAPABILITIES	= 0x15,
-	SCPI_CMD_SENSOR_INFO		= 0x16,
-	SCPI_CMD_SENSOR_VALUE		= 0x17,
-	SCPI_CMD_SENSOR_CFG_PERIODIC	= 0x18,
-	SCPI_CMD_SENSOR_CFG_BOUNDS	= 0x19,
-	SCPI_CMD_SENSOR_ASYNC_VALUE	= 0x1a,
-	SCPI_CMD_SET_DEVICE_PWR_STATE	= 0x1b,
-	SCPI_CMD_GET_DEVICE_PWR_STATE	= 0x1c,
+	SCPI_CMD_EVENT			= 0x03,
+	SCPI_CMD_SET_CSS_PWR_STATE	= 0x04,
+	SCPI_CMD_GET_CSS_PWR_STATE	= 0x05,
+	SCPI_CMD_CFG_PWR_STATE_STAT	= 0x06,
+	SCPI_CMD_GET_PWR_STATE_STAT	= 0x07,
+	SCPI_CMD_SET_SYS_PWR_STATE	= 0x08,
+	SCPI_CMD_L2_READY		= 0x09,
+	SCPI_CMD_SET_CPU_TIMER		= 0x0a,
+	SCPI_CMD_CANCEL_CPU_TIMER	= 0x0b,
+	SCPI_CMD_DVFS_CAPABILITIES	= 0x0c,
+	SCPI_CMD_GET_DVFS_INFO		= 0x0d,
+	SCPI_CMD_SET_DVFS		= 0x0e,
+	SCPI_CMD_GET_DVFS		= 0x0f,
+	SCPI_CMD_GET_DVFS_STAT		= 0x10,
+	SCPI_CMD_SET_RTC		= 0x11,
+	SCPI_CMD_GET_RTC		= 0x12,
+	SCPI_CMD_CLOCK_CAPABILITIES	= 0x13,
+	SCPI_CMD_GET_CLOCK_INFO		= 0x14,
+	SCPI_CMD_SET_CLOCK_VALUE	= 0x15,
+	SCPI_CMD_GET_CLOCK_VALUE	= 0x16,
+	SCPI_CMD_PSU_CAPABILITIES	= 0x17,
+	SCPI_CMD_SET_PSU		= 0x18,
+	SCPI_CMD_GET_PSU		= 0x19,
+	SCPI_CMD_SENSOR_CAPABILITIES	= 0x1a,
+	SCPI_CMD_SENSOR_INFO		= 0x1b,
+	SCPI_CMD_SENSOR_VALUE		= 0x1c,
+	SCPI_CMD_SENSOR_CFG_PERIODIC	= 0x1d,
+	SCPI_CMD_SENSOR_CFG_BOUNDS	= 0x1e,
+	SCPI_CMD_SENSOR_ASYNC_VALUE	= 0x1f,
+	SCPI_CMD_SET_USR_DATA 		= 0x20,
 	SCPI_CMD_COUNT
 };
 
 struct scpi_xfer {
-	u32 slot; /* has to be first element */
 	u32 cmd;
 	u32 status;
 	const void *tx_buf;
@@ -172,7 +175,6 @@ struct scpi_drvinfo {
  * shared through SCPI should have their contents converted to little-endian
  */
 struct scpi_shared_mem {
-	__le32 command;
 	__le32 status;
 	u8 payload[0];
 } __packed;
@@ -197,9 +199,9 @@ struct clk_get_value {
 } __packed;
 
 struct clk_set_value {
+	__le32 rate;
 	__le16 id;
 	__le16 reserved;
-	__le32 rate;
 } __packed;
 
 struct dvfs_info {
@@ -231,8 +233,7 @@ struct _scpi_sensor_info {
 };
 
 struct sensor_value {
-	__le32 lo_val;
-	__le32 hi_val;
+	__le32 val;
 } __packed;
 
 static struct scpi_drvinfo *scpi_info;
@@ -261,12 +262,13 @@ static inline int scpi_to_linux_errno(int errno)
 	return -EIO;
 }
 
-static void scpi_process_cmd(struct scpi_chan *ch, u32 cmd)
+static void scpi_process_cmd(struct scpi_chan *ch)
 {
 	unsigned long flags;
 	struct scpi_xfer *t, *match = NULL;
 
 	spin_lock_irqsave(&ch->rx_lock, flags);
+#if 0
 	if (list_empty(&ch->rx_pending)) {
 		spin_unlock_irqrestore(&ch->rx_lock, flags);
 		return;
@@ -278,15 +280,19 @@ static void scpi_process_cmd(struct scpi_chan *ch, u32 cmd)
 			match = t;
 			break;
 		}
+#else
+	match = list_last_entry(&ch->rx_pending, struct scpi_xfer, node);
+#endif
 	/* check if wait_for_completion is in progress or timed-out */
 	if (match && !completion_done(&match->done)) {
 		struct scpi_shared_mem *mem = ch->rx_payload;
-		unsigned int len = min(match->rx_len, CMD_SIZE(cmd));
+		unsigned int len = match->rx_len;
+
 
 		match->status = le32_to_cpu(mem->status);
-		memcpy_fromio(match->rx_buf, mem->payload, len);
-		if (match->rx_len > len)
-			memset(match->rx_buf + len, 0, match->rx_len - len);
+		if (len)
+			memcpy_fromio(match->rx_buf, mem->payload, len);
+		pr_info("%s: len %d status %x\n", __func__, len, match->status);
 		complete(&match->done);
 	}
 	spin_unlock_irqrestore(&ch->rx_lock, flags);
@@ -295,10 +301,12 @@ static void scpi_process_cmd(struct scpi_chan *ch, u32 cmd)
 static void scpi_handle_remote_msg(struct mbox_client *c, void *msg)
 {
 	struct scpi_chan *ch = container_of(c, struct scpi_chan, cl);
+#if 0
 	struct scpi_shared_mem *mem = ch->rx_payload;
 	u32 cmd = le32_to_cpu(mem->command);
+#endif
 
-	scpi_process_cmd(ch, cmd);
+	scpi_process_cmd(ch);
 }
 
 static void scpi_tx_prepare(struct mbox_client *c, void *msg)
@@ -310,15 +318,19 @@ static void scpi_tx_prepare(struct mbox_client *c, void *msg)
 
 	if (t->tx_buf)
 		memcpy_toio(mem->payload, t->tx_buf, t->tx_len);
+#if 0
 	if (t->rx_buf) {
 		if (!(++ch->token))
 			++ch->token;
-		ADD_SCPI_TOKEN(t->cmd, ch->token);
+		//ADD_SCPI_TOKEN(t->cmd, ch->token);
+#endif
 		spin_lock_irqsave(&ch->rx_lock, flags);
 		list_add_tail(&t->node, &ch->rx_pending);
 		spin_unlock_irqrestore(&ch->rx_lock, flags);
+#if 0
 	}
-	mem->command = cpu_to_le32(t->cmd);
+#endif
+	//mem->command = cpu_to_le32(t->cmd);
 }
 
 static struct scpi_xfer *get_scpi_xfer(struct scpi_chan *ch)
@@ -343,6 +355,34 @@ static void put_scpi_xfer(struct scpi_xfer *t, struct scpi_chan *ch)
 	mutex_unlock(&ch->xfers_lock);
 }
 
+static int high_priority_cmds[] = {                                             
+	SCPI_CMD_GET_CSS_PWR_STATE,                                             
+	SCPI_CMD_CFG_PWR_STATE_STAT,                                            
+	SCPI_CMD_GET_PWR_STATE_STAT,                                            
+	SCPI_CMD_SET_DVFS,                                                      
+	SCPI_CMD_GET_DVFS,                                                      
+	SCPI_CMD_SET_RTC,                                                       
+	SCPI_CMD_GET_RTC,                                                       
+	//SCPI_CMD_SET_CLOCK_INDEX,                                               
+	SCPI_CMD_SET_CLOCK_VALUE,                                               
+	SCPI_CMD_GET_CLOCK_VALUE,                                               
+	SCPI_CMD_SET_PSU,                                                       
+	SCPI_CMD_GET_PSU,                                                       
+	SCPI_CMD_SENSOR_CFG_PERIODIC,                                           
+	SCPI_CMD_SENSOR_CFG_BOUNDS,                                             
+};
+
+static int scpi_get_chan(u8 cmd)
+{
+	int ret = 0, idx;
+
+	for (idx = 0; idx < ARRAY_SIZE(high_priority_cmds); idx++)
+		if (cmd == high_priority_cmds[idx])
+			return 1;
+
+	return 0;
+}
+
 static int scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
 			     void *rx_buf, unsigned int rx_len)
 {
@@ -351,14 +391,17 @@ static int scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
 	struct scpi_xfer *msg;
 	struct scpi_chan *scpi_chan;
 
+#if 0
 	chan = atomic_inc_return(&scpi_info->next_chan) % scpi_info->num_chans;
+#else
+	chan = scpi_get_chan(cmd);
+#endif
 	scpi_chan = scpi_info->channels + chan;
 
 	msg = get_scpi_xfer(scpi_chan);
 	if (!msg)
 		return -ENOMEM;
 
-	msg->slot = BIT(SCPI_SLOT);
 	msg->cmd = PACK_SCPI_CMD(cmd, tx_len);
 	msg->tx_buf = tx_buf;
 	msg->tx_len = tx_len;
@@ -367,7 +410,7 @@ static int scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
 	init_completion(&msg->done);
 
 	ret = mbox_send_message(scpi_chan->chan, msg);
-	if (ret < 0 || !rx_buf)
+	if (ret < 0)
 		goto out;
 
 	if (!wait_for_completion_timeout(&msg->done, MAX_RX_TIMEOUT))
@@ -377,7 +420,7 @@ static int scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
 		ret = msg->status;
 out:
 	if (ret < 0 && rx_buf) /* remove entry from the list if timed-out */
-		scpi_process_cmd(scpi_chan, msg->cmd);
+		scpi_process_cmd(scpi_chan);
 
 	put_scpi_xfer(msg, scpi_chan);
 	/* SCPI error codes > 0, translate them to Linux scale*/
@@ -413,6 +456,8 @@ static unsigned long scpi_clk_get_val(u16 clk_id)
 
 	ret = scpi_send_message(SCPI_CMD_GET_CLOCK_VALUE, &le_clk_id,
 				sizeof(le_clk_id), &clk, sizeof(clk));
+	pr_info("%s(%d)=%d\n",
+		__func__, clk_id, clk.rate);
 	return ret ? ret : le32_to_cpu(clk.rate);
 }
 
@@ -423,6 +468,8 @@ static int scpi_clk_set_val(u16 clk_id, unsigned long rate)
 		.id = cpu_to_le16(clk_id),
 		.rate = cpu_to_le32(rate)
 	};
+	pr_info("%s(%d)=%d\n",
+		__func__, clk_id, rate);
 
 	return scpi_send_message(SCPI_CMD_SET_CLOCK_VALUE, &clk, sizeof(clk),
 				 &stat, sizeof(stat));
@@ -435,6 +482,8 @@ static int scpi_dvfs_get_idx(u8 domain)
 
 	ret = scpi_send_message(SCPI_CMD_GET_DVFS, &domain, sizeof(domain),
 				&dvfs, sizeof(dvfs));
+	pr_info("%s(%d)=%d\n",
+		__func__, domain, dvfs.index);
 	return ret ? ret : dvfs.index;
 }
 
@@ -442,6 +491,8 @@ static int scpi_dvfs_set_idx(u8 domain, u8 index)
 {
 	int stat;
 	struct dvfs_set dvfs = {domain, index};
+	pr_info("%s(%d, %d)\n",
+		__func__, domain, index);
 
 	return scpi_send_message(SCPI_CMD_SET_DVFS, &dvfs, sizeof(dvfs),
 				 &stat, sizeof(stat));
@@ -479,6 +530,8 @@ static struct scpi_dvfs_info *scpi_dvfs_get_info(u8 domain)
 
 	info->count = DVFS_OPP_COUNT(buf.header);
 	info->latency = DVFS_LATENCY(buf.header) * 1000; /* uS to nS */
+	pr_info("%s(%d): count %d lat %d\n",
+			__func__, domain, info->count, info->latency);
 
 	info->opps = kcalloc(info->count, sizeof(*opp), GFP_KERNEL);
 	if (!info->opps) {
@@ -489,6 +542,8 @@ static struct scpi_dvfs_info *scpi_dvfs_get_info(u8 domain)
 	for (i = 0, opp = info->opps; i < info->count; i++, opp++) {
 		opp->freq = le32_to_cpu(buf.opps[i].freq);
 		opp->m_volt = le32_to_cpu(buf.opps[i].m_volt);
+		pr_info("%s(%d) opp%d: f=%d mv=%d\n",
+			__func__, domain, i, opp->freq, opp->m_volt);
 	}
 
 	sort(info->opps, info->count, sizeof(*opp), opp_cmp_func, NULL);
@@ -535,8 +590,7 @@ int scpi_sensor_get_value(u16 sensor, u64 *val)
 	ret = scpi_send_message(SCPI_CMD_SENSOR_VALUE, &id, sizeof(id),
 				&buf, sizeof(buf));
 	if (!ret)
-		*val = (u64)le32_to_cpu(buf.hi_val) << 32 |
-			le32_to_cpu(buf.lo_val);
+		*val = (u64)le32_to_cpu(buf.val);
 
 	return ret;
 }
@@ -690,6 +744,7 @@ static int scpi_probe(struct platform_device *pdev)
 		}
 
 		size = resource_size(&res);
+		dev_info(dev, "chan%d: sram start=%x size=%d\n", idx, res.start, size);
 		pchan->rx_payload = devm_ioremap(dev, res.start, size);
 		if (!pchan->rx_payload) {
 			dev_err(dev, "failed to ioremap SCPI payload\n");
@@ -697,6 +752,7 @@ static int scpi_probe(struct platform_device *pdev)
 			goto err;
 		}
 		pchan->tx_payload = pchan->rx_payload + (size >> 1);
+		dev_info(dev, "chan%d: payload rx=%p tx=%p\n", idx, pchan->rx_payload, pchan->tx_payload);
 
 		cl->dev = dev;
 		cl->rx_callback = scpi_handle_remote_msg;
@@ -730,6 +786,7 @@ err:
 	scpi_info->num_chans = count;
 	platform_set_drvdata(pdev, scpi_info);
 
+#if 0
 	ret = scpi_init_versions(scpi_info);
 	if (ret) {
 		dev_err(dev, "incorrect or no SCP firmware found\n");
@@ -743,6 +800,7 @@ err:
 		  FW_REV_MAJOR(scpi_info->firmware_version),
 		  FW_REV_MINOR(scpi_info->firmware_version),
 		  FW_REV_PATCH(scpi_info->firmware_version));
+#endif
 	scpi_info->scpi_ops = &scpi_ops;
 
 	ret = sysfs_create_groups(&dev->kobj, versions_groups);
