@@ -7,6 +7,13 @@ if TTY
 menu "Serial drivers"
 	depends on HAS_IOMEM
 
+config SERIAL_EARLYCON
+	bool
+	help
+	  Support for early consoles with the earlycon parameter. This enables
+	  the console before standard serial driver is probed. The console is
+	  enabled when early_param is processed.
+
 source "drivers/tty/serial/8250/Kconfig"
 
 comment "Non-8250 serial port support"
@@ -1506,6 +1513,12 @@ config SERIAL_ST_ASC_CONSOLE
 	bool "Support for console on ST ASC"
 	depends on SERIAL_ST_ASC=y
 	select SERIAL_CORE_CONSOLE
+
+config SUPPORT_SYSRQ
+	bool "Support sysrq"
+	default n
+	help
+	  If you want to support sysrq function by uart, say y here.
 
 endmenu
 
