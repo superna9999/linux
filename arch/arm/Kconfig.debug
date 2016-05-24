@@ -337,6 +337,13 @@ choice
 		  Say Y here if you want the debug print routines to direct
 		  their output to UART1 serial port on KEYSTONE2 devices.
 
+	config DEBUG_MESON_UARTAO
+		bool "Kernel low-level debugging via Meson8 UARTAO"
+		depends on ARCH_MESON
+		help
+		  Say Y here if you want kernel low-lever debugging support
+		  on Amlogic Meson8 based platforms on the UARTAO.
+
 	config DEBUG_MMP_UART2
 		bool "Kernel low-level debugging message via MMP UART2"
 		depends on ARCH_MMP
@@ -962,6 +969,7 @@ config DEBUG_LL_INCLUDE
 	string
 	default "debug/8250.S" if DEBUG_LL_UART_8250 || DEBUG_UART_8250
 	default "debug/pl01x.S" if DEBUG_LL_UART_PL01X || DEBUG_UART_PL01X
+	default "debug/meson.S" if DEBUG_MESON_UARTAO
 	default "debug/exynos.S" if DEBUG_EXYNOS_UART
 	default "debug/efm32.S" if DEBUG_LL_UART_EFM32
 	default "debug/icedcc.S" if DEBUG_ICEDCC
@@ -1045,6 +1053,7 @@ config DEBUG_UART_PHYS
 	default 0xc8000003 if ARCH_IXP4XX && CPU_BIG_ENDIAN
 	default 0xd0000000 if ARCH_SPEAR3XX || ARCH_SPEAR6XX
 	default 0xd0012000 if DEBUG_MVEBU_UART
+	default 0xc81004c0 if DEBUG_MESON_UARTAO
 	default 0xd4017000 if DEBUG_MMP_UART2
 	default 0xd4018000 if DEBUG_MMP_UART3
 	default 0xe0000000 if ARCH_SPEAR13XX
@@ -1062,7 +1071,7 @@ config DEBUG_UART_PHYS
 	default 0xfffff700 if ARCH_IOP33X
 	depends on DEBUG_LL_UART_8250 || DEBUG_LL_UART_PL01X || \
 		DEBUG_LL_UART_EFM32 || \
-		DEBUG_UART_8250 || DEBUG_UART_PL01X
+		DEBUG_UART_8250 || DEBUG_UART_PL01X || DEBUG_MESON_UARTAO
 
 config DEBUG_UART_VIRT
 	hex "Virtual base address of debug UART"
@@ -1088,6 +1097,7 @@ config DEBUG_UART_VIRT
 	default 0xfd012000 if ARCH_MV78XX0
 	default 0xfde12000 if ARCH_DOVE
 	default 0xfe012000 if ARCH_ORION5X
+	default 0xfe6004c0 if DEBUG_MESON_UARTAO
 	default 0xfe017000 if DEBUG_MMP_UART2
 	default 0xfe018000 if DEBUG_MMP_UART3
 	default 0xfe100000 if DEBUG_IMX23_UART || DEBUG_IMX28_UART
@@ -1120,7 +1130,7 @@ config DEBUG_UART_VIRT
 	default 0xff003000 if DEBUG_U300_UART
 	default DEBUG_UART_PHYS if !MMU
 	depends on DEBUG_LL_UART_8250 || DEBUG_LL_UART_PL01X || \
-		DEBUG_UART_8250 || DEBUG_UART_PL01X
+		DEBUG_UART_8250 || DEBUG_UART_PL01X || DEBUG_MESON_UARTAO
 
 config DEBUG_UART_8250_SHIFT
 	int "Register offset shift for the 8250 debug UART"
@@ -1157,7 +1167,7 @@ config DEBUG_UNCOMPRESS
 	  When this option is set, the selected DEBUG_LL output method
 	  will be re-used for normal decompressor output on multiplatform
 	  kernels.
-	  
+
 
 config UNCOMPRESS_INCLUDE
 	string
@@ -1172,13 +1182,13 @@ config EARLY_PRINTK
 	  kernel low-level debugging functions. Add earlyprintk to your
 	  kernel parameters to enable this console.
 
-config OC_ETM
-	bool "On-chip ETM and ETB"
-	depends on ARM_AMBA
+config EARLY_PRINTK_DIRECT
+	bool "Early printk direct"
+	depends on DEBUG_LL
 	help
-	  Enables the on-chip embedded trace macrocell and embedded trace
-	  buffer driver that will allow you to collect traces of the
-	  kernel code.
+	  Say Y here if you want to have an early console using the
+	  kernel low-level debugging functions and EARLY_PRINTK is
+	  not early enough.
 
 config ARM_KPROBES_TEST
 	tristate "Kprobes test module"
@@ -1206,4 +1216,59 @@ config DEBUG_SET_MODULE_RONX
 	  against certain classes of kernel exploits.
 	  If in doubt, say "N".
 
+menuconfig CORESIGHT
+	bool "CoreSight Tracing Support"
+	select ARM_AMBA
+	help
+	  This framework provides a kernel interface for the CoreSight debug
+	  and trace drivers to register themselves with. It's intended to build
+	  a topological view of the CoreSight components based on a DT
+	  specification and configure the right serie of components when a
+	  trace source gets enabled.
+
+if CORESIGHT
+config CORESIGHT_LINKS_AND_SINKS
+	bool "CoreSight Link and Sink drivers"
+	help
+	  This enables support for CoreSight link and sink drivers that are
+	  responsible for transporting and collecting the trace data
+	  respectively.  Link and sinks are dynamically aggregated with a trace
+	  entity at run time to form a complete trace path.
+
+config CORESIGHT_LINK_AND_SINK_TMC
+	bool "Coresight generic TMC driver"
+	depends on CORESIGHT_LINKS_AND_SINKS
+	help
+	  This enables support for the Trace Memory Controller driver.  Depending
+	  on its configuration the device can act as a link (embedded trace router
+	  - ETR) or sink (embedded trace FIFO).  The driver complies with the
+	  generic implementation of the component without special enhancement or
+	  added features.
+
+config CORESIGHT_SINK_TPIU
+	bool "Coresight generic TPIU driver"
+	depends on CORESIGHT_LINKS_AND_SINKS
+	help
+	  This enables support for the Trace Port Interface Unit driver, responsible
+	  for bridging the gap between the on-chip coresight components and a trace
+	  port collection engine, typically connected to an external host for use
+	  case capturing more traces than the on-board coresight memory can handle.
+
+config CORESIGHT_SINK_ETBV10
+	bool "Coresight ETBv1.0 driver"
+	depends on CORESIGHT_LINKS_AND_SINKS
+	help
+	  This enables support for the Embedded Trace Buffer version 1.0 driver
+	  that complies with the generic implementation of the component without
+	  special enhancement or added features.
+
+config CORESIGHT_SOURCE_ETM3X
+	bool "CoreSight Embedded Trace Macrocell 3.x driver"
+	select CORESIGHT_LINKS_AND_SINKS
+	help
+	  This driver provides support for processor ETM3.x and PTM1.x modules,
+	  which allows tracing the instructions that a processor is executing
+	  This is primarily useful for instruction level tracing.  Depending
+	  the ETM version data tracing may also be available.
+endif
 endmenu

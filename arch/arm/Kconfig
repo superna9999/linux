@@ -931,6 +931,8 @@ endmenu
 # Kconfigs may be included either alphabetically (according to the
 # plat- suffix) or along side the corresponding mach-* source.
 #
+source "arch/arm/mach-meson/Kconfig"
+
 source "arch/arm/mach-mvebu/Kconfig"
 
 source "arch/arm/mach-at91/Kconfig"
@@ -1913,6 +1915,15 @@ config XEN
 	help
 	  Say Y if you want to run Linux in a Virtual Machine on Xen on ARM.
 
+config ARM_FLUSH_CONSOLE_ON_RESTART
+	bool "Force flush the console on restart"
+	help
+	  If the console is locked while the system is rebooted, the messages
+	  in the temporary logbuffer would not have propogated to all the
+	  console drivers. This option forces the console lock to be
+	  released if it failed to be acquired, which will cause all the
+	  pending messages to be flushed.
+
 endmenu
 
 menu "Boot options"
@@ -1922,6 +1933,7 @@ config USE_OF
 	select IRQ_DOMAIN
 	select OF
 	select OF_EARLY_FLATTREE
+	select OF_RESERVED_MEM
 	help
 	  Include support for flattened device tree machine descriptions.
 
@@ -1941,6 +1953,21 @@ config DEPRECATED_PARAM_STRUCT
 	help
 	  This was deprecated in 2001 and announced to live on for 5 years.
 	  Some old boot loaders still use this way.
+
+config BUILD_ARM_APPENDED_DTB_IMAGE
+	bool "Build a concatenated zImage/dtb by default"
+	depends on OF
+	help
+	  Enabling this option will cause a concatenated zImage and DTB to
+	  be built by default (instead of a standalone zImage.)  The image
+	  will built in arch/arm/boot/zImage-dtb.<dtb name>
+
+config BUILD_ARM_APPENDED_DTB_IMAGE_NAME
+	string "Default dtb name"
+	depends on BUILD_ARM_APPENDED_DTB_IMAGE
+	help
+	  name of the dtb to append when building a concatenated
+	  zImage/dtb.
 
 # Compressed boot loader in ROM.  Yes, we really want to ask about
 # TEXT and BSS so we preserve their values in the config files.

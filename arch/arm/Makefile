@@ -167,6 +167,7 @@ machine-$(CONFIG_ARCH_KS8695)		+= ks8695
 machine-$(CONFIG_ARCH_LPC32XX)		+= lpc32xx
 machine-$(CONFIG_ARCH_MMP)		+= mmp
 machine-$(CONFIG_ARCH_MOXART)		+= moxart
+machine-$(CONFIG_ARCH_MESON)		+= meson
 machine-$(CONFIG_ARCH_MSM)		+= msm
 machine-$(CONFIG_ARCH_MV78XX0)		+= mv78xx0
 machine-$(CONFIG_ARCH_MVEBU)		+= mvebu
@@ -277,6 +278,8 @@ libs-y				:= arch/arm/lib/ $(libs-y)
 # Default target when executing plain make
 ifeq ($(CONFIG_XIP_KERNEL),y)
 KBUILD_IMAGE := xipImage
+else ifeq ($(CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE),y)
+KBUILD_IMAGE := zImage-dtb.$(CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE_NAME)
 else
 KBUILD_IMAGE := zImage
 endif
@@ -308,11 +311,11 @@ $(INSTALL_TARGETS):
 	$(Q)$(MAKE) $(build)=$(boot) MACHINE=$(MACHINE) $@
 
 %.dtb: | scripts
-	$(Q)$(MAKE) $(build)=$(boot)/dts MACHINE=$(MACHINE) $(boot)/dts/$@
+	$(Q)$(MAKE) $(build)=$(boot)/dts/amlogic MACHINE=$(MACHINE) $(boot)/dts/amlogic/$@
 
 PHONY += dtbs
 dtbs: scripts
-	$(Q)$(MAKE) $(build)=$(boot)/dts MACHINE=$(MACHINE) dtbs
+	$(Q)$(MAKE) $(build)=$(boot)/dts/amlogic MACHINE=$(MACHINE) dtbs
 
 # We use MRPROPER_FILES and CLEAN_FILES now
 archclean:

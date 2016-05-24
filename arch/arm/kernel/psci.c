@@ -42,6 +42,7 @@ static u32 psci_function_id[PSCI_FN_MAX];
 #define PSCI_RET_EOPNOTSUPP		-1
 #define PSCI_RET_EINVAL			-2
 #define PSCI_RET_EPERM			-3
+#define PSCI_RET_EALREADYON		-4
 
 static int psci_to_linux_errno(int errno)
 {
@@ -54,6 +55,8 @@ static int psci_to_linux_errno(int errno)
 		return -EINVAL;
 	case PSCI_RET_EPERM:
 		return -EPERM;
+	case PSCI_RET_EALREADYON:
+		return -EAGAIN;
 	};
 
 	return -EINVAL;
@@ -153,7 +156,7 @@ static int psci_migrate(unsigned long cpuid)
 	return psci_to_linux_errno(err);
 }
 
-static const struct of_device_id psci_of_match[] __initconst = {
+static const struct of_device_id psci_of_match[] = {
 	{ .compatible = "arm,psci",	},
 	{},
 };
@@ -171,7 +174,7 @@ void __init psci_init(void)
 	pr_info("probing function IDs from device-tree\n");
 
 	if (of_property_read_string(np, "method", &method)) {
-		pr_warning("missing \"method\" property\n");
+		pr_warn("missing \"method\" property\n");
 		goto out_put_node;
 	}
 
@@ -180,7 +183,7 @@ void __init psci_init(void)
 	} else if (!strcmp("smc", method)) {
 		invoke_psci_fn = __invoke_psci_fn_smc;
 	} else {
-		pr_warning("invalid \"method\" property: %s\n", method);
+		pr_warn("invalid \"method\" property: %s\n", method);
 		goto out_put_node;
 	}
 
@@ -207,4 +210,17 @@ void __init psci_init(void)
 out_put_node:
 	of_node_put(np);
 	return;
+}
+
+int psci_probe(void)
+{
+	struct device_node *np;
+	int ret = -ENODEV;
+
+	np = of_find_matching_node(NULL, psci_of_match);
+	if (np)
+		ret = 0;
+
+	of_node_put(np);
+	return ret;
 }

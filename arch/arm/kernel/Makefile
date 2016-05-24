@@ -30,7 +30,6 @@ else
 obj-y		+= entry-armv.o
 endif
 
-obj-$(CONFIG_OC_ETM)		+= etm.o
 obj-$(CONFIG_CPU_IDLE)		+= cpuidle.o
 obj-$(CONFIG_ISA_DMA_API)	+= dma.o
 obj-$(CONFIG_FIQ)		+= fiq.o fiqasm.o
@@ -97,5 +96,7 @@ ifeq ($(CONFIG_ARM_PSCI),y)
 obj-y				+= psci.o
 obj-$(CONFIG_SMP)		+= psci_smp.o
 endif
+
+obj-$(CONFIG_HIBERNATION)		+= hibernate.o
 
 extra-y := $(head-y) vmlinux.lds
