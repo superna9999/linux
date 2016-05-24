@@ -1,0 +1,11 @@
+menuconfig SND_AML_M8
+	tristate "AML-SND-M8 Board"
+	depends on SND_AML_M8_SOC
+	select SWITCH
+	select SND_SOC_PCM2BT
+	select SND_SOC_DUMMY_CODEC
+	select SND_SOC_AMLPMU4 if AML_PMU4
+	select SND_SOC_TAS5707
+	select SND_SOC_TAS5717
+	select SND_SOC_TAS5731
+	select SND_SOC_AMLT9015
