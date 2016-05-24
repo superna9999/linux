@@ -25,9 +25,35 @@
 #include <asm/asm-offsets.h>
 #include <asm/errno.h>
 #include <asm/esr.h>
+#include <asm/ptrace.h>
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
-#include <asm/unistd32.h>
+
+/*
+ * Context tracking subsystem.  Used to instrument transitions
+ * between user and kernel mode.
+ */
+	.macro ct_user_exit, syscall = 0
+#ifdef CONFIG_CONTEXT_TRACKING
+	bl	context_tracking_user_exit
+	.if \syscall == 1
+	/*
+	 * Save/restore needed during syscalls.  Restore syscall arguments from
+	 * the values already saved on stack during kernel_entry.
+	 */
+	ldp	x0, x1, [sp]
+	ldp	x2, x3, [sp, #S_X2]
+	ldp	x4, x5, [sp, #S_X4]
+	ldp	x6, x7, [sp, #S_X6]
+	.endif
+#endif
+	.endm
+
+	.macro ct_user_enter
+#ifdef CONFIG_CONTEXT_TRACKING
+	bl	context_tracking_user_enter
+#endif
+	.endm
 
 /*
  * Bad Abort numbers
@@ -88,7 +114,18 @@
 	.macro	kernel_exit, el, ret = 0
 	ldp	x21, x22, [sp, #S_PC]		// load ELR, SPSR
 	.if	\el == 0
+	ct_user_enter
 	ldr	x23, [sp, #S_SP]		// load return stack pointer
+#ifdef CONFIG_ARM64_ERRATUM_845719
+	tbz	x22, #4, 1f
+#ifdef CONFIG_PID_IN_CONTEXTIDR
+	mrs	x29, contextidr_el1
+	msr	contextidr_el1, x29
+#else
+	msr contextidr_el1, xzr
+#endif
+1:
+#endif
 	.endif
 	.if	\ret
 	ldr	x1, [sp, #S_X1]			// preserve x0 (syscall return)
@@ -165,18 +202,30 @@ ENTRY(vectors)
 	ventry	el0_sync			// Synchronous 64-bit EL0
 	ventry	el0_irq				// IRQ 64-bit EL0
 	ventry	el0_fiq_invalid			// FIQ 64-bit EL0
-	ventry	el0_error_invalid		// Error 64-bit EL0
+#ifdef CONFIG_AML_SERR
+	ventry	el0_error_64		// Error 64-bit EL0
+#else
+	ventry  el0_error_invalid         // Error 64-bit EL0
+#endif
 
 #ifdef CONFIG_COMPAT
 	ventry	el0_sync_compat			// Synchronous 32-bit EL0
 	ventry	el0_irq_compat			// IRQ 32-bit EL0
 	ventry	el0_fiq_invalid_compat		// FIQ 32-bit EL0
+#ifdef CONFIG_AML_SERR
+	ventry	el0_error_invalid_compat_aml	// Error 32-bit EL0
+#else
 	ventry	el0_error_invalid_compat	// Error 32-bit EL0
+#endif
 #else
 	ventry	el0_sync_invalid		// Synchronous 32-bit EL0
 	ventry	el0_irq_invalid			// IRQ 32-bit EL0
 	ventry	el0_fiq_invalid			// FIQ 32-bit EL0
+#ifdef CONFIG_AML_SERR
+	ventry	el0_error_invalid_aml		// Error 32-bit EL0
+#else
 	ventry	el0_error_invalid		// Error 32-bit EL0
+#endif
 #endif
 END(vectors)
 
@@ -190,6 +239,23 @@ END(vectors)
 	mrs	x2, esr_el1
 	b	bad_mode
 	.endm
+
+#ifdef CONFIG_AML_SERR
+el0_error_64:
+	kernel_entry 0, 64
+	kernel_exit 0, 0
+ENDPROC(el0_error_64)
+
+el0_error_invalid_compat_aml:
+	kernel_entry 0, 32
+	kernel_exit 0, 0
+ENDPROC(el0_error_invalid_compat_aml)
+
+el0_error_invalid_aml:
+	kernel_entry 0, 64
+	kernel_exit 0, 0
+ENDPROC(el0_error_invalid_aml)
+#endif
 
 el0_sync_invalid:
 	inv_entry 0, BAD_SYNC
@@ -259,7 +325,7 @@ el1_da:
 	 * Data abort handling
 	 */
 	mrs	x0, far_el1
-	enable_dbg_if_not_stepping x2
+	enable_dbg
 	// re-enable interrupts if they were enabled in the aborted context
 	tbnz	x23, #7, 1f			// PSR_I_BIT
 	enable_irq
@@ -275,12 +341,14 @@ el1_sp_pc:
 	 * Stack or PC alignment exception handling
 	 */
 	mrs	x0, far_el1
+	enable_dbg
 	mov	x2, sp
 	b	do_sp_pc_abort
 el1_undef:
 	/*
 	 * Undefined instruction
 	 */
+	enable_dbg
 	mov	x0, sp
 	b	do_undefinstr
 el1_dbg:
@@ -297,6 +365,7 @@ el1_dbg:
 	kernel_exit 1
 el1_inv:
 	// TODO: add support for undefined instructions in kernel mode
+	enable_dbg
 	mov	x0, sp
 	mov	x1, #BAD_SYNC
 	mrs	x2, esr_el1
@@ -306,7 +375,7 @@ ENDPROC(el1_sync)
 	.align	6
 el1_irq:
 	kernel_entry 1
-	enable_dbg_if_not_stepping x0
+	enable_dbg
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_off
 #endif
@@ -348,7 +417,6 @@ el0_sync:
 	lsr	x24, x25, #ESR_EL1_EC_SHIFT	// exception class
 	cmp	x24, #ESR_EL1_EC_SVC64		// SVC in 64-bit state
 	b.eq	el0_svc
-	adr	lr, ret_from_exception
 	cmp	x24, #ESR_EL1_EC_DABT_EL0	// data abort in EL0
 	b.eq	el0_da
 	cmp	x24, #ESR_EL1_EC_IABT_EL0	// instruction abort in EL0
@@ -377,7 +445,6 @@ el0_sync_compat:
 	lsr	x24, x25, #ESR_EL1_EC_SHIFT	// exception class
 	cmp	x24, #ESR_EL1_EC_SVC32		// SVC in 32-bit state
 	b.eq	el0_svc_compat
-	adr	lr, ret_from_exception
 	cmp	x24, #ESR_EL1_EC_DABT_EL0	// data abort in EL0
 	b.eq	el0_da
 	cmp	x24, #ESR_EL1_EC_IABT_EL0	// instruction abort in EL0
@@ -420,78 +487,98 @@ el0_da:
 	/*
 	 * Data abort handling
 	 */
-	mrs	x0, far_el1
-	bic	x0, x0, #(0xff << 56)
+	mrs	x26, far_el1
 	disable_step x1
 	isb
 	enable_dbg
 	// enable interrupts before calling the main handler
 	enable_irq
+	ct_user_exit
+	bic	x0, x26, #(0xff << 56)
 	mov	x1, x25
 	mov	x2, sp
+	adr	lr, ret_from_exception
 	b	do_mem_abort
 el0_ia:
 	/*
 	 * Instruction abort handling
 	 */
-	mrs	x0, far_el1
+	mrs	x26, far_el1
 	disable_step x1
 	isb
 	enable_dbg
 	// enable interrupts before calling the main handler
 	enable_irq
+	ct_user_exit
+	mov	x0, x26
 	orr	x1, x25, #1 << 24		// use reserved ISS bit for instruction aborts
 	mov	x2, sp
+	adr	lr, ret_from_exception
 	b	do_mem_abort
 el0_fpsimd_acc:
 	/*
 	 * Floating Point or Advanced SIMD access
 	 */
+	enable_dbg
+	ct_user_exit
 	mov	x0, x25
 	mov	x1, sp
+	adr	lr, ret_from_exception
 	b	do_fpsimd_acc
 el0_fpsimd_exc:
 	/*
 	 * Floating Point or Advanced SIMD exception
 	 */
+	enable_dbg
+	ct_user_exit
 	mov	x0, x25
 	mov	x1, sp
+	adr	lr, ret_from_exception
 	b	do_fpsimd_exc
 el0_sp_pc:
 	/*
 	 * Stack or PC alignment exception handling
 	 */
-	mrs	x0, far_el1
+	mrs	x26, far_el1
 	disable_step x1
 	isb
 	enable_dbg
 	// enable interrupts before calling the main handler
 	enable_irq
+	mov	x0, x26
 	mov	x1, x25
 	mov	x2, sp
+	adr	lr, ret_from_exception
 	b	do_sp_pc_abort
 el0_undef:
 	/*
 	 * Undefined instruction
 	 */
-	mov	x0, sp
 	// enable interrupts before calling the main handler
+	ct_user_exit
 	enable_irq
+	enable_dbg
+	mov	x0, sp
+	adr	lr, ret_from_exception
 	b	do_undefinstr
 el0_dbg:
 	/*
 	 * Debug exception handling
 	 */
 	tbnz	x24, #0, el0_inv		// EL0 only
+	ct_user_exit
 	mrs	x0, far_el1
 	disable_step x1
 	mov	x1, x25
 	mov	x2, sp
 	b	do_debug_exception
 el0_inv:
+	enable_dbg
+	ct_user_exit
 	mov	x0, sp
 	mov	x1, #BAD_SYNC
 	mrs	x2, esr_el1
+	adr	lr, ret_from_exception
 	b	bad_mode
 ENDPROC(el0_sync)
 
@@ -506,6 +593,7 @@ el0_irq_naked:
 	bl	trace_hardirqs_off
 #endif
 
+	ct_user_exit
 	irq_handler
 	get_thread_info tsk
 
@@ -575,7 +663,7 @@ fast_work_pending:
 	str	x0, [sp, #S_X0]			// returned x0
 work_pending:
 	tbnz	x1, #TIF_NEED_RESCHED, work_resched
-	/* TIF_SIGPENDING or TIF_NOTIFY_RESUME case */
+	/* TIF_SIGPENDING, TIF_NOTIFY_RESUME or TIF_FOREIGN_FPSTATE case */
 	ldr	x2, [sp, #S_PSTATE]
 	mov	x0, sp				// 'regs'
 	tst	x2, #PSR_MODE_MASK		// user mode regs?
@@ -628,10 +716,12 @@ el0_svc_naked:					// compat entry point
 	isb
 	enable_dbg
 	enable_irq
+	ct_user_exit 1
 
 	get_thread_info tsk
-	ldr	x16, [tsk, #TI_FLAGS]		// check for syscall tracing
-	tbnz	x16, #TIF_SYSCALL_TRACE, __sys_trace // are we tracing syscalls?
+	ldr	x16, [tsk, #TI_FLAGS]		// check for syscall hooks
+	tst	x16, #_TIF_SYSCALL_WORK
+	b.ne	__sys_trace
 	adr	lr, ret_fast_syscall		// return address
 	cmp     scno, sc_nr                     // check upper syscall limit
 	b.hs	ni_sys
@@ -647,10 +737,13 @@ ENDPROC(el0_svc)
 	 * switches, and waiting for our parent to respond.
 	 */
 __sys_trace:
-	mov	x1, sp
-	mov	w0, #0				// trace entry
-	bl	syscall_trace
+	mov	x0, sp
+	bl	syscall_trace_enter
 	adr	lr, __sys_trace_return		// return address
+	cmp	w0, #RET_SKIP_SYSCALL_TRACE	// skip syscall and tracing?
+	b.eq	ret_to_user
+	cmp	w0, #RET_SKIP_SYSCALL		// skip syscall?
+	b.eq	__sys_trace_return_skipped
 	uxtw	scno, w0			// syscall number (possibly new)
 	mov	x1, sp				// pointer to regs
 	cmp	scno, sc_nr			// check upper syscall limit
@@ -664,9 +757,9 @@ __sys_trace:
 
 __sys_trace_return:
 	str	x0, [sp]			// save returned x0
-	mov	x1, sp
-	mov	w0, #1				// trace exit
-	bl	syscall_trace
+__sys_trace_return_skipped:			// x0 already in regs[0]
+	mov	x0, sp
+	bl	syscall_trace_exit
 	b	ret_to_user
 
 /*

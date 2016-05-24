@@ -30,7 +30,6 @@
 #include <linux/screen_info.h>
 #include <linux/init.h>
 #include <linux/kexec.h>
-#include <linux/crash_dump.h>
 #include <linux/root_dev.h>
 #include <linux/clk-provider.h>
 #include <linux/cpu.h>
@@ -42,6 +41,7 @@
 #include <linux/of_fdt.h>
 #include <linux/of_platform.h>
 
+#include <asm/fixmap.h>
 #include <asm/cputype.h>
 #include <asm/elf.h>
 #include <asm/cputable.h>
@@ -54,12 +54,15 @@
 #include <asm/traps.h>
 #include <asm/memblock.h>
 #include <asm/psci.h>
-
+#ifdef CONFIG_AMLOGIC_CPU_INFO
+#include <linux/amlogic/cpu_version.h>
+#endif
 unsigned int processor_id;
 EXPORT_SYMBOL(processor_id);
 
 unsigned long elf_hwcap __read_mostly;
 EXPORT_SYMBOL_GPL(elf_hwcap);
+
 
 #ifdef CONFIG_COMPAT
 #define COMPAT_ELF_HWCAP_DEFAULT	\
@@ -70,6 +73,7 @@ EXPORT_SYMBOL_GPL(elf_hwcap);
 				 COMPAT_HWCAP_NEON|COMPAT_HWCAP_IDIV|\
 				 COMPAT_HWCAP_LPAE)
 unsigned int compat_elf_hwcap __read_mostly = COMPAT_ELF_HWCAP_DEFAULT;
+unsigned int compat_elf_hwcap2 __read_mostly;
 #endif
 
 static const char *cpu_name;
@@ -243,6 +247,38 @@ static void __init setup_processor(void)
 	block = (features >> 16) & 0xf;
 	if (block && !(block & 0x8))
 		elf_hwcap |= HWCAP_CRC32;
+
+#ifdef CONFIG_COMPAT
+	/*
+	 * ID_ISAR5_EL1 carries similar information as above, but pertaining to
+	 * the Aarch32 32-bit execution state.
+	 */
+	features = read_cpuid(ID_ISAR5_EL1);
+	block = (features >> 4) & 0xf;
+	if (!(block & 0x8)) {
+		switch (block) {
+		default:
+		case 2:
+			compat_elf_hwcap2 |= COMPAT_HWCAP2_PMULL;
+		case 1:
+			compat_elf_hwcap2 |= COMPAT_HWCAP2_AES;
+		case 0:
+			break;
+		}
+	}
+
+	block = (features >> 8) & 0xf;
+	if (block && !(block & 0x8))
+		compat_elf_hwcap2 |= COMPAT_HWCAP2_SHA1;
+
+	block = (features >> 12) & 0xf;
+	if (block && !(block & 0x8))
+		compat_elf_hwcap2 |= COMPAT_HWCAP2_SHA2;
+
+	block = (features >> 16) & 0xf;
+	if (block && !(block & 0x8))
+		compat_elf_hwcap2 |= COMPAT_HWCAP2_CRC32;
+#endif
 }
 
 static void __init setup_machine_fdt(phys_addr_t dt_phys)
@@ -306,6 +342,12 @@ static void __init request_standard_resources(void)
 		    kernel_data.end <= res->end)
 			request_resource(res, &kernel_data);
 	}
+
+#ifdef CONFIG_KEXEC
+	/* User space tools will find "Crash kernel" region in /proc/iomem. */
+	if (crashk_res.end)
+		insert_resource(&iomem_resource, &crashk_res);
+#endif
 }
 
 u64 __cpu_logical_map[NR_CPUS] = { [0 ... NR_CPUS-1] = INVALID_HWID };
@@ -313,10 +355,10 @@ u64 __cpu_logical_map[NR_CPUS] = { [0 ... NR_CPUS-1] = INVALID_HWID };
 void __init setup_arch(char **cmdline_p)
 {
 	/*
-	 * Unmask asynchronous aborts early to catch possible system errors.
-	 */
+	* Unmask asynchronous aborts early to catch possible system errors.
+	*/
 	local_async_enable();
-
+	local_dbg_enable();
 	setup_processor();
 
 	setup_machine_fdt(__fdt_pointer);
@@ -327,6 +369,8 @@ void __init setup_arch(char **cmdline_p)
 	init_mm.brk	   = (unsigned long) _end;
 
 	*cmdline_p = boot_command_line;
+
+	early_ioremap_init();
 
 	parse_early_param();
 
@@ -361,7 +405,7 @@ static int __init arm64_device_init(void)
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	return 0;
 }
-arch_initcall(arm64_device_init);
+arch_initcall_sync(arm64_device_init);
 
 static DEFINE_PER_CPU(struct cpu, cpu_data);
 
@@ -415,9 +459,20 @@ static int c_show(struct seq_file *m, void *v)
 	for (i = 0; hwcap_str[i]; i++)
 		if (elf_hwcap & (1 << i))
 			seq_printf(m, "%s ", hwcap_str[i]);
+#ifdef CONFIG_ARMV7_COMPAT_CPUINFO
+	if (is_compat_task()) {
+		/* Print out the non-optional ARMv8 HW capabilities */
+		seq_printf(m, "wp half thumb fastmult vfp edsp neon vfpv3 tlsi ");
+		seq_printf(m, "vfpv4 idiva idivt ");
+	}
+#endif
 
 	seq_printf(m, "\nCPU implementer\t: 0x%02x\n", read_cpuid_id() >> 24);
-	seq_printf(m, "CPU architecture: AArch64\n");
+	seq_printf(m, "CPU architecture: %s\n",
+#if IS_ENABLED(CONFIG_ARMV7_COMPAT_CPUINFO)
+			is_compat_task() ? "8" :
+#endif
+			"AArch64");
 	seq_printf(m, "CPU variant\t: 0x%x\n", (read_cpuid_id() >> 20) & 15);
 	seq_printf(m, "CPU part\t: 0x%03x\n", (read_cpuid_id() >> 4) & 0xfff);
 	seq_printf(m, "CPU revision\t: %d\n", read_cpuid_id() & 15);
@@ -425,7 +480,11 @@ static int c_show(struct seq_file *m, void *v)
 	seq_puts(m, "\n");
 
 	seq_printf(m, "Hardware\t: %s\n", machine_name);
-
+#ifdef CONFIG_AMLOGIC_CPU_INFO
+	seq_printf(m, "Serial\t\t: %08x%08x%08x%08x\n",
+		   system_serial_high1, system_serial_high0,
+		   system_serial_low1, system_serial_low0);
+#endif
 	return 0;
 }
 

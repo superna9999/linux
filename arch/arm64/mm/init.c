@@ -30,12 +30,19 @@
 #include <linux/memblock.h>
 #include <linux/sort.h>
 #include <linux/of_fdt.h>
+#include <linux/dma-mapping.h>
 #include <linux/dma-contiguous.h>
+#include <linux/kexec.h>
+#include <linux/crash_dump.h>
 
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/sizes.h>
 #include <asm/tlb.h>
+
+#ifdef CONFIG_HIBERNATION
+#include <linux/suspend.h>
+#endif
 
 #include "mm.h"
 
@@ -58,23 +65,99 @@ static int __init early_initrd(char *p)
 }
 early_param("initrd", early_initrd);
 #endif
+#ifdef CONFIG_KEXEC
+/*
+ * reserve_crashkernel() - reserves memory for crash kernel
+ *
+ * This function reserves memory area given in "crashkernel=" kernel command
+ * line parameter. The memory reserved is used by dump capture kernel when
+ * primary kernel is crashing.
+ */
+static void __init reserve_crashkernel(void)
+{
+	unsigned long long crash_size = 0, crash_base = 0;
+	int ret;
 
-#define MAX_DMA32_PFN ((4UL * 1024 * 1024 * 1024) >> PAGE_SHIFT)
+	ret = parse_crashkernel(boot_command_line, memblock_phys_mem_size(),
+				&crash_size, &crash_base);
+	if (ret)
+		return;
+
+	if (crash_base == 0) {
+		crash_base = memblock_alloc(crash_size, 1 << 21);
+		if (crash_base == 0) {
+			pr_warn("Unable to allocate crashkernel (size:%llx)\n",
+				crash_size);
+			return;
+		}
+	} else {
+		/* User specifies base address explicitly. */
+		if (!memblock_is_region_memory(crash_base, crash_size) ||
+			memblock_is_region_reserved(crash_base, crash_size)) {
+			pr_warn("crashkernel has wrong address or size\n");
+			return;
+		}
+
+		if (crash_base & ((1 << 21) - 1)) {
+			pr_warn("crashkernel base address is not 2MB aligned\n");
+			return;
+		}
+
+		memblock_reserve(crash_base, crash_size);
+	}
+
+	pr_info("Reserving %lldMB of memory at %lldMB for crashkernel\n",
+		crash_size >> 20, crash_base >> 20);
+
+	crashk_res.start = crash_base;
+	crashk_res.end = crash_base + crash_size - 1;
+}
+#endif /* CONFIG_KEXEC */
+
+#ifdef CONFIG_CRASH_DUMP
+/*
+ * reserve_elfcorehdr() - reserves memory for elf core header
+ *
+ * This function reserves elf core header given in "elfcorehdr=" kernel
+ * command line parameter. This region contains all the information about
+ * primary kernel's core image and is used by a dump capture kernel to
+ * access the system memory on primary kernel.
+ */
+static void __init reserve_elfcorehdr(void)
+{
+	if (!elfcorehdr_size)
+		return;
+
+	if (memblock_is_region_reserved(elfcorehdr_addr, elfcorehdr_size)) {
+		pr_warn("elfcorehdr is overlapped\n");
+		return;
+	}
+
+	memblock_reserve(elfcorehdr_addr, elfcorehdr_size);
+
+	pr_info("Reserving %lldKB of memory at %lldMB for elfcorehdr\n",
+		elfcorehdr_size >> 10, elfcorehdr_addr >> 20);
+}
+#endif /* CONFIG_CRASH_DUMP */
 
 static void __init zone_sizes_init(unsigned long min, unsigned long max)
 {
 	struct memblock_region *reg;
 	unsigned long zone_size[MAX_NR_ZONES], zhole_size[MAX_NR_ZONES];
-	unsigned long max_dma32 = min;
+	unsigned long max_dma = min;
 
 	memset(zone_size, 0, sizeof(zone_size));
 
-#ifdef CONFIG_ZONE_DMA32
 	/* 4GB maximum for 32-bit only capable devices */
-	max_dma32 = max(min, min(max, MAX_DMA32_PFN));
-	zone_size[ZONE_DMA32] = max_dma32 - min;
+#ifdef CONFIG_ZONE_DMA
+	if (IS_ENABLED(CONFIG_ZONE_DMA)) {
+		unsigned long max_dma_phys =
+			(unsigned long)dma_to_phys(NULL, DMA_BIT_MASK(32) + 1);
+		max_dma = max(min, min(max, max_dma_phys >> PAGE_SHIFT));
+		zone_size[ZONE_DMA] = max_dma - min;
+	}
 #endif
-	zone_size[ZONE_NORMAL] = max - max_dma32;
+	zone_size[ZONE_NORMAL] = max - max_dma;
 
 	memcpy(zhole_size, zone_size, sizeof(zhole_size));
 
@@ -84,15 +167,15 @@ static void __init zone_sizes_init(unsigned long min, unsigned long max)
 
 		if (start >= max)
 			continue;
-#ifdef CONFIG_ZONE_DMA32
-		if (start < max_dma32) {
-			unsigned long dma_end = min(end, max_dma32);
-			zhole_size[ZONE_DMA32] -= dma_end - start;
+#ifdef CONFIG_ZONE_DMA
+		if (IS_ENABLED(CONFIG_ZONE_DMA) && start < max_dma) {
+			unsigned long dma_end = min(end, max_dma);
+			zhole_size[ZONE_DMA] -= dma_end - start;
 		}
 #endif
-		if (end > max_dma32) {
+		if (end > max_dma) {
 			unsigned long normal_end = min(end, max);
-			unsigned long normal_start = max(start, max_dma32);
+			unsigned long normal_start = max(start, max_dma);
 			zhole_size[ZONE_NORMAL] -= normal_end - normal_start;
 		}
 	}
@@ -101,9 +184,11 @@ static void __init zone_sizes_init(unsigned long min, unsigned long max)
 }
 
 #ifdef CONFIG_HAVE_ARCH_PFN_VALID
+#define PFN_MASK ((1UL << (64 - PAGE_SHIFT)) - 1)
+
 int pfn_valid(unsigned long pfn)
 {
-	return memblock_is_memory(pfn << PAGE_SHIFT);
+	return (pfn & PFN_MASK) == pfn && memblock_is_memory(pfn << PAGE_SHIFT);
 }
 EXPORT_SYMBOL(pfn_valid);
 #endif
@@ -127,19 +212,15 @@ void __init arm64_memblock_init(void)
 {
 	u64 *reserve_map, base, size;
 
-	/* Register the kernel text, kernel data and initrd with memblock */
+	/*
+	 * Register the kernel text, kernel data, initrd, and initial
+	 * pagetables with memblock.
+	 */
 	memblock_reserve(__pa(_text), _end - _text);
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start)
 		memblock_reserve(__virt_to_phys(initrd_start), initrd_end - initrd_start);
 #endif
-
-	/*
-	 * Reserve the page tables.  These are already in use,
-	 * and can only be in node 0.
-	 */
-	memblock_reserve(__pa(swapper_pg_dir), SWAPPER_DIR_SIZE);
-	memblock_reserve(__pa(idmap_pg_dir), IDMAP_DIR_SIZE);
 
 	/* Reserve the dtb region */
 	memblock_reserve(virt_to_phys(initial_boot_params),
@@ -160,6 +241,14 @@ void __init arm64_memblock_init(void)
 		memblock_reserve(base, size);
 	}
 
+#ifdef CONFIG_KEXEC
+	reserve_crashkernel();
+#endif
+#ifdef CONFIG_CRASH_DUMP
+	reserve_elfcorehdr();
+#endif
+
+	early_init_fdt_scan_reserved_mem();
 	dma_contiguous_reserve(0);
 
 	memblock_allow_resize();
@@ -261,12 +350,10 @@ static void __init free_unused_memmap(void)
  */
 void __init mem_init(void)
 {
-	arm64_swiotlb_init();
-
 	max_mapnr   = pfn_to_page(max_pfn + PHYS_PFN_OFFSET) - mem_map;
 
 #ifndef CONFIG_SPARSEMEM_VMEMMAP
-	free_unused_memmap();
+	/*free_unused_memmap();*/
 #endif
 	/* this will put all unused low memory onto the freelists */
 	free_all_bootmem();
@@ -302,6 +389,11 @@ void __init mem_init(void)
 #undef MLK
 #undef MLM
 #undef MLK_ROUNDUP
+
+#ifdef CONFIG_HIBERNATION
+	register_nosave_region((unsigned long)virt_to_pfn(_text),
+		 (unsigned long)virt_to_pfn(_etext));
+#endif
 
 	/*
 	 * Check boundaries twice: Some fundamental inconsistencies can be

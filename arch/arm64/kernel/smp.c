@@ -35,6 +35,8 @@
 #include <linux/clockchips.h>
 #include <linux/completion.h>
 #include <linux/of.h>
+#include <linux/irq_work.h>
+#include <linux/kexec.h>
 
 #include <asm/atomic.h>
 #include <asm/cacheflush.h>
@@ -49,6 +51,8 @@
 #include <asm/tlbflush.h>
 #include <asm/ptrace.h>
 
+#include "cpu-reset.h"
+
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
  * so we need some other way of telling a new secondary core
@@ -62,6 +66,7 @@ enum ipi_msg_type {
 	IPI_CALL_FUNC_SINGLE,
 	IPI_CPU_STOP,
 	IPI_TIMER,
+	IPI_IRQ_WORK,
 };
 
 /*
@@ -114,6 +119,11 @@ int __cpu_up(unsigned int cpu, struct task_struct *idle)
 	return ret;
 }
 
+static void smp_store_cpu_info(unsigned int cpuid)
+{
+	store_cpu_topology(cpuid);
+}
+
 /*
  * This is the secondary CPU boot entry.  We're using this CPUs
  * idle thread stack, but a set of temporary page tables.
@@ -152,6 +162,8 @@ asmlinkage void secondary_start_kernel(void)
 	 */
 	notify_cpu_starting(cpu);
 
+	smp_store_cpu_info(cpu);
+
 	/*
 	 * OK, now it's safe to let the boot CPU continue.  Wait for
 	 * the CPU migration code to notice that the CPU is online
@@ -162,6 +174,7 @@ asmlinkage void secondary_start_kernel(void)
 
 	local_irq_enable();
 	local_async_enable();
+	local_dbg_enable();
 
 	/*
 	 * OK, it's off to the idle thread for us
@@ -390,6 +403,10 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	int err;
 	unsigned int cpu, ncores = num_possible_cpus();
 
+	init_cpu_topology();
+
+	smp_store_cpu_info(smp_processor_id());
+
 	/*
 	 * are we trying to boot more cores than exist?
 	 */
@@ -443,6 +460,14 @@ void arch_send_call_function_single_ipi(int cpu)
 	smp_cross_call(cpumask_of(cpu), IPI_CALL_FUNC_SINGLE);
 }
 
+#ifdef CONFIG_IRQ_WORK
+void arch_irq_work_raise(void)
+{
+	if (smp_cross_call)
+		smp_cross_call(cpumask_of(smp_processor_id()), IPI_IRQ_WORK);
+}
+#endif
+
 static const char *ipi_types[NR_IPI] = {
 #define S(x,s)	[x - IPI_RESCHEDULE] = s
 	S(IPI_RESCHEDULE, "Rescheduling interrupts"),
@@ -450,6 +475,7 @@ static const char *ipi_types[NR_IPI] = {
 	S(IPI_CALL_FUNC_SINGLE, "Single function call interrupts"),
 	S(IPI_CPU_STOP, "CPU stop interrupts"),
 	S(IPI_TIMER, "Timer broadcast interrupts"),
+	S(IPI_IRQ_WORK, "IRQ work interrupts"),
 };
 
 void show_ipi_list(struct seq_file *p, int prec)
@@ -482,8 +508,13 @@ static DEFINE_RAW_SPINLOCK(stop_lock);
 /*
  * ipi_cpu_stop - handle IPI from smp_send_stop()
  */
-static void ipi_cpu_stop(unsigned int cpu)
+static void ipi_cpu_stop(unsigned int cpu, struct pt_regs *regs)
 {
+#ifdef CONFIG_KEXEC
+	if (in_crash_kexec)
+		crash_save_cpu(regs, cpu);
+#endif /* CONFIG_KEXEC */
+
 	if (system_state == SYSTEM_BOOTING ||
 	    system_state == SYSTEM_RUNNING) {
 		raw_spin_lock(&stop_lock);
@@ -495,6 +526,11 @@ static void ipi_cpu_stop(unsigned int cpu)
 	set_cpu_online(cpu, false);
 
 	local_irq_disable();
+#ifdef CONFIG_KEXEC
+	if (in_crash_kexec)
+		crash_save_cpu(regs, cpu);
+#endif /* CONFIG_KEXEC */
+
 
 	while (1)
 		cpu_relax();
@@ -530,7 +566,7 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 	case IPI_CPU_STOP:
 		irq_enter();
-		ipi_cpu_stop(cpu);
+		ipi_cpu_stop(cpu, regs);
 		irq_exit();
 		break;
 
@@ -538,6 +574,14 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 	case IPI_TIMER:
 		irq_enter();
 		tick_receive_broadcast();
+		irq_exit();
+		break;
+#endif
+
+#ifdef CONFIG_IRQ_WORK
+	case IPI_IRQ_WORK:
+		irq_enter();
+		irq_work_run();
 		irq_exit();
 		break;
 #endif
