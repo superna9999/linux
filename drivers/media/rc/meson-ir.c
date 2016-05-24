@@ -32,12 +32,17 @@
 #define IR_DEC_FRAME		0x14
 #define IR_DEC_STATUS		0x18
 #define IR_DEC_REG1		0x1c
+#define GXBB_IR_DEC_REG2	0x20
 
 #define REG0_RATE_MASK		(BIT(11) - 1)
 
 #define REG1_MODE_MASK		(BIT(7) | BIT(8))
 #define REG1_MODE_NEC		(0 << 7)
 #define REG1_MODE_GENERAL	(2 << 7)
+
+#define GXBB_REG2_MODE_MASK	(BIT(4)-1)
+#define GXBB_REG2_MODE_NEC	(0)
+#define GXBB_REG2_MODE_GENERAL	(2)
 
 #define REG1_TIME_IV_SHIFT	16
 #define REG1_TIME_IV_MASK	((BIT(13) - 1) << REG1_TIME_IV_SHIFT)
@@ -159,7 +164,11 @@ static int meson_ir_probe(struct platform_device *pdev)
 	meson_ir_set_mask(ir, IR_DEC_REG1, REG1_RESET, REG1_RESET);
 	meson_ir_set_mask(ir, IR_DEC_REG1, REG1_RESET, 0);
 	/* Set general operation mode */
-	meson_ir_set_mask(ir, IR_DEC_REG1, REG1_MODE_MASK, REG1_MODE_GENERAL);
+	if (of_device_is_compatible(node, "amlogic,meson-gxbb-ir"))
+		meson_ir_set_mask(ir, GXBB_IR_DEC_REG2, GXBB_REG2_MODE_MASK,
+					GXBB_REG2_MODE_GENERAL);
+	else
+		meson_ir_set_mask(ir, IR_DEC_REG1, REG1_MODE_MASK, REG1_MODE_GENERAL);
 	/* Set rate */
 	meson_ir_set_mask(ir, IR_DEC_REG0, REG0_RATE_MASK, MESON_TRATE - 1);
 	/* IRQ on rising and falling edges */
@@ -197,6 +206,7 @@ static int meson_ir_remove(struct platform_device *pdev)
 
 static const struct of_device_id meson_ir_match[] = {
 	{ .compatible = "amlogic,meson6-ir" },
+	{ .compatible = "amlogic,meson-gxbb-ir" },
 	{ },
 };
 
