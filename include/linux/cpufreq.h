@@ -17,6 +17,8 @@
 #include <linux/kobject.h>
 #include <linux/notifier.h>
 #include <linux/sysfs.h>
+#include <asm/cputime.h>
+
 
 /*********************************************************************
  *                        CPUFREQ INTERFACE                          *
@@ -53,6 +55,7 @@ struct cpufreq_cpuinfo {
 struct cpufreq_real_policy {
 	unsigned int		min;    /* in kHz */
 	unsigned int		max;    /* in kHz */
+	unsigned int		dflt;    /* in kHz */
 	unsigned int		policy; /* see above */
 	struct cpufreq_governor	*governor; /* see below */
 };
@@ -72,6 +75,7 @@ struct cpufreq_policy {
 
 	unsigned int		min;    /* in kHz */
 	unsigned int		max;    /* in kHz */
+	unsigned int		dflt;    /* in kHz */
 	unsigned int		cur;    /* in kHz, only needed if cpufreq
 					 * governors are used */
 	unsigned int		policy; /* see above */
@@ -100,6 +104,7 @@ struct cpufreq_policy {
 	 * - Lock should not be held across
 	 *     __cpufreq_governor(data, CPUFREQ_GOV_POLICY_EXIT);
 	 */
+	struct work_struct	up_cpu;
 	struct rw_semaphore	rwsem;
 };
 
@@ -184,6 +189,15 @@ __ATTR(_name, _perm, show_##_name, NULL)
 static struct freq_attr _name =			\
 __ATTR(_name, 0644, show_##_name, store_##_name)
 
+#ifdef CONFIG_CPU_FREQ
+void cpufreq_suspend(void);
+void cpufreq_resume(void);
+#else
+static inline void cpufreq_suspend(void) {}
+static inline void cpufreq_resume(void) {}
+#endif
+
+
 struct global_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct kobject *kobj,
@@ -206,32 +220,32 @@ struct cpufreq_driver {
 	u8			flags;
 
 	/* needed by all drivers */
-	int	(*init)		(struct cpufreq_policy *policy);
-	int	(*verify)	(struct cpufreq_policy *policy);
+	int (*init)(struct cpufreq_policy *policy);
+	int (*verify)(struct cpufreq_policy *policy);
 
 	/* define one out of two */
-	int	(*setpolicy)	(struct cpufreq_policy *policy);
-	int	(*target)	(struct cpufreq_policy *policy,	/* Deprecated */
+	int (*setpolicy)(struct cpufreq_policy *policy);
+	int (*target)(struct cpufreq_policy *policy,	/* Deprecated */
 				 unsigned int target_freq,
 				 unsigned int relation);
-	int	(*target_index)	(struct cpufreq_policy *policy,
+	int (*target_index)(struct cpufreq_policy *policy,
 				 unsigned int index);
 
 	/* should be defined, if possible */
-	unsigned int	(*get)	(unsigned int cpu);
+	unsigned int (*get)(unsigned int cpu);
 
 	/* optional */
-	int	(*bios_limit)	(int cpu, unsigned int *limit);
+	int (*bios_limit)(int cpu, unsigned int *limit);
 
-	int	(*exit)		(struct cpufreq_policy *policy);
-	int	(*suspend)	(struct cpufreq_policy *policy);
-	int	(*resume)	(struct cpufreq_policy *policy);
+	int (*exit)(struct cpufreq_policy *policy);
+	int (*suspend)(struct cpufreq_policy *policy);
+	int (*resume)(struct cpufreq_policy *policy);
 	struct freq_attr	**attr;
 
 	/* platform specific boost support code */
 	bool                    boost_supported;
 	bool                    boost_enabled;
-	int     (*set_boost)    (int state);
+	int (*set_boost)(int state);
 };
 
 /* flags */
@@ -387,11 +401,11 @@ static inline unsigned long cpufreq_scale(unsigned long old, u_int div,
 struct cpufreq_governor {
 	char	name[CPUFREQ_NAME_LEN];
 	int	initialized;
-	int	(*governor)	(struct cpufreq_policy *policy,
+	int (*governor)(struct cpufreq_policy *policy,
 				 unsigned int event);
-	ssize_t	(*show_setspeed)	(struct cpufreq_policy *policy,
+	ssize_t (*show_setspeed)(struct cpufreq_policy *policy,
 					 char *buf);
-	int	(*store_setspeed)	(struct cpufreq_policy *policy,
+	int (*store_setspeed)(struct cpufreq_policy *policy,
 					 unsigned int freq);
 	unsigned int max_transition_latency; /* HW must be able to switch to
 			next freq faster than this value in nano secs or we
@@ -432,6 +446,12 @@ extern struct cpufreq_governor cpufreq_gov_ondemand;
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_CONSERVATIVE)
 extern struct cpufreq_governor cpufreq_gov_conservative;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_conservative)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE)
+extern struct cpufreq_governor cpufreq_gov_interactive;
+#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_interactive)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG)
+extern struct cpufreq_governor cpufreq_gov_hotplug;
+#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_hotplug)
 #endif
 
 /*********************************************************************
@@ -447,6 +467,34 @@ struct cpufreq_frequency_table {
 	unsigned int	frequency; /* kHz - doesn't need to be in ascending
 				    * order */
 };
+static inline bool cpufreq_next_valid(struct cpufreq_frequency_table **pos)
+{
+	while ((*pos)->frequency != CPUFREQ_TABLE_END)
+		if ((*pos)->frequency != CPUFREQ_ENTRY_INVALID)
+			return true;
+		else
+			(*pos)++;
+	return false;
+}
+
+/*
+ * cpufreq_for_each_entry -	iterate over a cpufreq_frequency_table
+ * @pos:	the cpufreq_frequency_table * to use as a loop cursor.
+ * @table:	the cpufreq_frequency_table * to iterate over.
+ */
+
+#define cpufreq_for_each_entry(pos, table)	\
+	for (pos = table; pos->frequency != CPUFREQ_TABLE_END; pos++)
+
+/*
+ * cpufreq_for_each_valid_entry -     iterate over a cpufreq_frequency_table
+ *	excluding CPUFREQ_ENTRY_INVALID frequencies.
+ * @pos:        the cpufreq_frequency_table * to use as a loop cursor.
+ * @table:      the cpufreq_frequency_table * to iterate over.
+ */
+
+#define cpufreq_for_each_valid_entry(pos, table)	\
+	for (pos = table; cpufreq_next_valid(&pos); pos++)
 
 int cpufreq_frequency_table_cpuinfo(struct cpufreq_policy *policy,
 				    struct cpufreq_frequency_table *table);
@@ -505,5 +553,17 @@ static inline int cpufreq_generic_exit(struct cpufreq_policy *policy)
 	cpufreq_frequency_table_put_attr(policy->cpu);
 	return 0;
 }
+/*********************************************************************
+ *                         CPUFREQ STATS                             *
+ *********************************************************************/
 
+void acct_update_power(struct task_struct *p, cputime_t cputime);
+
+#ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
+void cpufreq_set_max_cpu_num(unsigned int cpu_num);
+#else
+static inline void cpufreq_set_max_cpu_num(unsigned int cpu_num)
+{
+}
+#endif
 #endif /* _LINUX_CPUFREQ_H */

@@ -111,7 +111,12 @@ struct plat_stmmacenet_data {
 	int force_thresh_dma_mode;
 	int riwt_off;
 	int max_speed;
+	int mc_val;
+	char *rst_pin_name;
+	int rst_pin_num;
 	int maxmtu;
+	int multicast_filter_bins;
+	int unicast_filter_entries;
 	void (*fix_mac_speed)(void *priv, unsigned int speed);
 	void (*bus_setup)(void __iomem *ioaddr);
 	void *(*setup)(struct platform_device *pdev);
@@ -133,6 +138,7 @@ struct stmmac_of_data {
 	int bugged_jumbo;
 	int pmt;
 	int riwt_off;
+	int clk_csr;
 	void (*fix_mac_speed)(void *priv, unsigned int speed);
 	void (*bus_setup)(void __iomem *ioaddr);
 	void *(*setup)(struct platform_device *pdev);

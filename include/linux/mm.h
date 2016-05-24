@@ -14,6 +14,7 @@
 #include <linux/atomic.h>
 #include <linux/debug_locks.h>
 #include <linux/mm_types.h>
+#include <linux/migrate_mode.h>
 #include <linux/range.h>
 #include <linux/pfn.h>
 #include <linux/bit_spinlock.h>
@@ -47,6 +48,22 @@ extern int sysctl_legacy_va_layout;
 #define sysctl_legacy_va_layout 0
 #endif
 
+#ifdef CONFIG_CMA
+#define MIGRATE_CMA_HOLD  1
+#define MIGRATE_CMA_ALLOC 2
+#define MIGRATE_CMA_REL   3
+extern bool has_cma_page(struct page *page);
+extern void wakeup_wq(bool has_cma);
+extern int iso_status;
+extern int iso_recount;
+extern wait_queue_head_t iso_wq;
+extern struct mutex iso_wait;
+extern struct mutex migrate_wait;
+extern int migrate_status;
+extern int mutex_status;
+extern int migrate_refcount;
+extern wait_queue_head_t migrate_wq;
+#endif
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/processor.h>
@@ -215,7 +232,7 @@ struct vm_fault {
 /*
  * These are the virtual MM functions - opening of an area, closing and
  * unmapping it (needed to keep files on disk up-to-date etc), pointer
- * to the functions called when a no-page or a wp-page exception occurs. 
+ * to the functions called when a no-page or a wp-page exception occurs.
  */
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
@@ -361,6 +378,8 @@ static inline int is_vmalloc_or_module_addr(const void *x)
 	return 0;
 }
 #endif
+
+extern void kvfree(const void *addr);
 
 static inline void compound_lock(struct page *page)
 {
@@ -536,7 +555,7 @@ void put_page(struct page *page);
 void put_pages_list(struct list_head *pages);
 
 void split_page(struct page *page, unsigned int order);
-int split_free_page(struct page *page);
+int split_free_page(struct page *page, enum migrate_type page_type);
 
 /*
  * Compound pages have a destructor function.  Provide a
@@ -1040,6 +1059,7 @@ extern void pagefault_out_of_memory(void);
 extern void show_free_areas(unsigned int flags);
 extern bool skip_free_areas_node(unsigned int flags, int nid);
 
+void shmem_set_file(struct vm_area_struct *vma, struct file *file);
 int shmem_zero_setup(struct vm_area_struct *);
 #ifdef CONFIG_SHMEM
 bool shmem_mapping(struct address_space *mapping);
@@ -1739,7 +1759,7 @@ extern int vma_adjust(struct vm_area_struct *vma, unsigned long start,
 extern struct vm_area_struct *vma_merge(struct mm_struct *,
 	struct vm_area_struct *prev, unsigned long addr, unsigned long end,
 	unsigned long vm_flags, struct anon_vma *, struct file *, pgoff_t,
-	struct mempolicy *);
+	struct mempolicy *, const char __user *);
 extern struct anon_vma *find_mergeable_anon_vma(struct vm_area_struct *);
 extern int split_vma(struct mm_struct *,
 	struct vm_area_struct *, unsigned long addr, int new_below);

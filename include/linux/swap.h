@@ -302,7 +302,8 @@ static inline void lru_cache_add_file(struct page *page)
 /* linux/mm/vmscan.c */
 extern unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 					gfp_t gfp_mask, nodemask_t *mask);
-extern int __isolate_lru_page(struct page *page, isolate_mode_t mode);
+extern int
+__isolate_lru_page(struct page *page, isolate_mode_t mode, int migrate_type);
 extern unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *mem,
 						  gfp_t gfp_mask, bool noswap);
 extern unsigned long mem_cgroup_shrink_node_zone(struct mem_cgroup *mem,
@@ -429,6 +430,7 @@ extern int page_swapcount(struct page *);
 extern struct swap_info_struct *page_swap_info(struct page *);
 extern int reuse_swap_page(struct page *);
 extern int try_to_free_swap(struct page *);
+extern struct swap_info_struct *swap_info_get(swp_entry_t entry);
 struct backing_dev_info;
 
 #ifdef CONFIG_MEMCG
