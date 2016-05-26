@@ -162,7 +162,6 @@ struct scpi_drvinfo {
 	u32 firmware_version;
 	int num_chans;
 	atomic_t next_chan;
-	struct scpi_ops *scpi_ops;
 	struct scpi_chan *channels;
 	struct scpi_dvfs_info *dvfs[MAX_DVFS_DOMAINS];
 };
@@ -580,12 +579,6 @@ static struct scpi_ops scpi_ops = {
 	.device_set_power_state = scpi_device_set_power_state,
 };
 
-struct scpi_ops *get_scpi_ops(void)
-{
-	return scpi_info ? scpi_info->scpi_ops : NULL;
-}
-EXPORT_SYMBOL_GPL(get_scpi_ops);
-
 static int scpi_init_versions(struct scpi_drvinfo *info)
 {
 	int ret;
@@ -769,7 +762,10 @@ err:
 		  FW_REV_MAJOR(scpi_info->firmware_version),
 		  FW_REV_MINOR(scpi_info->firmware_version),
 		  FW_REV_PATCH(scpi_info->firmware_version));
-	scpi_info->scpi_ops = &scpi_ops;
+
+	ret = devm_scpi_ops_register(dev, &scpi_ops);
+	if (ret)
+		return ret;
 
 	ret = sysfs_create_groups(&dev->kobj, versions_groups);
 	if (ret)
