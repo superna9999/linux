@@ -1,10 +1,10 @@
-PLX Technology OXNAS SoCs Family RPS Timer
-==========================================
+Oxford Semiconductor OXNAS SoCs Family RPS Timer
+================================================
 
 Required properties:
-- compatible: Should be "plxtech,nas782x-rps-timer"
+- compatible: Should be "oxsemi,ox810se-rps-timer"
 - reg : Specifies base physical address and size of the registers.
-- interrupts : The interrupt of the first timer
+- interrupts : The interrupts of the two timers
 - clocks : The phandle of the timer clock source
 
 example:
