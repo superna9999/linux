@@ -36,7 +36,7 @@
 
 /* Registers definitions */
 
-#define TIMER_LOAD_REG 		0x0
+#define TIMER_LOAD_REG		0x0
 #define TIMER_CURR_REG		0x4
 #define TIMER_CTRL_REG		0x8
 #define TIMER_CLRINT_REG	0xC
@@ -45,7 +45,7 @@
 
 #define TIMER_MAX_VAL		(BIT(TIMER_BITS) - 1)
 
-#define TIMER_PERIODIC 		BIT(6)
+#define TIMER_PERIODIC		BIT(6)
 #define TIMER_ENABLE		BIT(7)
 
 #define TIMER_DIV1		(0)
@@ -62,7 +62,7 @@ struct oxnas_rps_timer {
 	void __iomem *clksrc_base;
 	void __iomem *clkevt_base;
 	unsigned long timer_period;
-	unsigned timer_prescaler;
+	unsigned int timer_prescaler;
 	struct clk *clk;
 	int irq;
 };
