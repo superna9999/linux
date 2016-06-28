@@ -60,3 +60,9 @@
 	pinctrl-names = "default";
 
 };
+
+&ir {
+	status = "okay";
+	pinctrl-0 = <&ir_in_ao_pins>;
+	pinctrl-names = "default";
+};
