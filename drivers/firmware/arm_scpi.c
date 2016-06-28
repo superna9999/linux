@@ -46,12 +46,18 @@
 
 #define CMD_ID_SHIFT		0
 #define CMD_ID_MASK		0x7f
+#define CMD_SET_SHIFT		7
+#define CMD_SET_MASK		0x1
 #define CMD_TOKEN_ID_SHIFT	8
 #define CMD_TOKEN_ID_MASK	0xff
 #define CMD_DATA_SIZE_SHIFT	16
 #define CMD_DATA_SIZE_MASK	0x1ff
 #define PACK_SCPI_CMD(cmd_id, tx_sz)			\
 	((((cmd_id) & CMD_ID_MASK) << CMD_ID_SHIFT) |	\
+	(((tx_sz) & CMD_DATA_SIZE_MASK) << CMD_DATA_SIZE_SHIFT))
+#define PACK_EXT_SCPI_CMD(cmd_id, tx_sz)		\
+	((((cmd_id) & CMD_ID_MASK) << CMD_ID_SHIFT) |	\
+	(CMD_SET_MASK << CMD_SET_SHIFT) |		\
 	(((tx_sz) & CMD_DATA_SIZE_MASK) << CMD_DATA_SIZE_SHIFT))
 #define ADD_SCPI_TOKEN(cmd, token)			\
 	((cmd) |= (((token) & CMD_TOKEN_ID_MASK) << CMD_TOKEN_ID_SHIFT))
@@ -343,8 +349,8 @@ static void put_scpi_xfer(struct scpi_xfer *t, struct scpi_chan *ch)
 	mutex_unlock(&ch->xfers_lock);
 }
 
-static int scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
-			     void *rx_buf, unsigned int rx_len)
+static int __scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
+			       void *rx_buf, unsigned int rx_len, bool extn)
 {
 	int ret;
 	u8 chan;
@@ -359,7 +365,8 @@ static int scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
 		return -ENOMEM;
 
 	msg->slot = BIT(SCPI_SLOT);
-	msg->cmd = PACK_SCPI_CMD(cmd, tx_len);
+	msg->cmd = extn ? PACK_EXT_SCPI_CMD(cmd, tx_len) :
+			  PACK_SCPI_CMD(cmd, tx_len);
 	msg->tx_buf = tx_buf;
 	msg->tx_len = tx_len;
 	msg->rx_buf = rx_buf;
@@ -383,6 +390,20 @@ out:
 	/* SCPI error codes > 0, translate them to Linux scale*/
 	return ret > 0 ? scpi_to_linux_errno(ret) : ret;
 }
+
+static int scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
+			     void *rx_buf, unsigned int rx_len)
+{
+	return __scpi_send_message(cmd, tx_buf, tx_len, rx_buf, rx_len, false);
+}
+
+static int scpi_ext_send_message(u8 cmd, unsigned long arg,
+				 void *tx_buf, unsigned int tx_len,
+				 void *rx_buf, unsigned int rx_len)
+{
+	return __scpi_send_message(cmd, tx_buf, tx_len, rx_buf, rx_len, true);
+}
+
 
 static u32 scpi_get_version(void)
 {
@@ -577,6 +598,7 @@ static struct scpi_ops scpi_ops = {
 	.sensor_get_value = scpi_sensor_get_value,
 	.device_get_power_state = scpi_device_get_power_state,
 	.device_set_power_state = scpi_device_set_power_state,
+	.vendor_send_message = scpi_ext_send_message,
 };
 
 static int scpi_init_versions(struct scpi_drvinfo *info)
