@@ -58,6 +58,8 @@ struct scpi_sensor_info {
  *	OPP is an index to the list return by @dvfs_get_info
  * @dvfs_get_info: returns the DVFS capabilities of the given power
  *	domain. It includes the OPP list and the latency information
+ * @vendor_send_message: vendor specific message sending, arg can specify
+ *	a scpi implementation specific argument
  */
 struct scpi_ops {
 	u32 (*get_version)(void);
@@ -72,6 +74,9 @@ struct scpi_ops {
 	int (*sensor_get_value)(u16, u64 *);
 	int (*device_get_power_state)(u16);
 	int (*device_set_power_state)(u16, u8);
+	int (*vendor_send_message)(u8 cmd, unsigned long arg,
+				   void *tx_buf, unsigned int tx_len,
+				   void *rx_buf, unsigned int rx_len);
 };
 
 #if IS_REACHABLE(CONFIG_SCPI_FW)
