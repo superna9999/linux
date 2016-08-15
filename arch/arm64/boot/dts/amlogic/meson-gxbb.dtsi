@@ -203,6 +203,13 @@
 						function = "uart_ao";
 					};
 				};
+
+				ir_in_ao_pins: ir_in_ao {
+					mux {
+						groups = "ir_in_ao";
+						function = "ir_in_ao";
+					};
+				};
 			};
 
 			uart_AO: serial@4c0 {
