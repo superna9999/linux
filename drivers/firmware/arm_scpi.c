@@ -914,6 +914,9 @@ static int legacy_scpi_init_versions(struct scpi_drvinfo *info)
 		info->protocol_version = le32_to_cpu(caps.protocol_version);
 		info->firmware_version = le32_to_cpu(caps.platform_version);
 	}
+	/* Ignore error if not implemented */
+	if (ret == -EOPNOTSUPP)
+		return 0;
 
 	return ret;
 }
@@ -1106,7 +1109,7 @@ err:
 	if (scpi_info->ops && scpi_info->ops->init_versions)
 		ret = scpi_info->ops->init_versions(scpi_info);
 	else
-	ret = scpi_init_versions(scpi_info);
+		ret = scpi_init_versions(scpi_info);
 	if (ret) {
 		dev_err(dev, "incorrect or no SCP firmware found\n");
 		scpi_remove(pdev);
