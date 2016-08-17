@@ -189,6 +189,7 @@ struct scpi_xfer {
 	unsigned int rx_len;
 	struct list_head node;
 	struct completion done;
+	void *vendor_msg;
 };
 
 struct scpi_chan {
@@ -203,6 +204,7 @@ struct scpi_chan {
 	struct mutex xfers_lock;
 	u8 token;
 	struct scpi_xfer *t;
+	void *vendor_data;
 };
 
 struct scpi_drvinfo {
@@ -302,6 +304,8 @@ struct dev_pstate_set {
 
 struct priv_scpi_ops {
 	/* Internal Specific Ops */
+	int (*init)(struct device *dev, struct scpi_chan *chan);
+	int (*prepare)(struct scpi_chan *chan);
 	void (*handle_remote_msg)(struct mbox_client *c, void *msg);
 	void (*tx_prepare)(struct mbox_client *c, void *msg);
 	/* Message Specific Ops */
@@ -498,7 +502,18 @@ static int legacy_scpi_send_message(u8 cmd, void *tx_buf, unsigned int tx_len,
 	init_completion(&msg->done);
 	scpi_chan->t = msg;
 
-	ret = mbox_send_message(scpi_chan->chan, &msg->cmd);
+	/* Call the prepare hook to eventually set the vendor_msg */
+	if (scpi_info->ops &&
+	    scpi_info->ops->prepare) {
+		ret = scpi_info->ops->prepare(scpi_chan);
+		if (ret) {
+			mutex_unlock(&scpi_chan->xfers_lock);
+			return ret;
+		}
+	} else
+		msg->vendor_msg = &msg->cmd;
+
+	ret = mbox_send_message(scpi_chan->chan, msg->vendor_msg);
 	if (ret < 0)
 		goto out;
 
@@ -1068,6 +1083,12 @@ static int scpi_probe(struct platform_device *pdev)
 			goto err;
 		}
 		pchan->tx_payload = pchan->rx_payload + (size >> 1);
+
+		if (scpi_info->ops && scpi_info->ops->init) {
+			ret = scpi_info->ops->init(dev, pchan);
+			if (ret)
+				goto err;
+		}
 
 		cl->dev = dev;
 		if (scpi_info->ops && scpi_info->ops->handle_remote_msg)
