@@ -1111,12 +1111,13 @@ err:
 		ret = scpi_info->ops->init_versions(scpi_info);
 	else
 	ret = scpi_init_versions(scpi_info);
-	if (ret) {
+	if (ret && ret != -EOPNOTSUPP) {
 		dev_err(dev, "incorrect or no SCP firmware found\n");
 		scpi_remove(pdev);
 		return ret;
 	}
 
+	if (ret != -EOPNOTSUPP) {
 	_dev_info(dev, "SCP Protocol %d.%d Firmware %d.%d.%d version\n",
 		  PROTOCOL_REV_MAJOR(scpi_info->protocol_version),
 		  PROTOCOL_REV_MINOR(scpi_info->protocol_version),
@@ -1124,14 +1125,15 @@ err:
 		  FW_REV_MINOR(scpi_info->firmware_version),
 		  FW_REV_PATCH(scpi_info->firmware_version));
 
+		ret = sysfs_create_groups(&dev->kobj, versions_groups);
+		if (ret)
+			dev_err(dev, "unable to create sysfs version group\n");
+	}
+
 	if (scpi_info->ops && scpi_info->ops->scpi_ops)
 		scpi_info->scpi_ops = scpi_info->ops->scpi_ops;
 	else
 		scpi_info->scpi_ops = &scpi_ops;
-
-	ret = sysfs_create_groups(&dev->kobj, versions_groups);
-	if (ret)
-		dev_err(dev, "unable to create sysfs version group\n");
 
 	return of_platform_populate(dev->of_node, NULL, NULL, dev);
 }
