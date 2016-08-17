@@ -972,6 +972,13 @@ static int scpi_alloc_xfer_list(struct device *dev, struct scpi_chan *ch)
 	return 0;
 }
 
+static const struct of_device_id scpi_of_match[] = {
+	{.compatible = "arm,scpi"},
+	{},
+};
+
+MODULE_DEVICE_TABLE(of, scpi_of_match);
+
 static int scpi_probe(struct platform_device *pdev)
 {
 	int count, idx, ret;
@@ -1068,13 +1075,6 @@ err:
 
 	return of_platform_populate(dev->of_node, NULL, NULL, dev);
 }
-
-static const struct of_device_id scpi_of_match[] = {
-	{.compatible = "arm,scpi"},
-	{},
-};
-
-MODULE_DEVICE_TABLE(of, scpi_of_match);
 
 static struct platform_driver scpi_driver = {
 	.driver = {
