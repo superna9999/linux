@@ -43,6 +43,7 @@
  */
 
 #include "meson-gxbb.dtsi"
+#include <dt-bindings/clock/gxbb-clkc.h>
 
 / {
 	aliases {
@@ -89,9 +90,31 @@
 		regulator-always-on;
 	};
 
+	vcc_1v8: regulator-vcc_1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "VCC_1V8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+	};
+
 	emmc_pwrseq: emmc-pwrseq {
 		compatible = "mmc-pwrseq-emmc";
 		reset-gpios = <&gpio BOOT_9 GPIO_ACTIVE_LOW>;
+	};
+
+	clk_32768_ck: clk_32768_ck {
+		compatible = "pwm-clock";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		pwms = <&pwm_ef 0 30518 0>; /* PWM_E at 32.768KHz */
+	};
+
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&gpio GPIOX_6 GPIO_ACTIVE_LOW>;
+		clocks = <&clk_32768_ck>;
+		clock-names = "ext_clock";
 	};
 };
 
@@ -106,6 +129,33 @@
 	status = "okay";
 	pinctrl-0 = <&eth_pins>;
 	pinctrl-names = "default";
+};
+
+&sd_emmc_a {
+	status = "okay";
+	pinctrl-0 = <&sdio_pins>;
+	pinctrl-names = "default";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	bus-width = <4>;
+	cap-sd-highspeed;
+	max-frequency = <100000000>;
+
+	non-removable;
+	disable-wp;
+
+	mmc-pwrseq = <&sdio_pwrseq>;
+	
+	voltage-ranges = <1800 3300>;
+	/*vmmc-supply = <&vcc_1v8>;*/
+	vmmc-supply = <&vcc_3v3>;
+	vmmcq-supply = <&vddio_boot>;
+
+	brcmf: bcrmf@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+	};
 };
 
 &sd_emmc_b {
@@ -141,5 +191,13 @@
 	mmc-pwrseq = <&emmc_pwrseq>;
 	voltage-ranges = <1800 3300>;
 	vmmc-supply = <&vcc_3v3>;
-	vmmcq-sumpply = <&vddio_boot>;
+	vmmcq-supply = <&vddio_boot>;
+};
+
+&pwm_ef {
+       status = "okay";
+       pinctrl-0 = <&pwm_e_pins>;
+       pinctrl-names = "default";
+       clocks = <&clkc CLKID_FCLK_DIV4>;
+       clock-names = "clkin0";
 };
