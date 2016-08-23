@@ -469,12 +469,14 @@ static int meson_mmc_check_cmd(struct mmc_host *mmc, struct mmc_command *cmd)
 {
 	int ret = 0;
 
+#if 0
 	/* FIXME: needs update for SDIO support */
 	if (cmd->opcode == SD_IO_SEND_OP_COND
 	    || cmd->opcode == SD_IO_RW_DIRECT
 	    || cmd->opcode == SD_IO_RW_EXTENDED) {
 		ret = meson_mmc_cmd_invalid(mmc, cmd);
 	}
+#endif
 
 	return ret;
 }
@@ -849,7 +851,7 @@ static int meson_mmc_probe(struct platform_device *pdev)
 
 	ret = meson_mmc_clk_init(host);
 	if (ret)
-		goto free_host;
+		goto free_host_clk;
 
 	/* Stop execution */
 	reg_write(host, SD_EMMC_START, 0);
@@ -863,11 +865,12 @@ static int meson_mmc_probe(struct platform_device *pdev)
 
 	return 0;
 
-free_host:
-	dev_dbg(host->dev, "Failed to probe: ret=%d\n", ret);
+free_host_clk:
 	if (host->core_clk)
 		clk_disable_unprepare(host->core_clk);
+free_host:
 	mmc_free_host(mmc);
+	dev_dbg(host->dev, "Failed to probe: ret=%d\n", ret);
 	return ret;
 }
 
