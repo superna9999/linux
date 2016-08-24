@@ -89,21 +89,8 @@ struct sx150x_device_data {
 	} pri;
 	const struct pinctrl_pin_desc *pins;
 	unsigned int npins;
-	const struct sx150x_function *functions;
-	unsigned int nfunctions;
 	const struct sx150x_pin_group *groups;
 	unsigned int ngroups;
-};
-
-struct sx150x_function {
-	const char *name;
-	const char * const *groups;
-	unsigned int ngroups;
-};
-
-struct sx150x_desc_function {
-	const char *name;
-	unsigned int fct;
 };
 
 struct sx150x_pin_group {
@@ -154,41 +141,6 @@ static const struct pinctrl_pin_desc sx150x_16_pins[] = {
 	PINCTRL_PIN(14, "gpio14"),
 	PINCTRL_PIN(15, "gpio15"),
 	PINCTRL_PIN(16, "oscio"),
-};
-
-static const char * const sx150x_gpio_16_group[] = {
-	"gpio0",  "gpio1",  "gpio2",  "gpio3",
-	"gpio4",  "gpio5",  "gpio6",  "gpio7",
-	"gpio8",  "gpio9",  "gpio10", "gpio11",
-	"gpio12", "gpio13", "gpio14", "gpio15",
-	"oscio"
-};
-
-static const char * const sx150x_gpio_8_group[] = {
-	"gpio0",  "gpio1",  "gpio2",  "gpio3",
-	"gpio4",  "gpio5",  "gpio6",  "gpio7",
-	"oscio"
-};
-
-static const char * const sx150x_oscio_group[] = {
-	"oscio"
-};
-
-#define FUNCTION(_name, _gr)					\
-	{							\
-		.name = #_name,					\
-		.groups = sx150x_##_gr##_group,			\
-		.ngroups = ARRAY_SIZE(sx150x_##_gr##_group),	\
-	}
-
-static const struct sx150x_function sx150x_16_functions[] = {
-	FUNCTION(gpio, gpio_16),
-	FUNCTION(oscio, oscio),
-};
-
-static const struct sx150x_function sx150x_8_functions[] = {
-	FUNCTION(gpio, gpio_8),
-	FUNCTION(oscio, oscio),
 };
 
 #define SX150X_PINCTRL_GROUP(_pin, _name, ...)				\
@@ -248,8 +200,6 @@ static const struct sx150x_device_data sx1508q_device_data = {
 	.ngpios = 8,
 	.pins = sx150x_8_pins,
 	.npins = ARRAY_SIZE(sx150x_8_pins),
-	.functions = sx150x_8_functions,
-	.nfunctions = ARRAY_SIZE(sx150x_8_functions),
 	.groups = sx150x_8_groups,
 	.ngroups = ARRAY_SIZE(sx150x_8_groups),
 };
@@ -273,8 +223,6 @@ static const struct sx150x_device_data sx1509q_device_data = {
 	.ngpios	= 16,
 	.pins = sx150x_16_pins,
 	.npins = ARRAY_SIZE(sx150x_16_pins),
-	.functions = sx150x_16_functions,
-	.nfunctions = ARRAY_SIZE(sx150x_16_functions),
 	.groups = sx150x_16_groups,
 	.ngroups = ARRAY_SIZE(sx150x_16_groups),
 };
@@ -300,8 +248,6 @@ static const struct sx150x_device_data sx1506q_device_data = {
 	.ngpios	= 16,
 	.pins = sx150x_16_pins,
 	.npins = ARRAY_SIZE(sx150x_16_pins),
-	.functions = sx150x_16_functions,
-	.nfunctions = ARRAY_SIZE(sx150x_16_functions),
 	.groups = sx150x_16_groups,
 	.ngroups = ARRAY_SIZE(sx150x_16_groups),
 };
@@ -327,8 +273,6 @@ static const struct sx150x_device_data sx1502q_device_data = {
 	.ngpios	= 8,
 	.pins = sx150x_8_pins,
 	.npins = ARRAY_SIZE(sx150x_8_pins),
-	.functions = sx150x_8_functions,
-	.nfunctions = ARRAY_SIZE(sx150x_8_functions),
 	.groups = sx150x_8_groups,
 	.ngroups = ARRAY_SIZE(sx150x_8_groups),
 };
@@ -455,83 +399,12 @@ static const struct pinctrl_ops sx150x_pinctrl_ops = {
 	.dt_free_map = pinctrl_utils_free_map,
 };
 
-static int sx150x_pinmux_get_functions_count(struct pinctrl_dev *pctldev)
-{
-	struct sx150x_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-
-	return pctl->data->nfunctions;
-}
-
-static const char *
-sx150x_pinmux_get_function_name(struct pinctrl_dev *pctldev, unsigned int func)
-{
-	struct sx150x_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-
-	return pctl->data->functions[func].name;
-}
-
-static int sx150x_pinmux_get_function_groups(struct pinctrl_dev *pctldev,
-					    unsigned int func,
-					    const char * const **groups,
-					    unsigned int * const num_groups)
-{
-	struct sx150x_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-
-	*groups = pctl->data->functions[func].groups;
-	*num_groups = pctl->data->functions[func].ngroups;
-
-	return 0;
-}
-
-static int sx150x_pinmux_enable(struct pinctrl_dev *pctldev,
-			       unsigned int func, unsigned int group)
-{
-	struct sx150x_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct sx150x_pin_group *pg = &pctl->data->groups[group];
-	const struct sx150x_function *pf = &pctl->data->functions[func];
-	int ret = 0;
-
-	/* Check if referencing Oscio group */
-	if (!strcmp(pg->name, "oscio")) {
-
-		if (!strcmp(pf->name, "gpio"))
-			pctl->oscio_is_gpo = true;
-		else {
-			/* Switch back register to reset value */
-			pctl->oscio_is_gpo = false;
-
-			ret = sx150x_i2c_write(pctl->client,
-					       pctl->data->pri.x789.reg_clock,
-					       0x00);
-		}
-
-		dev_info(pctl->dev, "OSCIO configured as %s\n",
-				(pctl->oscio_is_gpo ? "GPO" : "default"));
-	}
-
-	/* Nothing to mux here for other pins */
-	
-	return ret;
-}
-
 static bool sx150x_pin_is_oscio(struct sx150x_pinctrl *pctl, unsigned int pin)
 {
 	if (pin >= pctl->data->ngroups)
 		return false;
 
 	return !strcmp(pctl->data->groups[pin].name, "oscio");
-}
-
-static int sx150x_gpio_request_enable(struct pinctrl_dev *pctldev,
-				     struct pinctrl_gpio_range *range,
-				     unsigned int offset)
-{
-	struct sx150x_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-
-	if (sx150x_pin_is_oscio(pctl, offset) && !pctl->oscio_is_gpo)
-			return -EINVAL;
-
-	return 0;
 }
 
 static int sx150x_gpio_get_direction(struct gpio_chip *chip,
@@ -580,9 +453,6 @@ static void sx150x_gpio_set(struct gpio_chip *chip, unsigned int offset,
 
 	if (sx150x_pin_is_oscio(pctl, offset)) {
 		
-		if (!pctl->oscio_is_gpo)
-			return;
-
 		mutex_lock(&pctl->lock);
 		sx150x_i2c_write(pctl->client,
 				       pctl->data->pri.x789.reg_clock,
@@ -621,7 +491,7 @@ static int sx150x_gpio_direction_output(struct gpio_chip *chip,
 	int status;
 
 	if (sx150x_pin_is_oscio(pctl, offset))
-		return 0;
+		return sx150x_gpio_set(chip, offset, value);
 
 	mutex_lock(&pctl->lock);
 	status = sx150x_write_cfg(pctl->client, offset, 1,
@@ -634,27 +504,6 @@ static int sx150x_gpio_direction_output(struct gpio_chip *chip,
 
 	return status;
 }
-
-static int sx150x_gpio_set_direction(struct pinctrl_dev *pctldev,
-				    struct pinctrl_gpio_range *range,
-				    unsigned int offset, bool input)
-{
-	struct sx150x_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-
-	if (input)
-		return sx150x_gpio_direction_input(&pctl->gpio, offset);
-	else
-		return sx150x_gpio_direction_output(&pctl->gpio, offset, 0);
-}
-
-static const struct pinmux_ops sx150x_pinmux_ops = {
-	.get_functions_count = sx150x_pinmux_get_functions_count,
-	.get_function_name = sx150x_pinmux_get_function_name,
-	.get_function_groups = sx150x_pinmux_get_function_groups,
-	.set_mux = sx150x_pinmux_enable,
-	.gpio_request_enable = sx150x_gpio_request_enable,
-	.gpio_set_direction = sx150x_gpio_set_direction,
-};
 
 static int sx150x_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 			      unsigned long *config)
@@ -763,12 +612,25 @@ static int sx150x_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 	int i;
 	int ret;
 
-	if (sx150x_pin_is_oscio(pctl, pin))
-		return -ENOTSUPP;
-
 	for (i = 0; i < num_configs; i++) {
 		param = pinconf_to_config_param(configs[i]);
 		arg = pinconf_to_config_argument(configs[i]);
+
+		if (sx150x_pin_is_oscio(pctl, pin)) {
+			if (param == PIN_CONFIG_OUTPUT && arg) {
+				mutex_lock(&pctl->lock);
+				ret = sx150x_i2c_write(pctl->client,
+						pctl->data->pri.x789.reg_clock,
+						0);
+				mutex_unlock(&pctl->lock);
+				if (ret < 0)
+					return ret;
+
+				continue;
+			}
+			else
+				return -ENOTSUPP;
+		}
 
 		switch (param) {
 		case PIN_CONFIG_BIAS_PULL_PIN_DEFAULT:
@@ -993,7 +855,6 @@ static int sx150x_probe(struct i2c_client *client,
 	/* Pinctrl_desc */
 	pctl->pinctrl_desc.name = "sx150x-pinctrl";
 	pctl->pinctrl_desc.pctlops = &sx150x_pinctrl_ops;
-	pctl->pinctrl_desc.pmxops = &sx150x_pinmux_ops;
 	pctl->pinctrl_desc.confops = &sx150x_pinconf_ops;
 	pctl->pinctrl_desc.pins = pctl->data->pins;
 	pctl->pinctrl_desc.npins = pctl->data->npins;
@@ -1009,8 +870,6 @@ static int sx150x_probe(struct i2c_client *client,
 	pctl->gpio.label = devm_kstrdup(dev, client->name, GFP_KERNEL);
 	pctl->gpio.base = -1;
 	pctl->gpio.ngpio = pctl->data->npins;
-	pctl->gpio.request = gpiochip_generic_request;
-	pctl->gpio.free = gpiochip_generic_free;
 	pctl->gpio.get_direction = sx150x_gpio_get_direction;
 	pctl->gpio.direction_input = sx150x_gpio_direction_input;
 	pctl->gpio.direction_output = sx150x_gpio_direction_output;
@@ -1019,21 +878,7 @@ static int sx150x_probe(struct i2c_client *client,
 	pctl->gpio.of_node = dev->of_node;
 	pctl->gpio.can_sleep = true;
 
-	ret = devm_gpiochip_add_data(dev, &pctl->gpio, pctl);
-	if (ret)
-		return ret;
-
-	/* Complete GPIO range */
-	pctl->range.name = devm_kstrdup(dev, client->name, GFP_KERNEL);
-	pctl->range.id = 0;
-	pctl->range.base = pctl->gpio.base;
-	pctl->range.pin_base = 0;
-	pctl->range.npins = pctl->data->npins;
-	pctl->range.gc = &pctl->gpio;
-
-	pinctrl_add_gpio_range(pctl->pctldev, &pctl->range);
-
-	return ret;
+	return devm_gpiochip_add_data(dev, &pctl->gpio, pctl);
 }
 
 static struct i2c_driver sx150x_driver = {
