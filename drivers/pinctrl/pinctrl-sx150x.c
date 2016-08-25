@@ -99,7 +99,6 @@ struct sx150x_pinctrl {
 	struct gpio_chip gpio;
 	struct pinctrl_gpio_range range;
 	struct mutex lock;
-	bool oscio_is_gpo;
 	const struct sx150x_device_data *data;
 };
 
@@ -496,9 +495,31 @@ static int sx150x_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 	u32 arg;
 
 	if (sx150x_pin_is_oscio(pctl, pin)) {
+		u8 data;
+
 		switch (param) {
+		case PIN_CONFIG_DRIVE_PUSH_PULL:
 		case PIN_CONFIG_OUTPUT:
-			arg = pctl->oscio_is_gpo;
+			mutex_lock(&pctl->lock);
+			ret = sx150x_i2c_read(pctl->client,
+					pctl->data->pri.x789.reg_clock,
+					&data);
+			mutex_unlock(&pctl->lock);
+
+			if (ret < 0)
+				return ret;
+
+			if (param == PIN_CONFIG_DRIVE_PUSH_PULL)
+				arg = (data & 0x1f) ? 1 : 0;
+			else {
+				if ((data & 0x1f) == 0x1f)
+					arg = 1;
+				else if ((data & 0x1f) == 0x10)
+					arg = 0;
+				else
+					return -EINVAL;
+			}
+
 			break;
 		default:
 			return -ENOTSUPP;
@@ -517,7 +538,10 @@ static int sx150x_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 		if (ret < 0)
 			return ret;
 
-		arg = ret ? 1 : 0;
+		if (!ret)
+			return -EINVAL;
+
+		arg = 1;
 		break;
 
 	case PIN_CONFIG_BIAS_PULL_UP:
@@ -529,7 +553,10 @@ static int sx150x_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 		if (ret < 0)
 			return ret;
 
-		arg = ret ? 1 : 0;
+		if (!ret)
+			return -EINVAL;
+
+		arg = 1;
 		break;
 
 	case PIN_CONFIG_DRIVE_OPEN_DRAIN:
@@ -544,7 +571,10 @@ static int sx150x_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 		if (ret < 0)
 			return ret;
 
-		arg = ret ? 1 : 0;
+		if (!ret)
+			return -EINVAL;
+
+		arg = 1;
 		break;
 
 	case PIN_CONFIG_DRIVE_PUSH_PULL:
@@ -559,20 +589,26 @@ static int sx150x_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 			if (ret < 0)
 				return ret;
 
-			arg = ret ? 0 : 1;
+			if (ret)
+				return -EINVAL;
+
+			arg = 1;
 		}
 		break;
 
 	case PIN_CONFIG_OUTPUT:
-		mutex_lock(&pctl->lock);
-		ret = sx150x_read_cfg(pctl->client, pin, 1,
-				      pctl->data->reg_dir);
-		mutex_unlock(&pctl->lock);
-
+		ret = sx150x_gpio_get_direction(&pctl->gpio, pin);
 		if (ret < 0)
 			return ret;
 
-		arg = ret ? 0 : 1;
+		if (ret)
+			return -EINVAL;
+
+		ret = sx150x_gpio_get(&pctl->gpio, pin);
+		if (ret < 0)
+			return ret;
+
+		arg = ret;
 		break;
 
 	default:
@@ -599,12 +635,9 @@ static int sx150x_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 		arg = pinconf_to_config_argument(configs[i]);
 
 		if (sx150x_pin_is_oscio(pctl, pin)) {
-			if (param == PIN_CONFIG_OUTPUT && arg) {
-				mutex_lock(&pctl->lock);
-				ret = sx150x_i2c_write(pctl->client,
-						pctl->data->pri.x789.reg_clock,
-						0);
-				mutex_unlock(&pctl->lock);
+			if (param == PIN_CONFIG_OUTPUT) {
+				ret = sx150x_gpio_direction_output(&pctl->gpio,
+								   pin, arg);
 				if (ret < 0)
 					return ret;
 
@@ -637,7 +670,7 @@ static int sx150x_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 			mutex_lock(&pctl->lock);
 			ret = sx150x_write_cfg(pctl->client, pin, 1,
 					       pctl->data->reg_pullup,
-					       (arg ? 1 : 0));
+					       1);
 			mutex_unlock(&pctl->lock);
 			if (ret < 0)
 				return ret;
@@ -648,7 +681,7 @@ static int sx150x_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 			mutex_lock(&pctl->lock);
 			ret = sx150x_write_cfg(pctl->client, pin, 1,
 					       pctl->data->reg_pulldn,
-					       (arg ? 1 : 0));
+					       1);
 			mutex_unlock(&pctl->lock);
 			if (ret < 0)
 				return ret;
@@ -656,39 +689,24 @@ static int sx150x_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 			break;
 
 		case PIN_CONFIG_DRIVE_OPEN_DRAIN:
-			if (pctl->data->model != SX150X_789)
-				return -ENOTSUPP;
-
-			mutex_lock(&pctl->lock);
-			ret = sx150x_write_cfg(pctl->client, pin, 1,
-					       pctl->data->pri.x789.reg_drain,
-					       (arg ? 1 : 0));
-			mutex_unlock(&pctl->lock);
+			ret = sx150x_gpio_set_single_ended(&pctl->gpio,
+						pin, LINE_MODE_OPEN_DRAIN);
 			if (ret < 0)
 				return ret;
 
 			break;
 
 		case PIN_CONFIG_DRIVE_PUSH_PULL:
-			if (pctl->data->model != SX150X_789)
-				return -ENOTSUPP;
-
-			mutex_lock(&pctl->lock);
-			ret = sx150x_write_cfg(pctl->client, pin, 1,
-					       pctl->data->pri.x789.reg_drain,
-					       (arg ? 0 : 1));
-			mutex_unlock(&pctl->lock);
+			ret = sx150x_gpio_set_single_ended(&pctl->gpio,
+						pin, LINE_MODE_PUSH_PULL);
 			if (ret < 0)
 				return ret;
 
 			break;
 
 		case PIN_CONFIG_OUTPUT:
-			mutex_lock(&pctl->lock);
-			ret = sx150x_write_cfg(pctl->client, pin, 1,
-					       pctl->data->reg_dir,
-					       (arg ? 0 : 1));
-			mutex_unlock(&pctl->lock);
+			ret = sx150x_gpio_direction_output(&pctl->gpio,
+							   pin, arg);
 			if (ret < 0)
 				return ret;
 
@@ -834,6 +852,23 @@ static int sx150x_probe(struct i2c_client *client,
 	if (ret)
 		return ret;
 
+	/* Register GPIO controller */
+	pctl->gpio.label = devm_kstrdup(dev, client->name, GFP_KERNEL);
+	pctl->gpio.base = -1;
+	pctl->gpio.ngpio = pctl->data->npins;
+	pctl->gpio.get_direction = sx150x_gpio_get_direction;
+	pctl->gpio.direction_input = sx150x_gpio_direction_input;
+	pctl->gpio.direction_output = sx150x_gpio_direction_output;
+	pctl->gpio.get = sx150x_gpio_get;
+	pctl->gpio.set = sx150x_gpio_set;
+	pctl->gpio.set_single_ended = sx150x_gpio_set_single_ended;
+	pctl->gpio.of_node = dev->of_node;
+	pctl->gpio.can_sleep = true;
+
+	ret = devm_gpiochip_add_data(dev, &pctl->gpio, pctl);
+	if (ret)
+		return ret;
+
 	/* Pinctrl_desc */
 	pctl->pinctrl_desc.name = "sx150x-pinctrl";
 	pctl->pinctrl_desc.pctlops = &sx150x_pinctrl_ops;
@@ -848,20 +883,7 @@ static int sx150x_probe(struct i2c_client *client,
 		return PTR_ERR(pctl->pctldev);
 	}
 
-	/* Register GPIO controller */
-	pctl->gpio.label = devm_kstrdup(dev, client->name, GFP_KERNEL);
-	pctl->gpio.base = -1;
-	pctl->gpio.ngpio = pctl->data->npins;
-	pctl->gpio.get_direction = sx150x_gpio_get_direction;
-	pctl->gpio.direction_input = sx150x_gpio_direction_input;
-	pctl->gpio.direction_output = sx150x_gpio_direction_output;
-	pctl->gpio.get = sx150x_gpio_get;
-	pctl->gpio.set = sx150x_gpio_set;
-	pctl->gpio.set_single_ended = sx150x_gpio_set_single_ended;
-	pctl->gpio.of_node = dev->of_node;
-	pctl->gpio.can_sleep = true;
-
-	return devm_gpiochip_add_data(dev, &pctl->gpio, pctl);
+	return 0;
 }
 
 static struct i2c_driver sx150x_driver = {
