@@ -43,6 +43,7 @@
 
 #include "meson-gx.dtsi"
 #include <dt-bindings/gpio/meson-gxl-gpio.h>
+#include <dt-bindings/clock/gxl-clkc.h>
 
 / {
 	compatible = "amlogic,meson-gxl";
@@ -173,5 +174,13 @@
 				function = "eth";
 			};
 		};
+	};
+};
+
+&hiubus {
+	clkc: clock-controller@0 {
+		compatible = "amlogic,gxl-clkc";
+		#clock-cells = <1>;
+		reg = <0x0 0x0 0x0 0x3db>;
 	};
 };
