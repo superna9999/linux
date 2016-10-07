@@ -159,6 +159,11 @@ config MICROCHIP_PHY
 	help
 	  Supports the LAN88XX PHYs.
 
+config MESON_GXL_PHY
+	tristate "Amlogic Meson GXL Internal PHY"
+	---help---
+	  Currently has a driver for the Amlogic Meson GXL Internal PHY
+
 config FIXED_PHY
 	tristate "Driver for MDIO Bus/PHY emulation with fixed speed/link PHYs"
 	depends on PHYLIB
