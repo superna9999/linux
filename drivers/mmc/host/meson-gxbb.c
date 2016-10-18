@@ -752,7 +752,7 @@ static int meson_mmc_probe(struct platform_device *pdev)
 
 	ret = meson_mmc_clk_init(host);
 	if (ret)
-		goto free_host;
+		goto free_host_clk;
 
 	/* Stop execution */
 	writel(0, host->regs + SD_EMMC_START);
@@ -765,7 +765,7 @@ static int meson_mmc_probe(struct platform_device *pdev)
 					meson_mmc_irq, meson_mmc_irq_thread,
 					IRQF_SHARED, DRIVER_NAME, host);
 	if (ret)
-		goto free_host;
+		goto free_host_clk;
 
 	/* data bounce buffer */
 	host->bounce_buf_size = SZ_512K;
@@ -775,7 +775,7 @@ static int meson_mmc_probe(struct platform_device *pdev)
 	if (host->bounce_buf == NULL) {
 		dev_err(host->dev, "Unable to map allocate DMA bounce buffer.\n");
 		ret = -ENOMEM;
-		goto free_host;
+		goto free_host_clk;
 	}
 
 	mmc->ops = &meson_mmc_ops;
@@ -783,10 +783,10 @@ static int meson_mmc_probe(struct platform_device *pdev)
 
 	return 0;
 
+free_host_clk:
+	clk_disable_unprepare(host->core_clk);
 free_host:
 	dev_dbg(host->dev, "Failed to probe: ret=%d\n", ret);
-	if (host->core_clk)
-		clk_disable_unprepare(host->core_clk);
 	mmc_free_host(mmc);
 	return ret;
 }
