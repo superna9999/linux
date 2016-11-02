@@ -147,6 +147,23 @@
 	status = "okay";
 	pinctrl-0 = <&eth_rgmii_pins>;
 	pinctrl-names = "default";
+
+	phy-handle = <&external_phy>;
+
+	snps,reset-gpio = <&gpio GPIOZ_14 0>;
+	snps,reset-active-low;
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "snps,dwmac-mdio";
+
+		external_phy: ethernet-phy@0 {
+			compatible = "realtek,rtl8211", "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			max-speed = <100>;
+		};
+	};
 };
 
 &ir {
