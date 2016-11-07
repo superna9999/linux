@@ -1,7 +1,6 @@
 /*
- * Copyright (c) 2016 Andreas Färber
- * Copyright (c) 2016 BayLibre, Inc.
- * Author: Kevin Hilman <khilman@kernel.org>
+ * Copyright (c) 2016 Endless Computers, Inc.
+ * Author: Carlo Caione <carlo@endlessm.com>
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPL or the X11 license, at your option. Note that this dual
@@ -42,36 +41,74 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/dts-v1/;
-
-#include "meson-gxbb-p20x.dtsi"
+#include "meson-gxl.dtsi"
 
 / {
-	compatible = "amlogic,p200", "amlogic,meson-gxbb";
-	model = "Amlogic Meson GXBB P200 Development Board";
-};
+	compatible = "amlogic,meson-gxm";
 
-&i2c_B {
-	status = "okay";
-	pinctrl-0 = <&i2c_b_pins>;
-	pinctrl-names = "default";
-};
+	cpus {
+		cpu-map {
+			cluster0 {
+				cpu0 {
+					cpu = <&cpu0>;
+				};
+				cpu1 {
+					cpu = <&cpu1>;
+				};
+				cpu2 {
+					cpu = <&cpu2>;
+				};
+				cpu3 {
+					cpu = <&cpu3>;
+				};
+			};
 
-&ethmac {
-	status = "okay";
-	pinctrl-0 = <&eth_rgmii_pins>;
-	pinctrl-names = "default";
+			cluster1 {
+				cpu0 {
+					cpu = <&cpu4>;
+				};
+				cpu1 {
+					cpu = <&cpu5>;
+				};
+				cpu2 {
+					cpu = <&cpu6>;
+				};
+				cpu3 {
+					cpu = <&cpu7>;
+				};
+			};
+		};
 
-	phy-handle = <&eth_phy0>;
+		cpu4: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x0 0x100>;
+			enable-method = "psci";
+			next-level-cache = <&l2>;
+		};
 
-	mdio {
-		compatible = "snps,dwmac-mdio";
-		#address-cells = <1>;
-		#size-cells = <0>;
+		cpu5: cpu@101 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x0 0x101>;
+			enable-method = "psci";
+			next-level-cache = <&l2>;
+		};
 
-		eth_phy0: ethernet-phy@0 {
-			reg = <0>;
-			realtek,disable-eee-1000t;
+		cpu6: cpu@102 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x0 0x102>;
+			enable-method = "psci";
+			next-level-cache = <&l2>;
+		};
+
+		cpu7: cpu@103 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x0 0x103>;
+			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 	};
 };
