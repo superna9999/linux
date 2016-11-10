@@ -42,10 +42,10 @@
 
 #include "meson-gx.dtsi"
 #include <dt-bindings/gpio/meson-gxbb-gpio.h>
-#include <dt-bindings/reset/amlogic,meson-gxbb-reset.h>
 #include <dt-bindings/clock/gxbb-clkc.h>
 #include <dt-bindings/clock/gxbb-aoclkc.h>
 #include <dt-bindings/reset/gxbb-aoclkc.h>
+#include <dt-bindings/reset/amlogic,meson-gxbb-reset.h>
 
 / {
 	compatible = "amlogic,meson-gxbb";
@@ -504,4 +504,28 @@
 		 <&xtal>,
 		 <&clkc CLKID_FCLK_DIV2>;
 	clock-names = "core", "clkin0", "clkin1";
+};
+
+&viu {
+	resets = <&reset RESET_VIU>,
+		 <&reset RESET_VENC>,
+		 <&reset RESET_VCBUS>,
+		 <&reset RESET_HDMITX_CAPB3>,
+		 <&reset RESET_BT656>,
+		 <&reset RESET_HDMI_SYSTEM_RESET>,
+		 <&reset RESET_DVIN_RESET>,
+		 <&reset RESET_RDMA>,
+		 <&reset RESET_VENCI>,
+		 <&reset RESET_VENCP>,
+		 <&reset RESET_VDAC>,
+		 <&reset RESET_VDI6>,
+		 <&reset RESET_VENCL>,
+		 <&reset RESET_VID_LOCK>;
+	reset-names = "viu", "venc", "vcbus", "hdmitx_capb3", "bt656",
+		      "hdmi_system", "dvin", "rdma", "venci", "vencp",
+		      "vdac", "vdi6", "vencl", "vid_lock";
+	clocks = <&clkc CLKID_VPU>,
+		 <&clkc CLKID_VPU0>,
+		 <&clkc CLKID_FCLK_DIV3>;
+	clock-names = "vpu", "vpu0", "fclk_div";
 };
