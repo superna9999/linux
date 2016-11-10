@@ -142,6 +142,17 @@
 		clocks = <&wifi32k>;
 		clock-names = "ext_clock";
 	};
+
+	cvbs-connector {
+		compatible = "composite-video-connector";
+		label = "cvbs";
+
+		port {
+			cvbs_connector_in: endpoint {
+				remote-endpoint = <&cvbs_vdac_out>;
+			};
+		};
+	};
 };
 
 &uart_AO {
@@ -228,4 +239,8 @@
 	pinctrl-names = "default";
 	clocks = <&clkc CLKID_FCLK_DIV4>;
 	clock-names = "clkin0";
+};
+
+&cvbs_vdac_out {
+	remote-endpoint = <&cvbs_connector_in>;
 };

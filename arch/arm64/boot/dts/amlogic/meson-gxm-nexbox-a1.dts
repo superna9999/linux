@@ -90,6 +90,17 @@
 		compatible = "mmc-pwrseq-emmc";
 		reset-gpios = <&gpio BOOT_9 GPIO_ACTIVE_LOW>;
 	};
+
+	cvbs-connector {
+		compatible = "composite-video-connector";
+		label = "cvbs";
+
+		port {
+			cvbs_connector_in: endpoint {
+				remote-endpoint = <&cvbs_vdac_out>;
+			};
+		};
+	};
 };
 
 /* This UART is brought out to the DB9 connector */
@@ -166,4 +177,8 @@
 		reg = <0>;
 		max-speed = <1000>;
 	};
+};
+
+&cvbs_vdac_out {
+	remote-endpoint = <&cvbs_connector_in>;
 };
