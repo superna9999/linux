@@ -265,8 +265,53 @@
 /* CLKID_SD_EMMC_A */
 /* CLKID_SD_EMMC_B */
 /* CLKID_SD_EMMC_C */
+#define CLKID_VID_PLL_SEL	  97
+#define CLKID_VID_PLL		  98
+#define CLKID_VCLK_SEL		  99
+#define CLKID_VCLK2_SEL		 100
+#define CLKID_VCLK_INPUT	 101
+#define CLKID_VCLK2_INPUT	 102
+#define CLKID_VCLK_DIV		 103
+#define CLKID_VCLK2_DIV		 104
+#define CLKID_VCLK		 105
+#define CLKID_VCLK2		 106
+#define CLKID_VCLK_DIV1_OUT	 107
+#define CLKID_VCLK_DIV2_OUT	 108
+#define CLKID_VCLK_DIV4_OUT	 109
+#define CLKID_VCLK_DIV6_OUT	 110
+#define CLKID_VCLK_DIV12_OUT	 111
+#define CLKID_VCLK2_DIV1_OUT	 112
+#define CLKID_VCLK2_DIV2_OUT	 113
+#define CLKID_VCLK2_DIV4_OUT	 114
+#define CLKID_VCLK2_DIV6_OUT	 115
+#define CLKID_VCLK2_DIV12_OUT	 116
+#define CLKID_VCLK_DIV1		 117
+#define CLKID_VCLK_DIV2		 118
+#define CLKID_VCLK_DIV4		 119
+#define CLKID_VCLK_DIV6		 120
+#define CLKID_VCLK_DIV12	 121
+#define CLKID_VCLK2_DIV1	 122
+#define CLKID_VCLK2_DIV2	 123
+#define CLKID_VCLK2_DIV4	 124
+#define CLKID_VCLK2_DIV6	 125
+#define CLKID_VCLK2_DIV12	 126
+#define CLKID_CTS_ENCI_SEL	 127
+#define CLKID_CTS_ENCP_SEL	 128
+#define CLKID_CTS_VDAC_SEL	 129
+#define CLKID_HDMI_TX_SEL	 130
+#define CLKID_CTS_ENCI		 131
+#define CLKID_CTS_ENCP		 132
+#define CLKID_CTS_VDAC		 133
+#define CLKID_HDMI_TX		 134
+#define CLKID_VPU0		 135
+#define CLKID_VPU1		 136
+#define CLKID_VPU0_SEL		 137
+#define CLKID_VPU1_SEL		 138
+#define CLKID_VPU0_DIV		 139
+#define CLKID_VPU1_DIV		 140
+#define CLKID_VPU		 141
 
-#define NR_CLKS			  97
+#define NR_CLKS			142
 
 /* include the CLKIDs that have been made part of the stable DT binding */
 #include <dt-bindings/clock/gxbb-clkc.h>
