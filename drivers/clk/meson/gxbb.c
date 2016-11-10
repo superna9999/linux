@@ -550,6 +550,431 @@ static struct clk_divider gxbb_mpeg_clk_div = {
 	},
 };
 
+/* Video Clocks */
+
+/* Video Clock gate with soft reset */
+struct vclk_gate {
+	struct clk_hw hw;
+	void __iomem	*reg;
+	u8		en_idx;
+	u8		reset_idx;
+	u8		flags;
+	spinlock_t	*lock;
+};
+
+#define to_vclk_gate(_hw) container_of(_hw, struct vclk_gate, hw)
+
+static void vclk_gate_endisable(struct clk_hw *hw, int enable, int reset)
+{
+	struct vclk_gate *gate = to_vclk_gate(hw);
+	unsigned long flags;
+	u32 reg;
+
+	spin_lock_irqsave(gate->lock, flags);
+
+	reg = clk_readl(gate->reg);
+
+	if (enable)
+		reg |= BIT(gate->en_idx);
+	else
+		reg &= ~BIT(gate->en_idx);
+
+	clk_writel(reg, gate->reg);
+
+	if (reset) {
+		reg = clk_readl(gate->reg);
+
+		reg |= BIT(gate->reset_idx);
+		clk_writel(reg, gate->reg);
+
+		reg &= ~BIT(gate->reset_idx);
+		clk_writel(reg, gate->reg);
+	}
+
+	spin_unlock_irqrestore(gate->lock, flags);
+}
+
+static int vclk_gate_enable(struct clk_hw *hw)
+{
+	vclk_gate_endisable(hw, 1, 1);
+
+	return 0;
+}
+
+static void vclk_gate_disable(struct clk_hw *hw)
+{
+	vclk_gate_endisable(hw, 0, 0);
+}
+
+static int vclk_gate_is_enabled(struct clk_hw *hw)
+{
+	struct vclk_gate *gate = to_vclk_gate(hw);
+	u32 reg;
+
+	reg = clk_readl(gate->reg);
+
+	reg &= BIT(gate->en_idx);
+
+	return reg ? 1 : 0;
+}
+
+const struct clk_ops vclk_gate_ops = {
+	.enable = vclk_gate_enable,
+	.disable = vclk_gate_disable,
+	.is_enabled = vclk_gate_is_enabled,
+};
+
+/* TOFIX add divisor support for vid_pll */
+
+static u32 mux_table_vid_pll[] = { 1 };
+const char *gxbb_vid_pll_parent_names[] = { "hdmi_pll" };
+
+static struct clk_mux gxbb_vid_pll_sel = {
+	.reg = (void *)HHI_VID_PLL_CLK_DIV,
+	.mask = 0x1,
+	.shift = 18,
+	.table = mux_table_vid_pll,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vid_pll_en = {
+	.reg = (void *)HHI_VID_PLL_CLK_DIV,
+	.bit_idx = 19,
+	.lock = &clk_lock,
+};
+
+static u32 mux_table_vclk[] = { 0, 1, 2, 3, 4, 5 };
+/* Surprisingly, vid_pll is on two mux inputs, but only the input 4 is used */
+const char *gxbb_vclk_parent_names[] = {
+	"vid_pll", "fclk_div4", "fclk_div3", "fclk_div5",
+	"vid_pll", "fclk_div7"
+};
+
+static struct clk_mux gxbb_vclk_sel = {
+	.reg = (void *)HHI_VID_CLK_CNTL,
+	.mask = 0x7,
+	.shift = 16,
+	.table = mux_table_vclk,
+	.lock = &clk_lock,
+};
+
+static struct clk_mux gxbb_vclk2_sel = {
+	.reg = (void *)HHI_VIID_CLK_CNTL,
+	.mask = 0x7,
+	.shift = 16,
+	.table = mux_table_vclk,
+	.lock = &clk_lock,
+};
+
+static struct vclk_gate gxbb_vclk_input = {
+	.reg = (void *)HHI_VID_CLK_DIV,
+	.en_idx = 16,
+	.reset_idx = 17,
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data) {
+		.name = "vclk_input",
+		.ops = &vclk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+};
+
+static struct vclk_gate gxbb_vclk2_input = {
+	.reg = (void *)HHI_VIID_CLK_DIV,
+	.en_idx = 16,
+	.reset_idx = 17,
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data) {
+		.name = "vclk2_input",
+		.ops = &vclk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+};
+
+static struct clk_divider gxbb_vclk_div = {
+	.reg = (void *)HHI_VID_CLK_DIV,
+	.shift = 0,
+	.width = 8,
+	.lock = &clk_lock,
+};
+
+static struct clk_divider gxbb_vclk2_div = {
+	.reg = (void *)HHI_VIID_CLK_DIV,
+	.shift = 0,
+	.width = 8,
+	.lock = &clk_lock,
+};
+
+static struct vclk_gate gxbb_vclk_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL,
+	.en_idx = 19,
+	.reset_idx = 15,
+	.lock = &clk_lock,
+};
+
+static struct vclk_gate gxbb_vclk2_en = {
+	.reg = (void *)HHI_VIID_CLK_CNTL,
+	.en_idx = 19,
+	.reset_idx = 15,
+	.lock = &clk_lock,
+};
+
+const char *gxbb_vclk_div_parent_names[] = {
+	"vclk"
+};
+
+static struct clk_fixed_factor gxbb_vclk_div1_out = {
+	.mult = 1,
+	.div = 1,
+};
+
+static struct clk_fixed_factor gxbb_vclk_div2_out = {
+	.mult = 1,
+	.div = 2,
+};
+
+static struct clk_fixed_factor gxbb_vclk_div4_out = {
+	.mult = 1,
+	.div = 4,
+};
+
+static struct clk_fixed_factor gxbb_vclk_div6_out = {
+	.mult = 1,
+	.div = 6,
+};
+
+static struct clk_fixed_factor gxbb_vclk_div12_out = {
+	.mult = 1,
+	.div = 12,
+};
+
+const char *gxbb_vclk2_div_parent_names[] = {
+	"vclk2"
+};
+
+static struct clk_fixed_factor gxbb_vclk2_div1_out = {
+	.mult = 1,
+	.div = 1,
+};
+
+static struct clk_fixed_factor gxbb_vclk2_div2_out = {
+	.mult = 1,
+	.div = 2,
+};
+
+static struct clk_fixed_factor gxbb_vclk2_div4_out = {
+	.mult = 1,
+	.div = 4,
+};
+
+static struct clk_fixed_factor gxbb_vclk2_div6_out = {
+	.mult = 1,
+	.div = 6,
+};
+
+static struct clk_fixed_factor gxbb_vclk2_div12_out = {
+	.mult = 1,
+	.div = 12,
+};
+
+static struct clk_gate gxbb_vclk_div1_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL,
+	.bit_idx = 0,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk_div2_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL,
+	.bit_idx = 1,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk_div4_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL,
+	.bit_idx = 2,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk_div6_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL,
+	.bit_idx = 3,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk_div12_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL,
+	.bit_idx = 4,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk2_div1_en = {
+	.reg = (void *)HHI_VIID_CLK_CNTL,
+	.bit_idx = 0,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk2_div2_en = {
+	.reg = (void *)HHI_VIID_CLK_CNTL,
+	.bit_idx = 1,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk2_div4_en = {
+	.reg = (void *)HHI_VIID_CLK_CNTL,
+	.bit_idx = 2,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk2_div6_en = {
+	.reg = (void *)HHI_VIID_CLK_CNTL,
+	.bit_idx = 3,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vclk2_div12_en = {
+	.reg = (void *)HHI_VIID_CLK_CNTL,
+	.bit_idx = 4,
+	.lock = &clk_lock,
+};
+
+static u32 mux_table_cts_sel[] = { 0, 1, 2, 3, 4, 8, 9, 10, 11, 12 };
+const char *gxbb_cts_parent_names[] = { 
+	"vclk_div1", "vclk_div2", "vclk_div4", "vclk_div6", "vclk_div12",
+	"vclk2_div1", "vclk2_div2", "vclk2_div4", "vclk2_div6", "vclk2_div12"
+};
+
+static struct clk_mux gxbb_cts_enci_sel = {
+	.reg = (void *)HHI_VID_CLK_DIV,
+	.mask = 0xf,
+	.shift = 28,
+	.table = mux_table_cts_sel,
+	.lock = &clk_lock,
+};
+
+static struct clk_mux gxbb_cts_encp_sel = {
+	.reg = (void *)HHI_VID_CLK_DIV,
+	.mask = 0xf,
+	.shift = 20,
+	.table = mux_table_cts_sel,
+	.lock = &clk_lock,
+};
+
+static struct clk_mux gxbb_cts_vdac_sel = {
+	.reg = (void *)HHI_VIID_CLK_DIV,
+	.mask = 0xf,
+	.shift = 28,
+	.table = mux_table_cts_sel,
+	.lock = &clk_lock,
+};
+
+/* TOFIX: add support for cts_tcon */
+static u32 mux_table_hdmi_tx_sel[] = { 0, 1, 2, 3, 4, 8, 9, 10, 11, 12 };
+const char *gxbb_cts_hdmi_tx_parent_names[] = {
+	"vclk_div1", "vclk_div2", "vclk_div4", "vclk_div6", "vclk_div12",
+	"vclk2_div1", "vclk2_div2", "vclk2_div4", "vclk2_div6", "vclk2_div12"
+};
+
+static struct clk_mux gxbb_hdmi_tx_sel = {
+	.reg = (void *)HHI_HDMI_CLK_CNTL,
+	.mask = 0xf,
+	.shift = 16,
+	.table = mux_table_hdmi_tx_sel,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_cts_enci_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL2,
+	.bit_idx = 0,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_cts_encp_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL2,
+	.bit_idx = 2,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_cts_vdac_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL2,
+	.bit_idx = 4,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_hdmi_tx_en = {
+	.reg = (void *)HHI_VID_CLK_CNTL2,
+	.bit_idx = 5,
+	.lock = &clk_lock,
+};
+
+/* VPU Clock */
+
+static struct clk_gate gxbb_vpu0_en = {
+	.reg = (void *)HHI_VPU_CLK_CNTL,
+	.bit_idx = 8,
+	.lock = &clk_lock,
+};
+
+static struct clk_gate gxbb_vpu1_en = {
+	.reg = (void *)HHI_VPU_CLK_CNTL,
+	.bit_idx = 24,
+	.lock = &clk_lock,
+};
+
+static u32 mux_table_vpu_sel[] = { 0, 1, 2, 3 };
+const char *gxbb_vpu_parent_names[] = {
+	"fclk_div4", "fclk_div3", "fclk_div5", "fclk_div7"
+};
+
+static struct clk_mux gxbb_vpu0_sel = {
+	.reg = (void *)HHI_VPU_CLK_CNTL,
+	.mask = 0x7,
+	.shift = 9,
+	.table = mux_table_vpu_sel,
+	.lock = &clk_lock,
+};
+
+static struct clk_mux gxbb_vpu1_sel = {
+	.reg = (void *)HHI_VPU_CLK_CNTL,
+	.mask = 0x7,
+	.shift = 25,
+	.table = mux_table_vpu_sel,
+	.lock = &clk_lock,
+};
+
+static struct clk_divider gxbb_vpu0_div = {
+	.reg = (void *)HHI_VPU_CLK_CNTL,
+	.shift = 0,
+	.width = 7,
+	.lock = &clk_lock,
+};
+
+static struct clk_divider gxbb_vpu1_div = {
+	.reg = (void *)HHI_VPU_CLK_CNTL,
+	.shift = 16,
+	.width = 7,
+	.lock = &clk_lock,
+};
+
+static u32 mux_table_vpu_final_sel[] = { 0, 1};
+
+static struct clk_mux gxbb_vpu = {
+	.reg = (void *)HHI_VPU_CLK_CNTL,
+	.mask = 1,
+	.shift = 31,
+	.table = mux_table_vpu_final_sel,
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data){
+		.name = "vpu",
+		.ops = &clk_mux_ops,
+		/*
+		 * bit 31 selects from 2 possible parents:
+		 * vpu0 or vpu1
+		 */
+		.parent_names = (const char *[]){ "vpu0", "vpu1" },
+		.num_parents = 2,
+		.flags = (CLK_SET_RATE_NO_REPARENT | CLK_IGNORE_UNUSED),
+	},
+};
+
 /* the mother of dragons^W gates */
 static struct clk_gate gxbb_clk81 = {
 	.reg = (void *)HHI_MPEG_CLK_CNTL,
@@ -754,6 +1179,11 @@ static struct clk_hw_onecell_data gxbb_hw_onecell_data = {
 		[CLKID_SD_EMMC_A]	    = &gxbb_emmc_a.hw,
 		[CLKID_SD_EMMC_B]	    = &gxbb_emmc_b.hw,
 		[CLKID_SD_EMMC_C]	    = &gxbb_emmc_c.hw,
+		[CLKID_VCLK_INPUT]	    = &gxbb_vclk_input.hw,
+		[CLKID_VCLK2_INPUT]	    = &gxbb_vclk2_input.hw,
+		[CLKID_VPU]		    = &gxbb_vpu.hw,
+		/* This sentinel entry makes sure the table is large enough */
+		[NR_CLKS]		    = NULL, /* Sentinel */
 	},
 	.num = NR_CLKS,
 };
@@ -856,6 +1286,316 @@ static struct clk_gate *gxbb_clk_gates[] = {
 	&gxbb_emmc_a,
 	&gxbb_emmc_b,
 	&gxbb_emmc_c,
+	&gxbb_vid_pll_en,
+	&gxbb_vclk_div1_en,
+	&gxbb_vclk_div2_en,
+	&gxbb_vclk_div4_en,
+	&gxbb_vclk_div6_en,
+	&gxbb_vclk_div12_en,
+	&gxbb_vclk2_div1_en,
+	&gxbb_vclk2_div2_en,
+	&gxbb_vclk2_div4_en,
+	&gxbb_vclk2_div6_en,
+	&gxbb_vclk2_div12_en,
+	&gxbb_cts_enci_en,
+	&gxbb_cts_encp_en,
+	&gxbb_cts_vdac_en,
+	&gxbb_hdmi_tx_en,
+	&gxbb_vpu0_en,
+	&gxbb_vpu1_en,
+};
+
+static struct vclk_gate *gxbb_vclk_gates[] = {
+	&gxbb_vclk_input,
+	&gxbb_vclk2_input,
+	&gxbb_vclk_en,
+	&gxbb_vclk2_en,
+};
+
+static struct clk_mux *gxbb_clk_muxes[] = {
+	&gxbb_vid_pll_sel,
+	&gxbb_vclk_sel,
+	&gxbb_vclk2_sel,
+	&gxbb_cts_enci_sel,
+	&gxbb_cts_encp_sel,
+	&gxbb_cts_vdac_sel,
+	&gxbb_hdmi_tx_sel,
+	&gxbb_vpu0_sel,
+	&gxbb_vpu1_sel,
+	&gxbb_vpu,
+};
+
+static struct clk_divider *gxbb_clk_dividers[] = {
+	&gxbb_vclk_div,
+	&gxbb_vclk2_div,
+	&gxbb_vpu0_div,
+	&gxbb_vpu1_div,
+};
+
+struct gxbb_composite_clk {
+	unsigned int id;
+	const char *name;
+	const char * const *parent_names;
+	int num_parents;
+	struct clk_hw *mux_hw;
+	const struct clk_ops *mux_ops;
+	struct clk_hw *rate_hw;
+	const struct clk_ops *rate_ops;
+	struct clk_hw *gate_hw;
+	const struct clk_ops *gate_ops;
+	unsigned long flags;
+};
+
+/* Convenient table to register the composite clocks */
+
+static struct gxbb_composite_clk gxbb_composite_clks[] = {
+	{
+		.id = CLKID_VCLK,
+		.name = "vclk",
+		.parent_names = gxbb_vclk_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk_parent_names),
+		.mux_hw = &gxbb_vclk_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = &gxbb_vclk_div.hw,
+		.rate_ops = &clk_divider_ops,
+		.gate_hw = &gxbb_vclk_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{
+		.id = CLKID_VCLK2,
+		.name = "vclk2",
+		.parent_names = gxbb_vclk_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk_parent_names),
+		.mux_hw = &gxbb_vclk2_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = &gxbb_vclk2_div.hw,
+		.rate_ops = &clk_divider_ops,
+		.gate_hw = &gxbb_vclk2_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{	/* TODO: Implement rate ops */
+		.id = CLKID_VID_PLL,
+		.name = "vid_pll",
+		.parent_names = gxbb_vid_pll_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vid_pll_parent_names),
+		.mux_hw = &gxbb_vid_pll_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = NULL,
+		.rate_ops = NULL,
+		.gate_hw = &gxbb_vid_pll_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{
+		.id = CLKID_VCLK_DIV1,
+		.name = "vclk_div1",
+		.parent_names = gxbb_vclk_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk_div1_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk_div1_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK_DIV2,
+		.name = "vclk_div2",
+		.parent_names = gxbb_vclk_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk_div2_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk_div2_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK_DIV4,
+		.name = "vclk_div4",
+		.parent_names = gxbb_vclk_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk_div4_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk_div4_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK_DIV6,
+		.name = "vclk_div6",
+		.parent_names = gxbb_vclk_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk_div6_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk_div6_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK_DIV12,
+		.name = "vclk_div12",
+		.parent_names = gxbb_vclk_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk_div12_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk_div12_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK2_DIV1,
+		.name = "vclk2_div1",
+		.parent_names = gxbb_vclk2_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk2_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk2_div1_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk2_div1_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK2_DIV2,
+		.name = "vclk2_div2",
+		.parent_names = gxbb_vclk2_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk2_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk2_div2_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk2_div2_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK2_DIV4,
+		.name = "vclk2_div4",
+		.parent_names = gxbb_vclk2_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk2_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk2_div4_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk2_div4_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK2_DIV6,
+		.name = "vclk2_div6",
+		.parent_names = gxbb_vclk2_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk2_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk2_div6_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk2_div6_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_VCLK2_DIV12,
+		.name = "vclk2_div12",
+		.parent_names = gxbb_vclk2_div_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vclk2_div_parent_names),
+		.mux_hw = NULL,
+		.mux_ops = NULL,
+		.rate_hw = &gxbb_vclk2_div12_out.hw,
+		.rate_ops = &clk_fixed_factor_ops,
+		.gate_hw = &gxbb_vclk2_div12_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	{
+		.id = CLKID_CTS_ENCI,
+		.name = "cts_enci",
+		.parent_names = gxbb_cts_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_cts_parent_names),
+		.mux_hw = &gxbb_cts_enci_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = NULL,
+		.rate_ops = NULL,
+		.gate_hw = &gxbb_cts_enci_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{
+		.id = CLKID_CTS_ENCP,
+		.name = "cts_encp",
+		.parent_names = gxbb_cts_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_cts_parent_names),
+		.mux_hw = &gxbb_cts_encp_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = NULL,
+		.rate_ops = NULL,
+		.gate_hw = &gxbb_cts_encp_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{
+		.id = CLKID_CTS_VDAC,
+		.name = "cts_vdac",
+		.parent_names = gxbb_cts_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_cts_parent_names),
+		.mux_hw = &gxbb_cts_vdac_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = NULL,
+		.rate_ops = NULL,
+		.gate_hw = &gxbb_cts_vdac_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{
+		.id = CLKID_HDMI_TX,
+		.name = "hdmi_tx",
+		.parent_names = gxbb_cts_hdmi_tx_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_cts_hdmi_tx_parent_names),
+		.mux_hw = &gxbb_hdmi_tx_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = NULL,
+		.rate_ops = NULL,
+		.gate_hw = &gxbb_hdmi_tx_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{
+		.id = CLKID_VPU0,
+		.name = "vpu0",
+		.parent_names = gxbb_vpu_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vpu_parent_names),
+		.mux_hw = &gxbb_vpu0_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = &gxbb_vpu0_div.hw,
+		.rate_ops = &clk_divider_ops,
+		.gate_hw = &gxbb_vpu0_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
+	{
+		.id = CLKID_VPU1,
+		.name = "vpu1",
+		.parent_names = gxbb_vpu_parent_names,
+		.num_parents = ARRAY_SIZE(gxbb_vpu_parent_names),
+		.mux_hw = &gxbb_vpu1_sel.hw,
+		.mux_ops = &clk_mux_ops,
+		.rate_hw = &gxbb_vpu1_div.hw,
+		.rate_ops = &clk_divider_ops,
+		.gate_hw = &gxbb_vpu1_en.hw,
+		.gate_ops = &clk_gate_ops,
+		.flags = CLK_IGNORE_UNUSED | CLK_SET_RATE_NO_REPARENT,
+	},
 };
 
 static int gxbb_clkc_probe(struct platform_device *pdev)
@@ -888,18 +1628,59 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 	gxbb_mpeg_clk_sel.reg = clk_base + (u64)gxbb_mpeg_clk_sel.reg;
 	gxbb_mpeg_clk_div.reg = clk_base + (u64)gxbb_mpeg_clk_div.reg;
 
+	/* Populate base address for muxes */
+	for (i = 0; i < ARRAY_SIZE(gxbb_clk_muxes); i++)
+		gxbb_clk_muxes[i]->reg = clk_base +
+			(u64)gxbb_clk_muxes[i]->reg;
+
+	/* Populate base address for dividers */
+	for (i = 0; i < ARRAY_SIZE(gxbb_clk_dividers); i++)
+		gxbb_clk_dividers[i]->reg = clk_base +
+			(u64)gxbb_clk_dividers[i]->reg;
+
 	/* Populate base address for gates */
 	for (i = 0; i < ARRAY_SIZE(gxbb_clk_gates); i++)
 		gxbb_clk_gates[i]->reg = clk_base +
 			(u64)gxbb_clk_gates[i]->reg;
 
+	/* Populate base address for video clock gates */
+	for (i = 0; i < ARRAY_SIZE(gxbb_vclk_gates); i++)
+		gxbb_vclk_gates[i]->reg = clk_base +
+			(u64)gxbb_vclk_gates[i]->reg;
+
 	/*
 	 * register all clks
 	 */
 	for (clkid = 0; clkid < NR_CLKS; clkid++) {
+		if (!gxbb_hw_onecell_data.hws[clkid])
+			continue;
+
 		ret = devm_clk_hw_register(dev, gxbb_hw_onecell_data.hws[clkid]);
 		if (ret)
 			goto iounmap;
+	}
+
+	/* Register Composite Clocks */
+	for (i = 0 ; i < ARRAY_SIZE(gxbb_composite_clks); ++i) {
+		struct gxbb_composite_clk *comp = &gxbb_composite_clks[i];
+		struct clk_hw *hw;
+
+		hw = clk_hw_register_composite(dev, comp->name,
+				comp->parent_names,
+				comp->num_parents,
+				comp->mux_hw, comp->mux_ops,
+				comp->rate_hw, comp->rate_ops,
+				comp->gate_hw, comp->gate_ops,
+				comp->flags);
+		if (IS_ERR(hw)) {
+			ret = PTR_ERR(hw);
+
+			pr_err("%s: Failed to register composite clock %s\n",
+				__func__, comp->name);
+
+			goto unregister_composites;
+		}
+		gxbb_hw_onecell_data.hws[comp->id] = hw;
 	}
 
 	/*
@@ -922,11 +1703,26 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 	if (ret) {
 		pr_err("%s: failed to register clock notifier for cpu_clk\n",
 				__func__);
-		goto iounmap;
+		goto unregister_composites;
 	}
 
-	return of_clk_add_hw_provider(dev->of_node, of_clk_hw_onecell_get,
+	ret = of_clk_add_hw_provider(dev->of_node, of_clk_hw_onecell_get,
 			&gxbb_hw_onecell_data);
+	if (!ret)
+		return 0;
+
+unregister_composites:
+	for (i = 0 ; i < ARRAY_SIZE(gxbb_composite_clks); ++i) {
+		struct gxbb_composite_clk *comp = &gxbb_composite_clks[i];
+		struct clk *clk;
+		
+		if (gxbb_hw_onecell_data.hws[comp->id]) {
+			clk = gxbb_hw_onecell_data.hws[comp->id]->clk;
+			clk_unregister_composite(clk);
+		}
+
+		gxbb_hw_onecell_data.hws[comp->id] = NULL;
+	}
 
 iounmap:
 	iounmap(clk_base);
