@@ -506,3 +506,10 @@
 		 <&clkc CLKID_FCLK_DIV2>;
 	clock-names = "core", "clkin0", "clkin1";
 };
+
+&viu {
+	clocks = <&clkc CLKID_VPU>,
+		 <&clkc CLKID_VPU0>,
+		 <&clkc CLKID_FCLK_DIV3>;
+	clock-names = "vpu", "vpu0", "fclk_div";
+};
