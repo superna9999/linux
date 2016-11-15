@@ -44,6 +44,9 @@
 
 #include "meson_vpu.h"
 #include "meson_vpp.h"
+#include "meson_viu.h"
+#include "meson_venc.h"
+#include "meson_canvas.h"
 
 #define DRIVER_NAME "meson"
 #define DRIVER_DESC "Amlogic Meson DRM driver"
@@ -63,83 +66,6 @@ static const struct drm_mode_config_funcs meson_mode_config_funcs = {
 	.atomic_commit       = drm_atomic_helper_commit,
 	.fb_create           = drm_fb_cma_create,
 };
-
-#if 0
-static void write_scaling_filter_coefs(const unsigned int *coefs,
-				       bool is_horizontal)
-{
-	int i;
-
-	/*aml_write_reg32(P_VPP_OSD_SCALE_COEF_IDX, (is_horizontal ? 1 : 0) << 8);
-	for (i = 0; i < 33; i++)
-		aml_write_reg32(P_VPP_OSD_SCALE_COEF, coefs[i]);
-		*/
-}
-
-static unsigned int vpp_filter_coefs_4point_bspline[] = {
-    0x15561500, 0x14561600, 0x13561700, 0x12561800,
-    0x11551a00, 0x11541b00, 0x10541c00, 0x0f541d00,
-    0x0f531e00, 0x0e531f00, 0x0d522100, 0x0c522200,
-    0x0b522300, 0x0b512400, 0x0a502600, 0x0a4f2700,
-    0x094e2900, 0x084e2a00, 0x084d2b00, 0x074c2c01,
-    0x074b2d01, 0x064a2f01, 0x06493001, 0x05483201,
-    0x05473301, 0x05463401, 0x04453601, 0x04433702,
-    0x04423802, 0x03413a02, 0x03403b02, 0x033f3c02,
-    0x033d3d03
-};
-
-/* Configure the VPP to act like how we expect it to. Other drivers,
- * like the ones included in U-Boot, might turn on weird features
- * like the HW scaler or special planes. Reset the VPP to a sane mode
- * that expects like we behave.
- */
-static void meson_reset_vpp(void)
-{
-	/* Turn off the HW scalers -- U-Boot turns these on and we
-	 * need to clear them to make things work. */
-	aml_clr_reg32_mask(P_VPP_OSD_SC_CTRL0, 1 << 3);
-	aml_clr_reg32_mask(P_VPP_OSD_VSC_CTRL0, 1 << 24);
-	aml_clr_reg32_mask(P_VPP_OSD_HSC_CTRL0, 1 << 22);
-
-	BUILD_BUG_ON(ARRAY_SIZE(vpp_filter_coefs_4point_bspline) != 33);
-	/* Write in the proper filter coefficients. */
-	write_scaling_filter_coefs(vpp_filter_coefs_4point_bspline, 0);
-	write_scaling_filter_coefs(vpp_filter_coefs_4point_bspline, 1);
-
-	/* Force all planes off -- U-Boot might configure them and
-	 * we shouldn't have any stale planes. */
-	aml_clr_reg32_mask(P_VPP_MISC, VPP_OSD1_POSTBLEND | VPP_OSD2_POSTBLEND);
-	aml_clr_reg32_mask(P_VPP_MISC, VPP_VD1_POSTBLEND | VPP_VD2_POSTBLEND);
-
-	/* Turn on POSTBLEND. */
-	aml_set_reg32_mask(P_VPP_MISC, VPP_POSTBLEND_EN);
-
-	/* Put OSD2 (cursor) on top of OSD1. */
-	aml_set_reg32_mask(P_VPP_MISC, VPP_POST_FG_OSD2 | VPP_PRE_FG_OSD2);
-
-	/* In its default configuration, the display controller can be starved
-	 * of memory bandwidth when the CPU and GPU are busy, causing scanout
-	 * to sometimes get behind where it should be (with parts of the
-	 * display appearing momentarily shifted to the right).
-	 * Increase the priority and burst size of RAM access using the same
-	 * values as Amlogic's driver. */
-	aml_set_reg32_mask(P_VIU_OSD1_FIFO_CTRL_STAT,
-			   1 << 0 | /* Urgent DDR request priority */
-			   3 << 10 /* Increase burst length from 24 to 64 */
-			   );
-	aml_set_reg32_mask(P_VIU_OSD2_FIFO_CTRL_STAT,
-			   1 << 0 | /* Urgent DDR request priority */
-			   3 << 10 /* Increase burst length from 24 to 64 */
-			   );
-
-	/* Increase the number of lines that the display controller waits
-	 * after vsync before starting RAM access. This gives the vsync
-	 * interrupt handler more time to update the registers, avoiding
-	 * visual glitches. */
-	aml_set_reg32_bits(P_VIU_OSD1_FIFO_CTRL_STAT, 12, 5, 5);
-	aml_set_reg32_bits(P_VIU_OSD2_FIFO_CTRL_STAT, 12, 5, 5);
-}
-#endif
 
 static int meson_enable_vblank(struct drm_device *dev, unsigned int crtc)
 {
@@ -217,10 +143,19 @@ static struct drm_driver meson_driver = {
 	.minor			= 0,
 };
 
+static struct regmap_config meson_regmap_config = {                     
+	.reg_bits       = 32,
+	.val_bits       = 32,
+	.reg_stride     = 4,
+	.max_register   = 0x1000,
+};
+
 static int meson_pdev_probe(struct platform_device *pdev)
 {
 	struct meson_drm *priv;
 	struct drm_device *drm;
+	struct resource *res;
+	void __iomem *regs;
 	int ret;
 
 	drm = drm_dev_alloc(&meson_driver, &pdev->dev);
@@ -235,7 +170,36 @@ static int meson_pdev_probe(struct platform_device *pdev)
 	drm->dev_private = priv;
 	priv->drm = drm;
 
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "base");
+	regs = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(regs))
+		return PTR_ERR(regs);
+
+	priv->io_base = regs;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "hhi");
+	regs = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(regs))
+		return PTR_ERR(regs);
+
+	priv->hhi = devm_regmap_init_mmio(&pdev->dev, regs,
+					  &meson_regmap_config);
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dmc");
+	regs = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(regs))
+		return PTR_ERR(regs);
+
+	priv->dmc = devm_regmap_init_mmio(&pdev->dev, regs,
+					  &meson_regmap_config);
+
 	priv->vsync_irq = platform_get_irq(pdev, 0);
+
+	meson_vpp_init(priv);
+	meson_vpu_init(priv);
+	meson_viu_init(priv);
+	meson_canvas_init(priv);
+	meson_venc_init(priv);
 
 	ret = drm_irq_install(drm, priv->vsync_irq);
 	if (ret)
@@ -270,9 +234,6 @@ static int meson_pdev_probe(struct platform_device *pdev)
 	}
 
 	drm_kms_helper_poll_init(drm);
-
-	meson_vpu_init(priv);
-	meson_vpp_reset(priv);
 
 	ret = drm_dev_register(drm, 0);
 	if (ret)

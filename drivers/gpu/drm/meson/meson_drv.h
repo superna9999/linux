@@ -21,15 +21,39 @@
 #ifndef __MESON_DRV_H
 #define __MESON_DRV_H
 
+#include <linux/regmap.h>
+
 struct meson_drm {
 	struct platform_device *pdev;
 	void __iomem *io_base;
+	struct regmap *hhi;
+	struct regmap *dmc;
 	int vsync_irq;
 
 	struct drm_device *drm;
 	struct drm_crtc *crtc;
 	struct drm_fbdev_cma *fbdev;
 	struct drm_plane *primary_plane;
+
+	/* Components Data */
+	struct {
+		bool osd1_enabled;
+		bool osd1_interlace_sync;
+		uint32_t osd1_ctrl_stat;
+		uint32_t osd1_blk0_cfg[5];
+	} viu;
+
+	struct {
+
+	} vpp;
+
+	struct {
+
+	} vpu;
+
+	struct {
+
+	} venc;
 };
 
 #endif /* __MESON_DRV_H */

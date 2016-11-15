@@ -20,16 +20,46 @@
 
 /* 
  * Video Encoders
- * - ENCI : Composite Video Encoder
- * - ENCP : TMDS/HDMI Video Encoder
+ * - ENCI : Interlace Video Encoder
+ * - ENCP : Progressive Video Encoder
  */
 
 #ifndef __MESON_VENC_H
 #define __MESON_VENC_H
 
-void meson_venci_mode_set(struct meson_drm *priv,
-			  struct drm_display_mode *mode);
-void meson_venci_enable(struct meson_drm *priv);
-void meson_venci_disable(struct meson_drm *priv);
+struct meson_cvbs_enci_mode {
+	unsigned hso_begin; /* HSO begin position */
+	unsigned hso_end; /* HSO end position */
+	unsigned vso_even; /* VSO even line */
+	unsigned vso_odd; /* VSO odd line */
+	unsigned macv_max_amp; /* Macrovision max amplitude */
+	unsigned video_prog_mode;
+	unsigned video_mode;
+	unsigned sch_adjust;
+	unsigned pixel_start;
+	unsigned pixel_end;
+	unsigned top_field_line_start;
+	unsigned top_field_line_end;
+	unsigned bottom_field_line_start;
+	unsigned bottom_field_line_end;
+	unsigned video_saturation;
+	unsigned video_contrast;
+	unsigned video_brightness;
+	unsigned video_hue;
+	unsigned analog_sync_adj;
+};
+
+/* CVBS Timings and Parameters */
+extern struct meson_cvbs_enci_mode meson_cvbs_enci_pal;
+extern struct meson_cvbs_enci_mode meson_cvbs_enci_ntsc;
+
+void meson_venci_cvbs_mode_set(struct meson_drm *priv,
+			       struct meson_cvbs_enci_mode *mode);
+void meson_venci_cvbs_enable(struct meson_drm *priv);
+void meson_venci_cvbs_disable(struct meson_drm *priv);
+
+unsigned meson_venci_get_field(struct meson_drm *priv);
+
+void meson_venc_init(struct meson_drm *priv);
 
 #endif /* __MESON_VENC_H */

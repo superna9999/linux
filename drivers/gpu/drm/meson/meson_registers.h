@@ -19,6 +19,9 @@
 /* Shift all registers by 2 */
 #define _REG(reg)	((reg) << 2)
 
+#define writel_bits_relaxed(mask, val, addr) \
+	writel_relaxed((readl_relaxed(addr) & ~(mask)) | (val), addr)
+
 /* vpp2 */
 #define VPP2_DUMMY_DATA 0x1900
 #define VPP2_LINE_IN_LENGTH 0x1901
@@ -307,6 +310,18 @@
 #define VPP_PREBLEND_CURRENT_XY 0x1d24
 #define VPP_POSTBLEND_CURRENT_XY 0x1d25
 #define VPP_MISC 0x1d26
+#define 	VPP_PREBLEND_ENABLE	BIT(6)
+#define 	VPP_POSTBLEND_ENABLE	BIT(7)
+#define 	VPP_OSD2_ALPHA_PREMULT	BIT(8)
+#define 	VPP_OSD1_ALPHA_PREMULT	BIT(9)
+#define 	VPP_VD1_POSTBLEND	BIT(10)
+#define 	VPP_VD2_POSTBLEND	BIT(11)
+#define 	VPP_OSD1_POSTBLEND	BIT(12)
+#define 	VPP_OSD2_POSTBLEND	BIT(13)
+#define 	VPP_VD1_PREBLEND	BIT(14)
+#define 	VPP_VD2_PREBLEND	BIT(15)
+#define 	VPP_OSD1_PREBLEND	BIT(16)
+#define 	VPP_OSD2_PREBLEND	BIT(17)
 #define VPP_OFIFO_SIZE 0x1d27
 #define VPP_FIFO_STATUS 0x1d28
 #define VPP_SMOKE_CTRL 0x1d29

@@ -32,15 +32,45 @@
 #include "meson_cvbs.h"
 #include "meson_venc.h"
 
+struct meson_cvbs_mode {
+	struct meson_cvbs_enci_mode *enci;
+	struct drm_display_mode mode;
+};
 struct meson_cvbs {
 	struct drm_connector	connector;
 	struct drm_encoder	encoder;
 	struct meson_drm	*priv;
+	struct meson_cvbs_mode 	*mode;
 };
 #define connector_to_meson_cvbs(x) \
 	container_of(x, struct meson_cvbs, connector)
 #define encoder_to_meson_cvbs(x) \
 	container_of(x, struct meson_cvbs, encoder)
+
+/* Supported Modes */
+
+struct meson_cvbs_mode meson_cvbs_modes[] = {
+	{ /* PAL */
+		.enci = &meson_cvbs_enci_pal,
+		.mode = {
+			DRM_MODE("720x576i", DRM_MODE_TYPE_DRIVER, 13500,
+				 720, 732, 795, 864, 0, 576, 580, 586, 625, 0,
+				 DRM_MODE_FLAG_INTERLACE),
+			.vrefresh = 50,
+			.picture_aspect_ratio = HDMI_PICTURE_ASPECT_4_3,
+		},
+	},
+	{ /* NTSC */
+		.enci = &meson_cvbs_enci_ntsc,
+		.mode = {
+			DRM_MODE("720x480i", DRM_MODE_TYPE_DRIVER, 13500,
+				720, 739, 801, 858, 0, 480, 488, 494, 525, 0,
+				DRM_MODE_FLAG_INTERLACE),
+			.vrefresh = 60,
+			.picture_aspect_ratio = HDMI_PICTURE_ASPECT_4_3,
+		},
+	},
+};
 
 /* Encoder */
 
@@ -70,7 +100,7 @@ static void meson_cvbs_encoder_disable(struct drm_encoder *encoder)
 
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	meson_venci_disable(meson_cvbs->priv);
+	meson_venci_cvbs_disable(meson_cvbs->priv);
 }
 
 static void meson_cvbs_encoder_enable(struct drm_encoder *encoder)
@@ -79,7 +109,7 @@ static void meson_cvbs_encoder_enable(struct drm_encoder *encoder)
 
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	meson_venci_enable(meson_cvbs->priv);
+	meson_venci_cvbs_enable(meson_cvbs->priv);
 }
 
 static void meson_cvbs_encoder_mode_set(struct drm_encoder *encoder,
@@ -87,10 +117,23 @@ static void meson_cvbs_encoder_mode_set(struct drm_encoder *encoder,
 				   struct drm_display_mode *adjusted_mode)
 {
 	struct meson_cvbs *meson_cvbs = encoder_to_meson_cvbs(encoder);
+	int i;
 
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	meson_venci_mode_set(meson_cvbs->priv, mode);
+	drm_mode_debug_printmodeline(mode);
+
+	for (i = 0; i < ARRAY_SIZE(meson_cvbs_modes); ++i) {
+		struct meson_cvbs_mode *meson_mode = &meson_cvbs_modes[i];
+
+		if (drm_mode_equal(mode, &meson_mode->mode)) {
+			meson_cvbs->mode = meson_mode;
+			
+			meson_venci_cvbs_mode_set(meson_cvbs->priv,
+						  meson_mode->enci);
+			break;
+		}
+	}
 }
 
 static const struct drm_encoder_helper_funcs meson_cvbs_encoder_helper_funcs = {
@@ -122,25 +165,40 @@ static int meson_cvbs_connector_get_modes(struct drm_connector *connector)
 	struct meson_cvbs *meson_cvbs = connector_to_meson_cvbs(connector);
 	struct drm_device *dev = connector->dev;
 	struct drm_display_mode *mode;
+	int i;
 
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	/* PAL */
-	mode = drm_cvt_mode(dev, 720, 576, 50, false, true, false);
-	mode->type |= DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
-	strcpy(mode->name, "PAL");
+	for (i = 0; i < ARRAY_SIZE(meson_cvbs_modes); ++i) {
+		struct meson_cvbs_mode *meson_mode = &meson_cvbs_modes[i];
 
-	drm_mode_probed_add(connector, mode);
+		mode = drm_mode_duplicate(dev, &meson_mode->mode);
+		if (!mode) {
+			DRM_ERROR("Failed to create a new display mode\n");
+			return 0;
+		}
 
-	return 1;
+		drm_mode_probed_add(connector, mode);
+	}
+
+	return i;
 }
 
 static int meson_cvbs_connector_mode_valid(struct drm_connector *connector,
 					   struct drm_display_mode *mode)
 {
+	int i;
+
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	return MODE_OK;
+	for (i = 0; i < ARRAY_SIZE(meson_cvbs_modes); ++i) {
+		struct meson_cvbs_mode *meson_mode = &meson_cvbs_modes[i];
+
+		if (drm_mode_equal(mode, &meson_mode->mode))
+			return MODE_OK;
+	}
+
+	return MODE_BAD;
 }
 
 static const struct drm_connector_funcs meson_cvbs_connector_funcs = {

@@ -34,6 +34,8 @@
 
 #include "meson_crtc.h"
 #include "meson_plane.h"
+#include "meson_vpp.h"
+#include "meson_viu.h"
 
 /* CRTC definition */
 
@@ -57,16 +59,20 @@ static const struct drm_crtc_funcs meson_crtc_funcs = {
 
 static void meson_crtc_enable(struct drm_crtc *crtc)
 {
+	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
+
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	/* Here Enable CRTC */
+	meson_vpp_enable_postblend(meson_crtc->priv);
 }
 
 static void meson_crtc_disable(struct drm_crtc *crtc)
 {
+	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
+
 	pr_info("%s:%s\n", __FILE__, __func__);
 	
-	/* Here Disable CRTC */
+	meson_vpp_disable_postblend(meson_crtc->priv);
 
 	if (crtc->state->event && !crtc->state->active) {
 		spin_lock_irq(&crtc->dev->event_lock);
@@ -101,7 +107,7 @@ static void meson_crtc_atomic_flush(struct drm_crtc *crtc,
 
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	/* Commit plane change */
+	meson_viu_commit_osd1(meson_crtc->priv);
 
 	if (event) {
 		crtc->state->event = NULL;
@@ -116,7 +122,7 @@ static void meson_crtc_atomic_flush(struct drm_crtc *crtc,
 }
 
 static const struct drm_crtc_helper_funcs meson_crtc_helper_funcs = {
-	.enable		= meson_crtc_disable,
+	.enable		= meson_crtc_enable,
 	.disable	= meson_crtc_disable,
 	.atomic_begin	= meson_crtc_atomic_begin,
 	.atomic_flush	= meson_crtc_atomic_flush,
@@ -128,6 +134,8 @@ void meson_crtc_irq(struct meson_drm *priv)
 	unsigned long flags;
 
 	drm_crtc_handle_vblank(priv->crtc);
+	
+	meson_viu_sync_osd1(priv);
 
 	spin_lock_irqsave(&priv->drm->event_lock, flags);
 	if (meson_crtc->event) {

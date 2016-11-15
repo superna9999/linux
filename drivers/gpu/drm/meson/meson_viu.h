@@ -23,6 +23,15 @@
 #ifndef __MESON_VIU_H
 #define __MESON_VIU_H
 
+/* Update OSD1 Coordinates */
 void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane);
+
+/* Commit OSD1 changes */
+void meson_viu_commit_osd1(struct meson_drm *priv);
+
+/* Synchronize Field Change for OSD1 */
+void meson_viu_sync_osd1(struct meson_drm *priv);
+
+void meson_viu_init(struct meson_drm *priv);
 
 #endif /* __MESON_VIU_H */
