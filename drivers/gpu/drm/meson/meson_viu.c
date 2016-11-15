@@ -144,6 +144,8 @@ void meson_viu_sync_osd1(struct meson_drm *priv)
 
 void meson_viu_init(struct meson_drm *priv)
 {
+	pr_info("%s:%s\n", __FILE__, __func__);
+
 	/* In its default configuration, the display controller can be starved
 	 * of memory bandwidth when the CPU and GPU are busy, causing scanout
 	 * to sometimes get behind where it should be (with parts of the
@@ -151,18 +153,18 @@ void meson_viu_init(struct meson_drm *priv)
 	 * Increase the priority and burst size of RAM access using the same
 	 * values as Amlogic's driver. */
 	writel_bits_relaxed(BIT(0), BIT(0), /* Urgent DDR request priority */
-		priv->io_base + VIU_OSD1_FIFO_CTRL_STAT);
+		priv->io_base + _REG(VIU_OSD1_FIFO_CTRL_STAT));
 
 	/* Increase burst length from 24 to 64 */
 	writel_bits_relaxed(3 << 10, 3 << 10,
-		priv->io_base + VIU_OSD1_FIFO_CTRL_STAT);
+		priv->io_base + _REG(VIU_OSD1_FIFO_CTRL_STAT));
 
 	/* Increase the number of lines that the display controller waits
 	 * after vsync before starting RAM access. This gives the vsync
 	 * interrupt handler more time to update the registers, avoiding
 	 * visual glitches. */
 	writel_bits_relaxed(0x1f << 5, 12 << 5,
-		priv->io_base + VIU_OSD1_FIFO_CTRL_STAT);
+		priv->io_base + _REG(VIU_OSD1_FIFO_CTRL_STAT));
 
 	priv->viu.osd1_enabled = false;
 	priv->viu.osd1_interlace_sync = false;

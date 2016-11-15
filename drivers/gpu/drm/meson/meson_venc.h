@@ -60,6 +60,9 @@ void meson_venci_cvbs_disable(struct meson_drm *priv);
 
 unsigned meson_venci_get_field(struct meson_drm *priv);
 
+void meson_venc_enable_vsync(struct meson_drm *priv);
+void meson_venc_disable_vsync(struct meson_drm *priv);
+
 void meson_venc_init(struct meson_drm *priv);
 
 #endif /* __MESON_VENC_H */

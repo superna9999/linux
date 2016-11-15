@@ -36,6 +36,7 @@
 #include "meson_plane.h"
 #include "meson_vpp.h"
 #include "meson_viu.h"
+#include "meson_venc.h"
 
 /* CRTC definition */
 
@@ -64,6 +65,8 @@ static void meson_crtc_enable(struct drm_crtc *crtc)
 	pr_info("%s:%s\n", __FILE__, __func__);
 
 	meson_vpp_enable_postblend(meson_crtc->priv);
+
+	meson_venc_enable_vsync(meson_crtc->priv);
 }
 
 static void meson_crtc_disable(struct drm_crtc *crtc)
@@ -78,6 +81,8 @@ static void meson_crtc_disable(struct drm_crtc *crtc)
 		spin_lock_irq(&crtc->dev->event_lock);
 		drm_crtc_send_vblank_event(crtc, crtc->state->event);
 		spin_unlock_irq(&crtc->dev->event_lock);
+
+		meson_venc_disable_vsync(meson_crtc->priv);
 
 		crtc->state->event = NULL;
 	}

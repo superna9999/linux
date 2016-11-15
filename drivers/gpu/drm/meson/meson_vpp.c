@@ -69,6 +69,8 @@ void meson_vpp_setup_mux(struct meson_drm *priv, unsigned int mux)
 
 void meson_vpp_init(struct meson_drm *priv)
 {
+	pr_info("%s:%s\n", __FILE__, __func__);
+
 	/* set dummy data default YUV black */
 	if (of_machine_is_compatible("amlogic,meson-gxbb"))
 		writel_relaxed(0x108080,

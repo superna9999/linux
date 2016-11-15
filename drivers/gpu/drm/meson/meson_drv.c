@@ -47,6 +47,7 @@
 #include "meson_viu.h"
 #include "meson_venc.h"
 #include "meson_canvas.h"
+#include "meson_registers.h"
 
 #define DRIVER_NAME "meson"
 #define DRIVER_DESC "Amlogic Meson DRM driver"
@@ -69,20 +70,28 @@ static const struct drm_mode_config_funcs meson_mode_config_funcs = {
 
 static int meson_enable_vblank(struct drm_device *dev, unsigned int crtc)
 {
-	/* TODO */
+	struct meson_drm *priv = dev->dev_private;
+
+	pr_info("%s:%s\n", __FILE__, __func__);
 
 	return 0;
 }
 
 static void meson_disable_vblank(struct drm_device *dev, unsigned int crtc)
 {
-	/* TODO */
+	struct meson_drm *priv = dev->dev_private;
+
+	pr_info("%s:%s\n", __FILE__, __func__);
 }
 
 static irqreturn_t meson_irq(int irq, void *arg)
 {
 	struct drm_device *dev = arg;
 	struct meson_drm *priv = dev->dev_private;
+
+	pr_info("%s:%s\n", __FILE__, __func__);
+
+	(void)readl_relaxed(priv->io_base + _REG(VENC_INTFLAG));
 
 	meson_crtc_irq(priv);
 
@@ -184,6 +193,10 @@ static int meson_pdev_probe(struct platform_device *pdev)
 
 	priv->hhi = devm_regmap_init_mmio(&pdev->dev, regs,
 					  &meson_regmap_config);
+	if (IS_ERR(priv->hhi)) {
+		dev_err(&pdev->dev, "Couldn't create the HHI regmap\n");
+		return PTR_ERR(priv->hhi);
+	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dmc");
 	regs = devm_ioremap_resource(&pdev->dev, res);
@@ -192,6 +205,10 @@ static int meson_pdev_probe(struct platform_device *pdev)
 
 	priv->dmc = devm_regmap_init_mmio(&pdev->dev, regs,
 					  &meson_regmap_config);
+	if (IS_ERR(priv->dmc)) {
+		dev_err(&pdev->dev, "Couldn't create the DMC regmap\n");
+		return PTR_ERR(priv->dmc);
+	}
 
 	priv->vsync_irq = platform_get_irq(pdev, 0);
 

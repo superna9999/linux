@@ -241,7 +241,7 @@ void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 	writel_relaxed(0, priv->io_base + _REG(ENCI_DBG_PX_RST));
 	
 	/* Enable Interlace encoder field change interrupt */
-	writel_relaxed(2, priv->io_base + _REG(VENC_INTCTRL));
+	//writel_relaxed(2, priv->io_base + _REG(VENC_INTCTRL));
 	
 	/* Enable Vfifo2vd, Y_Cb_Y_Cr select */
 	writel_relaxed(0x4e01, priv->io_base + _REG(ENCI_VFIFO2VD_CTL));
@@ -329,12 +329,27 @@ unsigned meson_venci_get_field(struct meson_drm *priv)
 	return readl_relaxed(priv->io_base + _REG(ENCI_INFO_READ)) & BIT(29);
 }
 
+void meson_venc_enable_vsync(struct meson_drm *priv)
+{
+	writel_relaxed(2, priv->io_base + _REG(VENC_INTCTRL));
+}
+
+void meson_venc_disable_vsync(struct meson_drm *priv)
+{
+	writel_relaxed(0, priv->io_base + _REG(VENC_INTCTRL));
+}
+
 void meson_venc_init(struct meson_drm *priv)
 {
+	pr_info("%s:%s\n", __FILE__, __func__);
+
 	/* Disable all encoders */
 	writel_relaxed(0, priv->io_base + _REG(ENCI_VIDEO_EN));
 	writel_relaxed(0, priv->io_base + _REG(ENCP_VIDEO_EN));
 	writel_relaxed(0, priv->io_base + _REG(ENCL_VIDEO_EN));
+
+	/* Disable VSync IRQ */
+	meson_venc_disable_vsync(priv);
 
 	meson_venci_cvbs_disable(priv);
 }
