@@ -53,7 +53,7 @@ void meson_vpp_disable_postblend(struct meson_drm *priv)
 {
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	writel_bits_relaxed(VPP_OSD1_POSTBLEND, 0,
+	writel_bits_relaxed(VPP_POSTBLEND_ENABLE, 0,
 			    priv->io_base + _REG(VPP_MISC));
 }
 
@@ -72,26 +72,20 @@ void meson_vpp_init(struct meson_drm *priv)
 	pr_info("%s:%s\n", __FILE__, __func__);
 
 	/* set dummy data default YUV black */
-	if (of_machine_is_compatible("amlogic,meson-gxbb"))
-		writel_relaxed(0x108080,
-				priv->io_base + _REG(VPP_DUMMY_DATA1));
-	else if (of_machine_is_compatible("amlogic,meson-gxm") ||
-		   of_machine_is_compatible("amlogic,meson-gxl"))
-		writel_relaxed(0x1020080,
-				priv->io_base + _REG(VPP_DUMMY_DATA1));
+	writel_relaxed(0x108080, priv->io_base + _REG(VPP_DUMMY_DATA1));
 
 	meson_vpp_load_matrix(priv);
 
-	/* Disable Scalers */
-	writel_relaxed(0, priv->io_base + _REG(VPP_OSD_SC_CTRL0));
-	writel_relaxed(0, priv->io_base + _REG(VPP_OSD_VSC_CTRL0));
-	writel_relaxed(0, priv->io_base + _REG(VPP_OSD_HSC_CTRL0));
+	/* Turn off POSTBLEND */
+	meson_vpp_disable_postblend(priv);
 
 	/* Force all planes off */
 	writel_bits_relaxed(VPP_OSD1_POSTBLEND | VPP_OSD2_POSTBLEND |
 			    VPP_VD1_POSTBLEND | VPP_VD2_POSTBLEND, 0,
 			    priv->io_base + _REG(VPP_MISC));
 
-	/* Turn off POSTBLEND */
-	meson_vpp_disable_postblend(priv);
+	/* Disable Scalers */
+	writel_relaxed(0, priv->io_base + _REG(VPP_OSD_SC_CTRL0));
+	writel_relaxed(0, priv->io_base + _REG(VPP_OSD_VSC_CTRL0));
+	writel_relaxed(0, priv->io_base + _REG(VPP_OSD_HSC_CTRL0));
 }

@@ -61,7 +61,7 @@ static int meson_plane_atomic_check(struct drm_plane *plane,
 
 	pr_info("%s:%s\n", __FILE__, __func__);
 
-	drm_rect_debug_print(__func__, &src, false);
+	drm_rect_debug_print(__func__, &src, true);
 	drm_rect_debug_print(__func__, &dest, false);
 
 	if (state->fb) {
@@ -93,8 +93,6 @@ static void meson_plane_atomic_update(struct drm_plane *plane,
 	meson_viu_update_osd1(meson_plane->priv, plane);
 	meson_canvas_update_osd1_buffer(meson_plane->priv, plane);
 
-	meson_plane->priv->viu.osd1_enabled = true;
-
 	pr_info("%s:%s\n", __FILE__, __func__);
 }
 
@@ -103,7 +101,7 @@ static void meson_plane_atomic_disable(struct drm_plane *plane,
 {
 	struct meson_plane *meson_plane = to_meson_plane(plane);
 
-	meson_plane->priv->viu.osd1_enabled = false;
+	meson_vpp_disable_osd1(meson_plane->priv);
 }
 
 static const struct drm_plane_helper_funcs meson_plane_helper_funcs = {

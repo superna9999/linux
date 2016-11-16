@@ -308,7 +308,7 @@ void meson_venci_cvbs_enable(struct meson_drm *priv)
 
 	if (of_machine_is_compatible("amlogic,meson-gxbb"))
 		regmap_write(priv->hhi, HHI_VDAC_CNTL0, 1);
-	else if (of_machine_is_compatible("amlogic,meson-gxbb") ||
+	else if (of_machine_is_compatible("amlogic,meson-gxm") ||
 		   of_machine_is_compatible("amlogic,meson-gxl"))
 		regmap_write(priv->hhi, HHI_VDAC_CNTL0, 0xf0001);
 

@@ -75,6 +75,9 @@ void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 
 	pr_info("%s:%s\n", __FILE__, __func__);
 
+	drm_rect_debug_print(__func__, &src, true);
+	drm_rect_debug_print(__func__, &dest, false);
+
 	spin_lock_irqsave(&priv->drm->event_lock, flags);
 
 	/* Enable OSD and BLK0. */
@@ -90,7 +93,11 @@ void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 
 	if (state->crtc->mode.flags & DRM_MODE_FLAG_INTERLACE) {
 		priv->viu.osd1_blk0_cfg[0] |= OSD_INTERLACE_ENABLED;
+
 		priv->viu.osd1_interlace_sync = true;
+
+		dest.y1 /= 2;
+		dest.y2 /= 2;
 	}
 
 	/* The format of these registers is (x2 << 16 | x1), where x2 is exclusive.
@@ -105,9 +112,16 @@ void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 	spin_unlock_irqrestore(&priv->drm->event_lock, flags);
 }
 
-void meson_viu_commit_osd1(struct meson_drm *priv)
+void meson_viu_sync_osd1(struct meson_drm *priv)
 {
+	/* Update the OSD registers */
 	if (priv->viu.osd1_enabled) {
+		if (priv->viu.osd1_interlace_sync) {
+			priv->viu.osd1_blk0_cfg[0] =
+				(priv->viu.osd1_blk0_cfg[0] & ~BIT(0)) |
+				!!meson_venci_get_field(priv);
+		}
+
 		writel_relaxed(priv->viu.osd1_ctrl_stat,
 				priv->io_base + _REG(VIU_OSD1_CTRL_STAT));
 		writel_relaxed(priv->viu.osd1_blk0_cfg[0],
@@ -121,24 +135,11 @@ void meson_viu_commit_osd1(struct meson_drm *priv)
 		writel_relaxed(priv->viu.osd1_blk0_cfg[4],
 				priv->io_base + _REG(VIU_OSD1_BLK0_CFG_W4));
 
-		meson_vpp_enable_osd1(priv);
-	}
-	else {
-		meson_vpp_disable_osd1(priv);
-	}
-}
+		if (priv->viu.osd1_commit) {
+			meson_vpp_enable_osd1(priv);
 
-void meson_viu_sync_osd1(struct meson_drm *priv)
-{
-	/* Update the currect field */
-	if (priv->viu.osd1_enabled &&
-	    priv->viu.osd1_interlace_sync) {
-		priv->viu.osd1_blk0_cfg[0] =
-			(priv->viu.osd1_blk0_cfg[0] & ~BIT(0)) |
-			!!meson_venci_get_field(priv);
-
-		writel_relaxed(priv->viu.osd1_blk0_cfg[0],
-				priv->io_base + _REG(VIU_OSD1_BLK0_CFG_W0));
+			priv->viu.osd1_commit = false;
+		}
 	}
 }
 
