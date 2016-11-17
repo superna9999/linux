@@ -96,7 +96,7 @@ void meson_canvas_update_osd1_buffer(struct meson_drm *priv,
 
 void meson_canvas_init(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	/* TODO */
 }

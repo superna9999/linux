@@ -35,8 +35,6 @@ struct meson_drm {
 	struct drm_fbdev_cma *fbdev;
 	struct drm_plane *primary_plane;
 
-	bool vblank_active;
-
 	/* Components Data */
 	struct {
 		bool osd1_enabled;

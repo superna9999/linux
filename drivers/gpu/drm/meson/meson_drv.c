@@ -72,9 +72,9 @@ static int meson_enable_vblank(struct drm_device *dev, unsigned int crtc)
 {
 	struct meson_drm *priv = dev->dev_private;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
-	priv->vblank_active = true;
+	meson_venc_enable_vsync(priv);
 
 	return 0;
 }
@@ -83,9 +83,9 @@ static void meson_disable_vblank(struct drm_device *dev, unsigned int crtc)
 {
 	struct meson_drm *priv = dev->dev_private;
 
-	priv->vblank_active = false;
+	meson_venc_disable_vsync(priv);
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 }
 
 static irqreturn_t meson_irq(int irq, void *arg)
@@ -93,7 +93,7 @@ static irqreturn_t meson_irq(int irq, void *arg)
 	struct drm_device *dev = arg;
 	struct meson_drm *priv = dev->dev_private;
 
-	//pr_info("%s:%s\n", __FILE__, __func__);
+	//pr_debug("%s:%s\n", __FILE__, __func__);
 
 	(void)readl_relaxed(priv->io_base + _REG(VENC_INTFLAG));
 

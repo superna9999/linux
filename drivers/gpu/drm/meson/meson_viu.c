@@ -79,7 +79,7 @@ void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 	};
 	unsigned long flags;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	drm_rect_debug_print(__func__, &src, true);
 	drm_rect_debug_print(__func__, &dest, false);
@@ -172,7 +172,7 @@ void meson_viu_sync_osd1(struct meson_drm *priv)
 
 void meson_viu_init(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	/* In its default configuration, the display controller can be starved
 	 * of memory bandwidth when the CPU and GPU are busy, causing scanout

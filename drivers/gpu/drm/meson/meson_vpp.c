@@ -27,7 +27,7 @@
 
 void meson_vpp_enable_osd1(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	writel_bits_relaxed(VPP_OSD1_POSTBLEND, VPP_OSD1_POSTBLEND,
 			    priv->io_base + _REG(VPP_MISC));
@@ -35,7 +35,7 @@ void meson_vpp_enable_osd1(struct meson_drm *priv)
 
 void meson_vpp_disable_osd1(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	writel_bits_relaxed(VPP_OSD1_POSTBLEND, 0,
 			    priv->io_base + _REG(VPP_MISC));
@@ -43,7 +43,7 @@ void meson_vpp_disable_osd1(struct meson_drm *priv)
 
 void meson_vpp_enable_postblend(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	writel_bits_relaxed(VPP_POSTBLEND_ENABLE, VPP_POSTBLEND_ENABLE,
 			    priv->io_base + _REG(VPP_MISC));
@@ -51,7 +51,7 @@ void meson_vpp_enable_postblend(struct meson_drm *priv)
 
 void meson_vpp_disable_postblend(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	writel_bits_relaxed(VPP_POSTBLEND_ENABLE, 0,
 			    priv->io_base + _REG(VPP_MISC));
@@ -134,7 +134,7 @@ static void meson_vpp_write_scaling_filter_coefs(struct meson_drm *priv,
 
 void meson_vpp_init(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	/* set dummy data default YUV black */
 	writel_relaxed(0x108080, priv->io_base + _REG(VPP_DUMMY_DATA1));

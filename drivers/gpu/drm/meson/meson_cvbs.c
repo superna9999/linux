@@ -76,7 +76,7 @@ struct meson_cvbs_mode meson_cvbs_modes[] = {
 
 static void meson_cvbs_encoder_destroy(struct drm_encoder *encoder)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	drm_encoder_cleanup(encoder);
 }
@@ -89,7 +89,7 @@ static int meson_cvbs_encoder_atomic_check(struct drm_encoder *encoder,
 					struct drm_crtc_state *crtc_state,
 					struct drm_connector_state *conn_state)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	return 0;
 }
@@ -98,7 +98,7 @@ static void meson_cvbs_encoder_disable(struct drm_encoder *encoder)
 {
 	struct meson_cvbs *meson_cvbs = encoder_to_meson_cvbs(encoder);
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_venci_cvbs_disable(meson_cvbs->priv);
 }
@@ -107,7 +107,7 @@ static void meson_cvbs_encoder_enable(struct drm_encoder *encoder)
 {
 	struct meson_cvbs *meson_cvbs = encoder_to_meson_cvbs(encoder);
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_venci_cvbs_enable(meson_cvbs->priv);
 }
@@ -119,7 +119,7 @@ static void meson_cvbs_encoder_mode_set(struct drm_encoder *encoder,
 	struct meson_cvbs *meson_cvbs = encoder_to_meson_cvbs(encoder);
 	int i;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	drm_mode_debug_printmodeline(mode);
 
@@ -147,7 +147,7 @@ static const struct drm_encoder_helper_funcs meson_cvbs_encoder_helper_funcs = {
 
 static void meson_cvbs_connector_destroy(struct drm_connector *connector)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	drm_connector_cleanup(connector);
 }
@@ -155,19 +155,18 @@ static void meson_cvbs_connector_destroy(struct drm_connector *connector)
 static enum drm_connector_status
 meson_cvbs_connector_detect(struct drm_connector *connector, bool force)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	return connector_status_connected;
 }
 
 static int meson_cvbs_connector_get_modes(struct drm_connector *connector)
 {
-	struct meson_cvbs *meson_cvbs = connector_to_meson_cvbs(connector);
 	struct drm_device *dev = connector->dev;
 	struct drm_display_mode *mode;
 	int i;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	for (i = 0; i < ARRAY_SIZE(meson_cvbs_modes); ++i) {
 		struct meson_cvbs_mode *meson_mode = &meson_cvbs_modes[i];
@@ -189,7 +188,7 @@ static int meson_cvbs_connector_mode_valid(struct drm_connector *connector,
 {
 	int i;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	for (i = 0; i < ARRAY_SIZE(meson_cvbs_modes); ++i) {
 		struct meson_cvbs_mode *meson_mode = &meson_cvbs_modes[i];
@@ -223,7 +222,7 @@ int meson_cvbs_create(struct meson_drm *priv)
         struct drm_encoder *encoder;
 	int ret;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_cvbs = devm_kzalloc(priv->drm->dev, sizeof(*meson_cvbs),
 				  GFP_KERNEL);

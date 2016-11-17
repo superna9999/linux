@@ -167,7 +167,7 @@ void meson_venci_cvbs_clock_config(struct meson_drm *priv)
 void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 			       struct meson_cvbs_enci_mode *mode)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	if (mode->mode_tag == priv->venc.current_mode)
 		return;
@@ -305,7 +305,7 @@ void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 
 void meson_venci_cvbs_enable(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	/* VDAC0 source is not from ATV */
 	writel_bits_relaxed(BIT(5), 0, priv->io_base + _REG(VENC_VDAC_DACSEL0));
@@ -323,7 +323,7 @@ void meson_venci_cvbs_enable(struct meson_drm *priv)
 
 void meson_venci_cvbs_disable(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	regmap_write(priv->hhi, HHI_VDAC_CNTL0, 0);
 	regmap_write(priv->hhi, HHI_VDAC_CNTL1, 0);
@@ -349,7 +349,7 @@ void meson_venc_disable_vsync(struct meson_drm *priv)
 
 void meson_venc_init(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	/* Disable all encoders */
 	writel_relaxed(0, priv->io_base + _REG(ENCI_VIDEO_EN));

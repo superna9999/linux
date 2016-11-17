@@ -62,25 +62,21 @@ static void meson_crtc_enable(struct drm_crtc *crtc)
 {
 	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_vpp_enable_postblend(meson_crtc->priv);
 
 	meson_crtc->priv->viu.osd1_enabled = true;
-
-	meson_venc_enable_vsync(meson_crtc->priv);
 }
 
 static void meson_crtc_disable(struct drm_crtc *crtc)
 {
 	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_crtc->priv->viu.osd1_enabled = false;
 
-	meson_venc_disable_vsync(meson_crtc->priv);
-	
 	meson_vpp_disable_postblend(meson_crtc->priv);
 
 	if (crtc->state->event && !crtc->state->active) {
@@ -98,7 +94,7 @@ static void meson_crtc_atomic_begin(struct drm_crtc *crtc,
 	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
 	unsigned long flags;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	if (crtc->state->event) {
 		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
@@ -116,7 +112,7 @@ static void meson_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
 	struct drm_pending_vblank_event *event = crtc->state->event;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	if (meson_crtc->priv->viu.osd1_enabled)
 		meson_crtc->priv->viu.osd1_commit = true;
@@ -147,18 +143,15 @@ void meson_crtc_irq(struct meson_drm *priv)
 
 	meson_viu_sync_osd1(priv);
 
-	if (priv->vblank_active)
-		drm_crtc_handle_vblank(priv->crtc);
+	drm_crtc_handle_vblank(priv->crtc);
 
-	if (priv->vblank_active) {
-		spin_lock_irqsave(&priv->drm->event_lock, flags);
-		if (meson_crtc->event) {
-			drm_crtc_send_vblank_event(priv->crtc, meson_crtc->event);
-			drm_crtc_vblank_put(priv->crtc);
-			meson_crtc->event = NULL;
-		}
-		spin_unlock_irqrestore(&priv->drm->event_lock, flags);
+	spin_lock_irqsave(&priv->drm->event_lock, flags);
+	if (meson_crtc->event) {
+		drm_crtc_send_vblank_event(priv->crtc, meson_crtc->event);
+		drm_crtc_vblank_put(priv->crtc);
+		meson_crtc->event = NULL;
 	}
+	spin_unlock_irqrestore(&priv->drm->event_lock, flags);
 }
 
 int meson_crtc_create(struct meson_drm *priv)
@@ -167,7 +160,7 @@ int meson_crtc_create(struct meson_drm *priv)
 	struct drm_crtc *crtc;
 	int ret;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_crtc = devm_kzalloc(priv->drm->dev, sizeof(*meson_crtc),
 				  GFP_KERNEL);

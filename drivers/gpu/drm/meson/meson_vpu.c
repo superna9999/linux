@@ -86,7 +86,7 @@ static void meson_vpu_poweron(struct meson_drm *priv)
 
 void meson_vpu_init(struct meson_drm *priv)
 {
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_vpu_setclk(priv);
 	meson_vpu_poweron(priv);

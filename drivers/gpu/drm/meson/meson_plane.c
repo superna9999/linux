@@ -59,7 +59,7 @@ static int meson_plane_atomic_check(struct drm_plane *plane,
 		.y2 = state->crtc_y + state->crtc_h,
 	};
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	drm_rect_debug_print(__func__, &src, true);
 	drm_rect_debug_print(__func__, &dest, false);
@@ -93,7 +93,7 @@ static void meson_plane_atomic_update(struct drm_plane *plane,
 	meson_viu_update_osd1(meson_plane->priv, plane);
 	meson_canvas_update_osd1_buffer(meson_plane->priv, plane);
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 }
 
 static void meson_plane_atomic_disable(struct drm_plane *plane,
@@ -131,7 +131,7 @@ int meson_plane_create(struct meson_drm *priv)
 	struct meson_plane *meson_plane;
 	struct drm_plane *plane;
 
-	pr_info("%s:%s\n", __FILE__, __func__);
+	pr_debug("%s:%s\n", __FILE__, __func__);
 
 	meson_plane = devm_kzalloc(priv->drm->dev, sizeof(*meson_plane),
 				   GFP_KERNEL);
