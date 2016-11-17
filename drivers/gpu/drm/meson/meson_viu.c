@@ -97,7 +97,15 @@ void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 				      OSD_OUTPUT_COLOR_RGB);
 
 	switch (fb->pixel_format) {
+	case DRM_FORMAT_XRGB8888:
+		writel_bits_relaxed(0x1ff << 6, 0x1ff << 6,
+				    priv->io_base + _REG(VIU_OSD1_CTRL_STAT2));
+		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_32 |
+					      OSD_COLOR_MATRIX_32_ARGB;
+		break;
 	case DRM_FORMAT_ARGB8888:
+		writel_bits_relaxed(0x1ff << 6, 0,
+				    priv->io_base + _REG(VIU_OSD1_CTRL_STAT2));
 		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_32 |
 					      OSD_COLOR_MATRIX_32_ARGB;
 		break;
