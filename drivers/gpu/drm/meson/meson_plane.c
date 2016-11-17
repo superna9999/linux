@@ -122,6 +122,8 @@ static const struct drm_plane_funcs meson_plane_funcs = {
 static const uint32_t supported_drm_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_RGB888,
+	DRM_FORMAT_RGB565,
 };
 
 int meson_plane_create(struct meson_drm *priv)

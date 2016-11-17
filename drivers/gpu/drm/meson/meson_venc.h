@@ -27,7 +27,14 @@
 #ifndef __MESON_VENC_H
 #define __MESON_VENC_H
 
+enum {
+	MESON_VENC_MODE_NONE = 0,
+	MESON_VENC_MODE_CVBS_PAL,
+	MESON_VENC_MODE_CVBS_NTSC,
+};
+
 struct meson_cvbs_enci_mode {
+	unsigned mode_tag;
 	unsigned hso_begin; /* HSO begin position */
 	unsigned hso_end; /* HSO end position */
 	unsigned vso_even; /* VSO even line */

@@ -45,6 +45,7 @@
 #define HHI_HDMI_PLL_CNTL6	0x334 /* 0xcd offset in data sheet */
 
 struct meson_cvbs_enci_mode meson_cvbs_enci_pal = {
+	.mode_tag = MESON_VENC_MODE_CVBS_PAL,
 	.hso_begin = 3,
 	.hso_end = 129,
 	.vso_even = 3,
@@ -67,6 +68,7 @@ struct meson_cvbs_enci_mode meson_cvbs_enci_pal = {
 };
 
 struct meson_cvbs_enci_mode meson_cvbs_enci_ntsc = {
+	.mode_tag = MESON_VENC_MODE_CVBS_NTSC,
 	.hso_begin = 5,
 	.hso_end = 129,
 	.vso_even = 3,
@@ -167,6 +169,9 @@ void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 {
 	pr_info("%s:%s\n", __FILE__, __func__);
 
+	if (mode->mode_tag == priv->venc.current_mode)
+		return;
+
 	/* CVBS Filter settings */
 	writel_relaxed(0x12, priv->io_base + _REG(ENCI_CFILT_CTRL));
 	writel_relaxed(0x12, priv->io_base + _REG(ENCI_CFILT_CTRL2));
@@ -240,9 +245,6 @@ void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 	/* UNreset Interlaced TV Encoder */
 	writel_relaxed(0, priv->io_base + _REG(ENCI_DBG_PX_RST));
 	
-	/* Enable Interlace encoder field change interrupt */
-	//writel_relaxed(2, priv->io_base + _REG(VENC_INTCTRL));
-	
 	/* Enable Vfifo2vd, Y_Cb_Y_Cr select */
 	writel_relaxed(0x4e01, priv->io_base + _REG(ENCI_VFIFO2VD_CTL));
 	
@@ -297,6 +299,8 @@ void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 			priv->io_base + _REG(ENCI_SYNC_ADJ));
 
 	meson_venci_cvbs_clock_config(priv);
+
+	priv->venc.current_mode = mode->mode_tag;
 }
 
 void meson_venci_cvbs_enable(struct meson_drm *priv)
@@ -313,6 +317,8 @@ void meson_venci_cvbs_enable(struct meson_drm *priv)
 		regmap_write(priv->hhi, HHI_VDAC_CNTL0, 0xf0001);
 
 	regmap_write(priv->hhi, HHI_VDAC_CNTL1, 0);
+
+	priv->venc.cvbs_enabled = true;
 }
 
 void meson_venci_cvbs_disable(struct meson_drm *priv)
@@ -321,6 +327,8 @@ void meson_venci_cvbs_disable(struct meson_drm *priv)
 
 	regmap_write(priv->hhi, HHI_VDAC_CNTL0, 0);
 	regmap_write(priv->hhi, HHI_VDAC_CNTL1, 0);
+
+	priv->venc.cvbs_enabled = false;
 }
 
 /* Returns the current ENCI field polarity */
@@ -352,4 +360,6 @@ void meson_venc_init(struct meson_drm *priv)
 	meson_venc_disable_vsync(priv);
 
 	meson_venci_cvbs_disable(priv);
+
+	priv->venc.current_mode = MESON_VENC_MODE_NONE;
 }

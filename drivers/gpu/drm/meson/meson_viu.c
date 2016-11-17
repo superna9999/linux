@@ -45,6 +45,11 @@ enum osd_w0_bitflags {
 	OSD_COLOR_MATRIX_32_ABGR = (0x02 << 2),
 	OSD_COLOR_MATRIX_32_BGRA = (0x03 << 2),
 
+	OSD_COLOR_MATRIX_24_RGB = (0x00 << 2),
+
+	OSD_COLOR_MATRIX_16_RGB655 = (0x00 << 2),
+	OSD_COLOR_MATRIX_16_RGB565 = (0x04 << 2),
+
 	OSD_INTERLACE_ENABLED  = (0x01 << 1),
 	OSD_INTERLACE_ODD      = (0x01 << 0),
 	OSD_INTERLACE_EVEN     = (0x00 << 0),
@@ -59,6 +64,7 @@ static inline int64_t fixed16_to_int(int64_t value)
 void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 {
 	struct drm_plane_state *state = plane->state;
+	struct drm_framebuffer *fb = state->fb;
 	struct drm_rect src = {
 		.x1 = (state->src_x),
 		.y1 = (state->src_y),
@@ -87,17 +93,33 @@ void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 
 	/* Set up BLK0 to point to the right canvas */
 	priv->viu.osd1_blk0_cfg[0] = ((MESON_CANVAS_ID_OSD1 << 16) |
-				      OSD_ENDIANNESS_LE | OSD_BLK_MODE_32 |
-				      OSD_OUTPUT_COLOR_RGB |
-				      OSD_COLOR_MATRIX_32_ARGB);
+				      OSD_ENDIANNESS_LE |
+				      OSD_OUTPUT_COLOR_RGB);
+
+	switch (fb->pixel_format) {
+	case DRM_FORMAT_ARGB8888:
+		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_32 |
+					      OSD_COLOR_MATRIX_32_ARGB;
+		break;
+	case DRM_FORMAT_RGB888:
+		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_24 |
+					      OSD_COLOR_MATRIX_24_RGB;
+		break;
+	case DRM_FORMAT_RGB565:
+		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_16 |
+					      OSD_COLOR_MATRIX_16_RGB565;
+		break;
+	};
 
 	if (state->crtc->mode.flags & DRM_MODE_FLAG_INTERLACE) {
-		priv->viu.osd1_blk0_cfg[0] |= OSD_INTERLACE_ENABLED;
-
-		priv->viu.osd1_interlace_sync = true;
+		priv->viu.osd1_interlace = true;
 
 		dest.y1 /= 2;
 		dest.y2 /= 2;
+	}
+	else {
+		priv->viu.osd1_interlace = true;
+		meson_vpp_disable_interlace_vscaler_osd1(priv);
 	}
 
 	/* The format of these registers is (x2 << 16 | x1), where x2 is exclusive.
@@ -115,13 +137,7 @@ void meson_viu_update_osd1(struct meson_drm *priv, struct drm_plane *plane)
 void meson_viu_sync_osd1(struct meson_drm *priv)
 {
 	/* Update the OSD registers */
-	if (priv->viu.osd1_enabled) {
-		if (priv->viu.osd1_interlace_sync) {
-			priv->viu.osd1_blk0_cfg[0] =
-				(priv->viu.osd1_blk0_cfg[0] & ~BIT(0)) |
-				!!meson_venci_get_field(priv);
-		}
-
+	if (priv->viu.osd1_enabled && priv->viu.osd1_commit) {
 		writel_relaxed(priv->viu.osd1_ctrl_stat,
 				priv->io_base + _REG(VIU_OSD1_CTRL_STAT));
 		writel_relaxed(priv->viu.osd1_blk0_cfg[0],
@@ -135,11 +151,22 @@ void meson_viu_sync_osd1(struct meson_drm *priv)
 		writel_relaxed(priv->viu.osd1_blk0_cfg[4],
 				priv->io_base + _REG(VIU_OSD1_BLK0_CFG_W4));
 
-		if (priv->viu.osd1_commit) {
-			meson_vpp_enable_osd1(priv);
+		if (priv->viu.osd1_interlace) {
+			struct drm_plane *plane = priv->primary_plane;
+			struct drm_plane_state *state = plane->state;
+			struct drm_rect dest = {
+				.x1 = state->crtc_x,
+				.y1 = state->crtc_y,
+				.x2 = state->crtc_x + state->crtc_w,
+				.y2 = state->crtc_y + state->crtc_h,
+			};
 
-			priv->viu.osd1_commit = false;
+			meson_vpp_setup_interlace_vscaler_osd1(priv, &dest);
 		}
+
+		meson_vpp_enable_osd1(priv);
+
+		priv->viu.osd1_commit = false;
 	}
 }
 
@@ -164,9 +191,10 @@ void meson_viu_init(struct meson_drm *priv)
 	 * after vsync before starting RAM access. This gives the vsync
 	 * interrupt handler more time to update the registers, avoiding
 	 * visual glitches. */
-	writel_bits_relaxed(0x1f << 5, 12 << 5,
+	writel_bits_relaxed(0x1f << 5, 0x1f << 5,
 		priv->io_base + _REG(VIU_OSD1_FIFO_CTRL_STAT));
 
 	priv->viu.osd1_enabled = false;
-	priv->viu.osd1_interlace_sync = false;
+	priv->viu.osd1_commit = false;
+	priv->viu.osd1_interlace = false;
 }

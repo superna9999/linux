@@ -145,10 +145,10 @@ void meson_crtc_irq(struct meson_drm *priv)
 	struct meson_crtc *meson_crtc = to_meson_crtc(priv->crtc);
 	unsigned long flags;
 
+	meson_viu_sync_osd1(priv);
+
 	if (priv->vblank_active)
 		drm_crtc_handle_vblank(priv->crtc);
-	
-	meson_viu_sync_osd1(priv);
 
 	if (priv->vblank_active) {
 		spin_lock_irqsave(&priv->drm->event_lock, flags);

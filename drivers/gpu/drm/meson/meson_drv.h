@@ -40,8 +40,8 @@ struct meson_drm {
 	/* Components Data */
 	struct {
 		bool osd1_enabled;
+		bool osd1_interlace;
 		bool osd1_commit;
-		bool osd1_interlace_sync;
 		uint32_t osd1_ctrl_stat;
 		uint32_t osd1_blk0_cfg[5];
 	} viu;
@@ -55,7 +55,8 @@ struct meson_drm {
 	} vpu;
 
 	struct {
-
+		unsigned current_mode;
+		unsigned cvbs_enabled;
 	} venc;
 };
 

@@ -246,9 +246,10 @@ static int meson_pdev_probe(struct platform_device *pdev)
 	drm_mode_config_reset(drm);
 	drm->mode_config.max_width = 8192;
 	drm->mode_config.max_height = 8192;
+	drm->mode_config.preferred_depth = 16;
 	drm->mode_config.funcs = &meson_mode_config_funcs;
 
-	priv->fbdev = drm_fbdev_cma_init(drm, 32,
+	priv->fbdev = drm_fbdev_cma_init(drm, 16,
 					 drm->mode_config.num_crtc,
 					 drm->mode_config.num_connector);
 	if (IS_ERR(priv->fbdev)) {
