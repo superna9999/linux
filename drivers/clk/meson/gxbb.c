@@ -1900,8 +1900,6 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 		if (!gxbb_hw_onecell_data.hws[clkid])
 			continue;
 
-		pr_info("%s: registering clk %d %p\n", __func__, clkid, gxbb_hw_onecell_data.hws[clkid]);
-
 		ret = devm_clk_hw_register(dev, gxbb_hw_onecell_data.hws[clkid]);
 		if (ret)
 			goto iounmap;
@@ -1911,8 +1909,6 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 	for (i = 0 ; i < ARRAY_SIZE(gxbb_composite_clks); ++i) {
 		struct gxbb_composite_clk *comp = &gxbb_composite_clks[i];
 		struct clk_hw *hw;
-
-		pr_info("%s: registering comp clk %s => %d\n", __func__, comp->name, comp->id);
 
 		hw = clk_hw_register_composite(dev, comp->name,
 				comp->parent_names,
