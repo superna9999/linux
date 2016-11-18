@@ -248,6 +248,13 @@ static const struct pll_rate_table gp0_pll_rate_table[] = {
 	{ /* sentinel */ },
 };
 
+struct hdmi_pll_rate_table gxbb_hdmi_pll_rate_table[] = {
+	HDMI_PLL_RATE(1485000000,
+		      0x4800023d, 0x00404e00, 0x0d5c5091,
+		      0x801da72c, 0x71486980, 0x00000e55),
+	{ /* sentinel */ },
+};
+
 static const struct clk_div_table cpu_div_table[] = {
 	{ .val = 1, .div = 1 },
 	{ .val = 2, .div = 2 },
@@ -288,36 +295,16 @@ static struct meson_clk_pll gxbb_fixed_pll = {
 	},
 };
 
-static struct meson_clk_pll gxbb_hdmi_pll = {
-	.m = {
-		.reg_off = HHI_HDMI_PLL_CNTL,
-		.shift   = 0,
-		.width   = 9,
-	},
-	.n = {
-		.reg_off = HHI_HDMI_PLL_CNTL,
-		.shift   = 9,
-		.width   = 5,
-	},
-	.frac = {
-		.reg_off = HHI_HDMI_PLL_CNTL2,
-		.shift   = 0,
-		.width   = 12,
-	},
-	.od = {
-		.reg_off = HHI_HDMI_PLL_CNTL2,
-		.shift   = 16,
-		.width   = 2,
-	},
-	.od2 = {
-		.reg_off = HHI_HDMI_PLL_CNTL2,
-		.shift   = 22,
-		.width   = 2,
-	},
+static struct meson_hdmi_pll gxbb_hdmi_pll = {
+	.reg = (void *)HHI_HDMI_PLL_CNTL,
+	.reset_bit = 28,
+	.lock_bit = 31,
+	.rate_table = gxbb_hdmi_pll_rate_table,
+	.rate_count = ARRAY_SIZE(gxbb_hdmi_pll_rate_table),
 	.lock = &clk_lock,
 	.hw.init = &(struct clk_init_data){
 		.name = "hdmi_pll",
-		.ops = &meson_clk_pll_ro_ops,
+		.ops = &meson_hdmi_pll_ops,
 		.parent_names = (const char *[]){ "xtal" },
 		.num_parents = 1,
 		.flags = CLK_GET_RATE_NOCACHE,
@@ -1192,7 +1179,6 @@ static struct clk_hw_onecell_data gxbb_hw_onecell_data = {
 
 static struct meson_clk_pll *const gxbb_clk_plls[] = {
 	&gxbb_fixed_pll,
-	&gxbb_hdmi_pll,
 	&gxbb_sys_pll,
 	&gxbb_gp0_pll,
 };
@@ -1620,6 +1606,9 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 	/* Populate base address for MPLLs */
 	for (i = 0; i < ARRAY_SIZE(gxbb_clk_mplls); i++)
 		gxbb_clk_mplls[i]->base = clk_base;
+
+	/* Populate the base address for HDMI PLL */
+	gxbb_hdmi_pll.reg = clk_base + (u64)gxbb_hdmi_pll.reg;
 
 	/* Populate the base address for CPU clk */
 	gxbb_cpu_clk.base = clk_base;
