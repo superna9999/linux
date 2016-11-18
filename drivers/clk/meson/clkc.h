@@ -44,6 +44,11 @@ struct pll_rate_table {
 	u16		frac;
 };
 
+struct hdmi_pll_rate_table {
+	unsigned long	rate;
+	u32		cntl[6];
+};
+
 #define PLL_RATE(_r, _m, _n, _od)					\
 	{								\
 		.rate		= (_r),					\
@@ -62,6 +67,12 @@ struct pll_rate_table {
 		.frac		= (_frac),				\
 	}								\
 
+#define HDMI_PLL_RATE(_r, ...)						\
+	{								\
+		.rate		= (_r),					\
+		.cntl		= { __VA_ARGS__ },			\
+	}								\
+
 struct meson_clk_pll {
 	struct clk_hw hw;
 	void __iomem *base;
@@ -76,6 +87,19 @@ struct meson_clk_pll {
 };
 
 #define to_meson_clk_pll(_hw) container_of(_hw, struct meson_clk_pll, hw)
+
+struct meson_hdmi_pll {
+	struct clk_hw hw;
+	void __iomem *reg;
+	/* We consider the first reg has the reset and lock bits */
+	unsigned int reset_bit;
+	unsigned int lock_bit;
+	const struct hdmi_pll_rate_table *rate_table;
+	unsigned int rate_count;
+	spinlock_t *lock;
+};
+
+#define to_meson_hdmi_pll(_hw) container_of(_hw, struct meson_hdmi_pll, hw)
 
 struct meson_clk_cpu {
 	struct clk_hw hw;
@@ -114,6 +138,7 @@ struct clk_gate _name = { 						\
 /* clk_ops */
 extern const struct clk_ops meson_clk_pll_ro_ops;
 extern const struct clk_ops meson_clk_pll_ops;
+extern const struct clk_ops meson_hdmi_pll_ops;
 extern const struct clk_ops meson_clk_cpu_ops;
 extern const struct clk_ops meson_clk_mpll_ro_ops;
 
