@@ -255,6 +255,13 @@ struct hdmi_pll_rate_table gxbb_hdmi_pll_rate_table[] = {
 	{ /* sentinel */ },
 };
 
+struct hdmi_pll_rate_table gxl_hdmi_pll_rate_table[] = {
+	HDMI_PLL_RATE(1485000000,
+		      0x4000027b, 0x800cb300, 0xa6212844,
+		      0x0c4d000c, 0x001fa729, 0x01a31500),
+	{ /* sentinel */ },
+};
+
 static const struct clk_div_table cpu_div_table[] = {
 	{ .val = 1, .div = 1 },
 	{ .val = 2, .div = 2 },
@@ -1599,6 +1606,12 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+	if (of_device_is_compatible(dev->of_node, "amlogic,gxl-clkc")) {
+		/* GXL has different HDMI PLL settings */
+		gxbb_hdmi_pll.rate_table = gxl_hdmi_pll_rate_table;
+		gxbb_hdmi_pll.rate_count = ARRAY_SIZE(gxl_hdmi_pll_rate_table);
+	}
+
 	/* Populate base address for PLLs */
 	for (i = 0; i < ARRAY_SIZE(gxbb_clk_plls); i++)
 		gxbb_clk_plls[i]->base = clk_base;
@@ -1720,6 +1733,7 @@ iounmap:
 
 static const struct of_device_id gxbb_clkc_match_table[] = {
 	{ .compatible = "amlogic,gxbb-clkc" },
+	{ .compatible = "amlogic,gxl-clkc" },
 	{ }
 };
 
