@@ -284,8 +284,8 @@
 #define CLKID_HDMI_TX		 113
 #define CLKID_VCLK_INPUT	 114
 #define CLKID_VCLK2_INPUT	 115
-#define CLKID_VPU		 116
-#define CLKID_VPU0		 117
+/* CLKID_VPU */
+/* CLKID_VPU0 */
 #define CLKID_VPU1		 118
 
 #define NR_CLKS			119

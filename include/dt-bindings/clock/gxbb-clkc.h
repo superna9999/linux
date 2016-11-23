@@ -24,5 +24,7 @@
 #define CLKID_SD_EMMC_A		94
 #define CLKID_SD_EMMC_B		95
 #define CLKID_SD_EMMC_C		96
+#define CLKID_VPU		116
+#define CLKID_VPU0		117
 
 #endif /* __GXBB_CLKC_H */
