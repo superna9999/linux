@@ -71,8 +71,7 @@ static int meson_vpu_setclk(struct meson_drm *priv)
  */
 static int meson_vpu_reset(struct meson_drm *priv)
 {
-	struct device *dev = &priv->pdev->dev;
-	struct device_node *np = dev->of_node;
+	struct device_node *np = priv->dev->of_node;
 	struct reset_control *rstc;
 	int count;
 	int ret;
@@ -82,7 +81,7 @@ static int meson_vpu_reset(struct meson_drm *priv)
 	for (i = 0 ; i < count ; ++i) {
 		rstc = of_reset_control_get_exclusive_by_index(np, i);
 		if (IS_ERR(rstc)) {
-			dev_err(dev, "%s: Failed to get reset %d\n",
+			dev_err(priv->dev, "%s: Failed to get reset %d\n",
 				__func__, i);
 			return PTR_ERR(rstc);
 		}
@@ -91,7 +90,7 @@ static int meson_vpu_reset(struct meson_drm *priv)
 		reset_control_put(rstc);
 
 		if (ret) {
-			dev_err(dev, "%s: Failed to get reset %d\n",
+			dev_err(priv->dev, "%s: Failed to get reset %d\n",
 				__func__, i);
 			return ret;
 		}

@@ -27,6 +27,9 @@
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/component.h>
+#include <linux/of_graph.h>
+
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
@@ -158,29 +161,30 @@ static struct regmap_config meson_regmap_config = {
 	.max_register   = 0x1000,
 };
 
-static int meson_pdev_probe(struct platform_device *pdev)
+static int meson_drv_bind(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct meson_drm *priv;
 	struct drm_device *drm;
 	struct resource *res;
 	void __iomem *regs;
 	int ret;
 
-	drm = drm_dev_alloc(&meson_driver, &pdev->dev);
+	drm = drm_dev_alloc(&meson_driver, dev);
 	if (IS_ERR(drm))
 		return PTR_ERR(drm);
 
-	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
+	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
 		ret = -ENOMEM;
 		goto free_drm;
 	}
 	drm->dev_private = priv;
 	priv->drm = drm;
-	priv->pdev = pdev;
+	priv->dev = dev;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "base");
-	regs = devm_ioremap_resource(&pdev->dev, res);
+	regs = devm_ioremap_resource(dev, res);
 	if (IS_ERR(regs))
 		return PTR_ERR(regs);
 
@@ -188,11 +192,11 @@ static int meson_pdev_probe(struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "hhi");
 	/* Simply ioremap since it may be a shared register zone */
-	regs = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	regs = devm_ioremap(dev, res->start, resource_size(res));
 	if (!regs)
 		return -EADDRNOTAVAIL;
 
-	priv->hhi = devm_regmap_init_mmio(&pdev->dev, regs,
+	priv->hhi = devm_regmap_init_mmio(dev, regs,
 					  &meson_regmap_config);
 	if (IS_ERR(priv->hhi)) {
 		dev_err(&pdev->dev, "Couldn't create the HHI regmap\n");
@@ -201,11 +205,11 @@ static int meson_pdev_probe(struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dmc");
 	/* Simply ioremap since it may be a shared register zone */
-	regs = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	regs = devm_ioremap(dev, res->start, resource_size(res));
 	if (!regs)
 		return -EADDRNOTAVAIL;
 
-	priv->dmc = devm_regmap_init_mmio(&pdev->dev, regs,
+	priv->dmc = devm_regmap_init_mmio(dev, regs,
 					  &meson_regmap_config);
 	if (IS_ERR(priv->dmc)) {
 		dev_err(&pdev->dev, "Couldn't create the DMC regmap\n");
@@ -214,15 +218,15 @@ static int meson_pdev_probe(struct platform_device *pdev)
 
 	priv->vsync_irq = platform_get_irq(pdev, 0);
 
-	priv->clk_vpu = devm_clk_get(&pdev->dev, "vpu");
+	priv->clk_vpu = devm_clk_get(dev, "vpu");
 	if (IS_ERR(priv->clk_vpu))
 		return PTR_ERR(priv->clk_vpu);
 
-	priv->clk_vpu0 = devm_clk_get(&pdev->dev, "vpu0");
+	priv->clk_vpu0 = devm_clk_get(dev, "vpu0");
 	if (IS_ERR(priv->clk_vpu0))
 		return PTR_ERR(priv->clk_vpu0);
 
-	priv->clk_fclk_div = devm_clk_get(&pdev->dev, "fclk_div");
+	priv->clk_fclk_div = devm_clk_get(dev, "fclk_div");
 	if (IS_ERR(priv->clk_fclk_div))
 		return PTR_ERR(priv->clk_fclk_div);
 
@@ -243,15 +247,19 @@ static int meson_pdev_probe(struct platform_device *pdev)
 	drm_vblank_init(drm, 1);
 	drm_mode_config_init(drm);
 
+	/* Components Initialization */
+
+	ret = component_bind_all(drm->dev, drm);
+	if (ret) {
+		dev_err(drm->dev, "Couldn't bind all components\n");
+		goto free_drm;
+	}
+
 	ret = meson_plane_create(priv);
 	if (ret)
 		goto free_drm;
 
 	ret = meson_crtc_create(priv);
-	if (ret)
-		goto free_drm;
-
-	ret = meson_cvbs_create(priv);
 	if (ret)
 		goto free_drm;
 
@@ -293,10 +301,10 @@ clk_unprepare:
 	return ret;
 }
 
-static int meson_pdev_remove(struct platform_device *pdev)
+static void meson_drv_unbind(struct device *dev)
 {
-	struct meson_drm *priv = platform_get_drvdata(pdev);
-	struct drm_device *drm = priv->drm;
+	struct drm_device *drm = dev_get_drvdata(dev);
+	struct meson_drm *priv = drm->dev_private;
 
 	clk_unprepare(priv->clk_vpu);
 	clk_unprepare(priv->clk_vpu0);
@@ -308,19 +316,76 @@ static int meson_pdev_remove(struct platform_device *pdev)
 	drm_mode_config_cleanup(drm);
 	drm_vblank_cleanup(drm);
 	drm_dev_unref(drm);
-
-	return 0;
 }
 
+static const struct component_master_ops meson_drv_master_ops = {
+	.bind	= meson_drv_bind,
+	.unbind	= meson_drv_unbind,
+};
+
+static int compare_of(struct device *dev, void *data)
+{
+	DRM_DEBUG_DRIVER("Comparing of node %s with %s\n",
+			 of_node_full_name(dev->of_node),
+			 of_node_full_name(data));
+
+	return dev->of_node == data;
+}
+
+static int meson_pdev_probe(struct platform_device *pdev)
+{
+	struct component_match *match = NULL;
+	struct device_node *np = pdev->dev.of_node;
+	struct device_node *port, *ep, *remote;
+	int count = 0;
+
+	/* Get output port */
+	port = of_graph_get_port_by_id(np, 1);
+	if (!port) {
+		dev_err(&pdev->dev, "No output to bind\n");
+		return 0;
+	}
+
+	/* Get each output endpoints, and connect them is available */
+	for_each_available_child_of_node(port, ep) {
+		remote = of_graph_get_remote_port_parent(ep);
+		if (!remote) {
+			dev_err(&pdev->dev, "Error retrieving the output node\n");
+			of_node_put(remote);
+			continue;
+		}
+
+		if (!of_device_is_available(remote))
+			continue;
+
+		component_match_add(&pdev->dev, &match, compare_of, remote);
+
+		++count;
+
+		of_node_put(remote);
+	}
+
+	/* If some endpoints were found, initialize the nodes */
+	if (count) {
+		dev_info(&pdev->dev, "Queued %d outputs on vpu\n", count);
+
+		return component_master_add_with_match(&pdev->dev,
+						       &meson_drv_master_ops,
+						       match);
+	}
+
+	/* If no output endpoints were available, simply bail out */
+	return 0;
+};
+
 static const struct of_device_id dt_match[] = {
-	{ .compatible = "amlogic,meson-gxbb-display" },
+	{ .compatible = "amlogic,meson-gx-vpu" },
 	{}
 };
 MODULE_DEVICE_TABLE(of, dt_match);
 
 static struct platform_driver meson_drm_platform_driver = {
 	.probe      = meson_pdev_probe,
-	.remove     = meson_pdev_remove,
 	.driver     = {
 		.owner  = THIS_MODULE,
 		.name   = DRIVER_NAME,

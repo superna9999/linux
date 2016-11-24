@@ -24,6 +24,8 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/component.h>
+
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_crtc_helper.h>
@@ -198,15 +200,17 @@ struct drm_connector_helper_funcs meson_cvbs_connector_helper_funcs = {
 	.mode_valid	= meson_cvbs_connector_mode_valid,
 };
 
-int meson_cvbs_create(struct meson_drm *priv)
+static int meson_cvbs_bind(struct device *dev, struct device *master,
+			   void *data)
 {
+	struct drm_device *drm = data;
+	struct meson_drm *priv = drm->dev_private;
 	struct meson_cvbs *meson_cvbs;
 	struct drm_connector *connector;
 	struct drm_encoder *encoder;
 	int ret;
 
-	meson_cvbs = devm_kzalloc(priv->drm->dev, sizeof(*meson_cvbs),
-				  GFP_KERNEL);
+	meson_cvbs = devm_kzalloc(dev, sizeof(*meson_cvbs), GFP_KERNEL);
 	if (!meson_cvbs)
 		return -ENOMEM;
 
@@ -218,10 +222,10 @@ int meson_cvbs_create(struct meson_drm *priv)
 
 	drm_encoder_helper_add(encoder, &meson_cvbs_encoder_helper_funcs);
 
-	ret = drm_encoder_init(priv->drm, encoder, &meson_cvbs_encoder_funcs,
+	ret = drm_encoder_init(drm, encoder, &meson_cvbs_encoder_funcs,
 			       DRM_MODE_ENCODER_TVDAC, "meson_cvbs");
 	if (ret) {
-		dev_err(priv->drm->dev, "Failed to init CVBS encoder\n");
+		dev_err(dev, "Failed to init CVBS encoder\n");
 		return ret;
 	}
 
@@ -232,10 +236,10 @@ int meson_cvbs_create(struct meson_drm *priv)
 	drm_connector_helper_add(connector,
 				 &meson_cvbs_connector_helper_funcs);
 
-	drm_connector_init(priv->drm, connector, &meson_cvbs_connector_funcs,
+	drm_connector_init(drm, connector, &meson_cvbs_connector_funcs,
 			   DRM_MODE_CONNECTOR_Composite);
 	if (ret) {
-		dev_err(priv->drm->dev, "Failed to init CVBS connector\n");
+		dev_err(dev, "Failed to init CVBS connector\n");
 		return ret;
 	}
 
@@ -245,3 +249,42 @@ int meson_cvbs_create(struct meson_drm *priv)
 
 	return 0;
 }
+
+static void meson_cvbs_unbind(struct device *dev, struct device *master,
+			      void *data)
+{
+	/* Nothing to do yet */
+}
+
+static struct component_ops meson_cvbs_ops = {
+	.bind	= meson_cvbs_bind,
+	.unbind	= meson_cvbs_unbind,
+};
+
+static int meson_cvbs_probe(struct platform_device *pdev)
+{
+	return component_add(&pdev->dev, &meson_cvbs_ops);
+}
+
+static int meson_cvbs_remove(struct platform_device *pdev)
+{
+	component_del(&pdev->dev, &meson_cvbs_ops);
+
+	return 0;
+}
+
+static const struct of_device_id meson_cvbs_of_table[] = {
+	{ .compatible = "amlogic,meson-gx-venc-cvbs" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, meson_cvbs_of_table);
+
+static struct platform_driver meson_cvbs_platform_driver = {
+	.probe		= meson_cvbs_probe,
+	.remove		= meson_cvbs_remove,
+	.driver		= {
+		.name		= "meson-cvbs",
+		.of_match_table	= meson_cvbs_of_table,
+	},
+};
+module_platform_driver(meson_cvbs_platform_driver);

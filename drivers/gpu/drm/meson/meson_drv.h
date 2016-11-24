@@ -24,7 +24,7 @@
 #include <linux/regmap.h>
 
 struct meson_drm {
-	struct platform_device *pdev;
+	struct device *dev;
 	void __iomem *io_base;
 	struct regmap *hhi;
 	struct regmap *dmc;
