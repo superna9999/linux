@@ -300,7 +300,11 @@
 	clock-names = "core", "clkin0", "clkin1";
 };
 
-&viu {
+&venc_cvbs {
+	status = "okay";
+};
+
+&vpu {
 	clocks = <&clkc CLKID_VPU>,
 		 <&clkc CLKID_VPU0>,
 		 <&clkc CLKID_FCLK_DIV3>;
