@@ -129,3 +129,13 @@
 &vpu {
 	compatible = "amlogic,meson-gxm-vpu", "amlogic,meson-gx-vpu";
 };
+
+&usb3_phy0 {
+	/* dwc3 on GXM enables 3 USB ports on the internal hub */
+	phys = <&usb2_phys 0>, <&usb2_phys 1>, <&usb2_phys 2>;
+};
+
+&usb1 {
+	/* the dwc2 hardware configuration on GXM only allows device mode */
+	dr_mode = "device";
+};
