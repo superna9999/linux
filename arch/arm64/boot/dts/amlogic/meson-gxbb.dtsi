@@ -72,6 +72,14 @@
 		};
 	};
 
+	i2c_hdmi: i2c-gpio {
+		compatible = "i2c-gpio";
+		gpios = <&gpio GPIOH_1 0	/* sda */
+			 &gpio GPIOH_2 0>;	/* scl */
+
+		i2c-gpio,delay-us = <2>;	/* ~100 kHz */
+	};
+
 	soc {
 		usb0_phy: phy@c0000000 {
 			compatible = "amlogic,meson-gxbb-usb2-phy";
@@ -463,6 +471,20 @@
 				function = "pwm_f_y";
 			};
 		};
+
+		hdmi_hpd_pins: hdmi_hpd {
+			mux {
+				groups = "hdmi_hpd";
+				function = "hdmi_hpd";
+			};
+		};
+
+		hdmi_i2c_pins: hdmi_i2c {
+			mux {
+				groups = "hdmi_sda", "hdmi_scl";
+				function = "hdmi_i2c";
+			};
+		};
 	};
 };
 
@@ -509,4 +531,10 @@
 
 &vpu {
 	compatible = "amlogic,meson-gxbb-vpu", "amlogic,meson-gx-vpu";
+};
+
+&hdmi_tx {
+	compatible = "amlogic,meson-gxbb-dw-hdmi", "amlogic,meson-gx-dw-hdmi";
+	hdp-gpios = <&gpio GPIOH_0 0>;
+	ddc-i2c-bus = <&i2c_hdmi>;
 };
