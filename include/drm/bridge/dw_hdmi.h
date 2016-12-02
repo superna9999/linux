@@ -25,6 +25,7 @@ enum dw_hdmi_devtype {
 	IMX6Q_HDMI,
 	IMX6DL_HDMI,
 	RK3288_HDMI,
+	MESON_GX_HDMI,
 };
 
 struct dw_hdmi_mpll_config {
@@ -54,7 +55,13 @@ struct dw_hdmi_plat_data {
 	const struct dw_hdmi_phy_config *phy_config;
 	enum drm_mode_status (*mode_valid)(struct drm_connector *connector,
 					   struct drm_display_mode *mode);
+	struct regmap *regm;
+	int (*hdmi_phy_init)(const struct dw_hdmi_plat_data *data, struct drm_display_mode *mode, bool cscon);
+	void (*hdmi_phy_disable)(const struct dw_hdmi_plat_data *data);
+	bool (*hdmi_read_hpd)(const struct dw_hdmi_plat_data *data);
 };
+
+void dw_hdmi_setup_rx_sense(struct device *dev, bool hpd, bool rx_sense);
 
 void dw_hdmi_unbind(struct device *dev, struct device *master, void *data);
 int dw_hdmi_bind(struct device *dev, struct device *master,

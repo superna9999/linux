@@ -256,6 +256,28 @@
 #define HDMI_FC_POL2                            0x10DB
 #define HDMI_FC_PRCONF                          0x10E0
 
+
+/* [  4] scrambler_ucp_line */
+/* [  0] scrambler_en. Only update this bit once we've sent SCDC message*/
+#define HDMI_FC_SCRAMBLER_CTRL			0x10E1
+#define HDMI_FC_MULTISTREAM_CTRL		0x10E2
+/* [  7] drm_tx_en */
+/* [  6] nvbi_tx_en */
+/* [  5] amp_tx_en */
+/* [  4] aut_tx_en */
+/* [  3] audi_tx_en */
+/* [  2] avi_tx_en */
+/* [  1] gcp_tx_en */
+/* [  0] acr_tx_en */
+#define HDMI_FC_PACKET_TX_EN			0x10E3
+/* [  1] actspc_hdlr_tgl */
+/* [  0] actspc_hdlr_en */
+#define HDMI_FC_ACTSPC_HDLR_CFG			0x10E8
+#define HDMI_FC_INVACT_2D_0			0x10E9
+/* [3:0] fc_invact_2d_0[11:8] */
+/* [7:0] fc_invact_2d_0[7:0] */
+#define HDMI_FC_INVACT_2D_1			0x10EA
+
 #define HDMI_FC_GMD_STAT                        0x1100
 #define HDMI_FC_GMD_EN                          0x1101
 #define HDMI_FC_GMD_UP                          0x1102
@@ -289,6 +311,98 @@
 #define HDMI_FC_GMD_PB25                        0x111E
 #define HDMI_FC_GMD_PB26                        0x111F
 #define HDMI_FC_GMD_PB27                        0x1120
+
+/* Audio Metadata Packet Registers */
+#define HDMI_FC_AMP_HB01                        0x1128
+#define HDMI_FC_AMP_HB02                        0x1129
+#define HDMI_FC_AMP_PB00                        0x112A
+#define HDMI_FC_AMP_PB01                        0x112B
+#define HDMI_FC_AMP_PB02                        0x112C
+#define HDMI_FC_AMP_PB03                        0x112D
+#define HDMI_FC_AMP_PB04                        0x112E
+#define HDMI_FC_AMP_PB05                        0x112F
+#define HDMI_FC_AMP_PB06                        0x1130
+#define HDMI_FC_AMP_PB07                        0x1131
+#define HDMI_FC_AMP_PB08                        0x1132
+#define HDMI_FC_AMP_PB09                        0x1133
+#define HDMI_FC_AMP_PB10                        0x1134
+#define HDMI_FC_AMP_PB11                        0x1135
+#define HDMI_FC_AMP_PB12                        0x1136
+#define HDMI_FC_AMP_PB13                        0x1137
+#define HDMI_FC_AMP_PB14                        0x1138
+#define HDMI_FC_AMP_PB15                        0x1139
+#define HDMI_FC_AMP_PB16                        0x113A
+#define HDMI_FC_AMP_PB17                        0x113B
+#define HDMI_FC_AMP_PB18                        0x113C
+#define HDMI_FC_AMP_PB19                        0x113D
+#define HDMI_FC_AMP_PB20                        0x113E
+#define HDMI_FC_AMP_PB21                        0x113F
+#define HDMI_FC_AMP_PB22                        0x1140
+#define HDMI_FC_AMP_PB23                        0x1141
+#define HDMI_FC_AMP_PB24                        0x1142
+#define HDMI_FC_AMP_PB25                        0x1143
+#define HDMI_FC_AMP_PB26                        0x1144
+#define HDMI_FC_AMP_PB27                        0x1145
+
+/* NTSC VBI Packet Registers */
+#define HDMI_FC_NVBI_HB01			0x1148
+#define HDMI_FC_NVBI_HB02                       0x1149
+#define HDMI_FC_NVBI_PB01                       0x114A
+#define HDMI_FC_NVBI_PB02                       0x114B
+#define HDMI_FC_NVBI_PB03                       0x114C
+#define HDMI_FC_NVBI_PB04                       0x114D
+#define HDMI_FC_NVBI_PB05                       0x114E
+#define HDMI_FC_NVBI_PB06                       0x114F
+#define HDMI_FC_NVBI_PB07                       0x1150
+#define HDMI_FC_NVBI_PB08                       0x1151
+#define HDMI_FC_NVBI_PB09                       0x1152
+#define HDMI_FC_NVBI_PB10                       0x1153
+#define HDMI_FC_NVBI_PB11                       0x1154
+#define HDMI_FC_NVBI_PB12                       0x1155
+#define HDMI_FC_NVBI_PB13                       0x1156
+#define HDMI_FC_NVBI_PB14                       0x1157
+#define HDMI_FC_NVBI_PB15                       0x1158
+#define HDMI_FC_NVBI_PB16                       0x1159
+#define HDMI_FC_NVBI_PB17                       0x115A
+#define HDMI_FC_NVBI_PB18                       0x115B
+#define HDMI_FC_NVBI_PB19                       0x115C
+#define HDMI_FC_NVBI_PB20                       0x115D
+#define HDMI_FC_NVBI_PB21                       0x115E
+#define HDMI_FC_NVBI_PB22                       0x115F
+#define HDMI_FC_NVBI_PB23                       0x1160
+#define HDMI_FC_NVBI_PB24                       0x1161
+#define HDMI_FC_NVBI_PB25                       0x1162
+#define HDMI_FC_NVBI_PB26                       0x1163
+#define HDMI_FC_NVBI_PB27                       0x1164
+#define HDMI_FC_DRM_HB01                        0x1168
+#define HDMI_FC_DRM_HB02                        0x1169
+#define HDMI_FC_DRM_PB00                        0x116A
+#define HDMI_FC_DRM_PB01                        0x116B
+#define HDMI_FC_DRM_PB02                        0x116C
+#define HDMI_FC_DRM_PB03                        0x116D
+#define HDMI_FC_DRM_PB04                        0x116E
+#define HDMI_FC_DRM_PB05                        0x116F
+#define HDMI_FC_DRM_PB06                        0x1170
+#define HDMI_FC_DRM_PB07                        0x1171
+#define HDMI_FC_DRM_PB08                        0x1172
+#define HDMI_FC_DRM_PB09                        0x1173
+#define HDMI_FC_DRM_PB10                        0x1174
+#define HDMI_FC_DRM_PB11                        0x1175
+#define HDMI_FC_DRM_PB12                        0x1176
+#define HDMI_FC_DRM_PB13                        0x1177
+#define HDMI_FC_DRM_PB14                        0x1178
+#define HDMI_FC_DRM_PB15                        0x1179
+#define HDMI_FC_DRM_PB16                        0x117A
+#define HDMI_FC_DRM_PB17                        0x117B
+#define HDMI_FC_DRM_PB18                        0x117C
+#define HDMI_FC_DRM_PB19                        0x117D
+#define HDMI_FC_DRM_PB20                        0x117E
+#define HDMI_FC_DRM_PB21                        0x117F
+#define HDMI_FC_DRM_PB22                        0x1180
+#define HDMI_FC_DRM_PB23                        0x1181
+#define HDMI_FC_DRM_PB24                        0x1182
+#define HDMI_FC_DRM_PB25                        0x1183
+#define HDMI_FC_DRM_PB26                        0x1184
 
 #define HDMI_FC_DBGFORCE                        0x1200
 #define HDMI_FC_DBGAUD0CH0                      0x1201
@@ -355,6 +469,7 @@
 #define HDMI_AUD_CONF1                          0x3101
 #define HDMI_AUD_INT                            0x3102
 #define HDMI_AUD_CONF2                          0x3103
+#define HDMI_AUD_INT1                           0x3104
 #define HDMI_AUD_N1                             0x3200
 #define HDMI_AUD_N2                             0x3201
 #define HDMI_AUD_N3                             0x3202
@@ -362,7 +477,10 @@
 #define HDMI_AUD_CTS2                           0x3204
 #define HDMI_AUD_CTS3                           0x3205
 #define HDMI_AUD_INPUTCLKFS                     0x3206
+#define HDMI_AUD_SPDIF0                         0x3300
+#define HDMI_AUD_SPDIF1                         0x3301
 #define HDMI_AUD_SPDIFINT			0x3302
+#define HDMI_AUD_SPDIFINT1			0x3303
 #define HDMI_AUD_CONF0_HBR                      0x3400
 #define HDMI_AUD_HBR_STATUS                     0x3401
 #define HDMI_AUD_HBR_INT                        0x3402
@@ -447,6 +565,10 @@
 #define HDMI_CSC_COEF_C3_LSB                    0x4117
 #define HDMI_CSC_COEF_C4_MSB                    0x4118
 #define HDMI_CSC_COEF_C4_LSB                    0x4119
+#define HDMI_CSC_LIMIT_UP_MSB                   0x411A
+#define HDMI_CSC_LIMIT_UP_LSB                   0x411B
+#define HDMI_CSC_LIMIT_DN_MSB                   0x411C
+#define HDMI_CSC_LIMIT_DN_LSB                   0x411D
 
 /* HDCP Encryption Engine Registers */
 #define HDMI_A_HDCPCFG0                         0x5000
