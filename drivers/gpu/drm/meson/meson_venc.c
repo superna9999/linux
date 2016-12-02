@@ -86,6 +86,387 @@ struct meson_cvbs_enci_mode meson_cvbs_enci_ntsc = {
 	.analog_sync_adj = 0x9c00,
 };
 
+static signed int to_signed(unsigned int a)
+{
+	if (a <= 7)
+		return a;
+	else
+		return a - 16;
+}
+
+static unsigned long modulo(unsigned long a, unsigned long b)
+{
+	if (a >= b)
+		return a - b;
+	else
+		return a;
+}
+
+void meson_venc_hdmi_mode_set(struct meson_drm *priv, int vic,
+			      struct drm_display_mode *mode)
+{
+	bool use_enci = false;
+	bool venc_repeat = false;
+	bool hdmi_repeat = false;
+	unsigned venc_hdmi_latency = 1;
+	unsigned long total_pixels_venc = 0;
+	unsigned long active_pixels_venc = 0;
+	unsigned long front_porch_venc = 0;
+	unsigned long hsync_pixels_venc = 0;
+	unsigned long de_h_begin = 0;
+	unsigned long de_h_end = 0;
+	unsigned long de_v_begin_even = 0;
+	unsigned long de_v_end_even = 0;
+	unsigned long de_v_begin_odd = 0;
+	unsigned long de_v_end_odd = 0;
+	unsigned long hs_begin = 0;
+	unsigned long hs_end = 0;
+	unsigned long vs_adjust = 0;
+	unsigned long vs_bline_evn = 0;
+	unsigned long vs_eline_evn = 0;
+	unsigned long vs_bline_odd = 0;
+	unsigned long vs_eline_odd = 0;
+	unsigned long vso_begin_evn = 0;
+	unsigned long vso_begin_odd = 0;
+	unsigned int eof_lines;
+	unsigned int sof_lines;
+	unsigned int vsync_lines;
+
+	/* Use VENCI for 480i and 576i */
+	if (vic == 6 || vic == 7 || /* 480i */
+	    vic == 21 || vic == 22) /* 576i */
+		use_enci = true;
+
+	/* Repeat HDMI pixel for DRM_MODE_FLAG_DBLCLK mode */
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK) {
+		hdmi_repeat = true;
+		venc_hdmi_latency = 2;
+	}
+
+	/* Repeat VENC pixels for 480i, 576i, 576p, 480p, 720p50 and 720p60 */
+	if (vic == 6 || vic == 7 || /* 480i */
+	    vic == 21 || vic == 22 || /* 576i */
+	    vic == 17 || vic == 18 || /* 576p */
+	    vic == 2 || vic == 3 || /* 480p */
+	    vic == 4 || /* 720p60 */
+	    vic == 19)	/* 720p50 */
+		venc_repeat = true;
+
+	eof_lines = mode->vsync_start - mode->vdisplay;
+	sof_lines = mode->vtotal - mode->vsync_end;
+	vsync_lines = mode->vsync_end - mode->vsync_start;
+
+	total_pixels_venc = mode->htotal;
+	if (hdmi_repeat)
+		total_pixels_venc /= 2;
+	if (venc_repeat)
+		total_pixels_venc *= 2;
+
+	active_pixels_venc = mode->hdisplay;
+	if (hdmi_repeat)
+		active_pixels_venc /= 2;
+	if (venc_repeat)
+		active_pixels_venc *= 2;
+
+	front_porch_venc = (mode->hsync_start - mode->hdisplay);
+	if (hdmi_repeat)
+		front_porch_venc /= 2;
+	if (venc_repeat)
+		front_porch_venc *= 2;
+
+	hsync_pixels_venc = (mode->hsync_end - mode->hsync_start);
+	if (hdmi_repeat)
+		hsync_pixels_venc /= 2;
+	if (venc_repeat)
+		hsync_pixels_venc *= 2;
+
+	if (use_enci) {
+		unsigned int lines_f0;
+		unsigned int lines_f1;
+
+		lines_f0 = mode->vtotal >> 1;
+		lines_f1 = lines_f0 + 1;
+
+		de_h_begin = modulo(readl_relaxed(priv->io_base +
+					_REG(ENCI_VFIFO2VD_PIXEL_START))
+					+ venc_hdmi_latency,
+				    total_pixels_venc);
+		de_h_end  = modulo(de_h_begin + active_pixels_venc,
+				   total_pixels_venc);
+
+		writel_relaxed(de_h_begin,
+				priv->io_base + _REG(ENCI_DE_H_BEGIN));
+		writel_relaxed(de_h_end,
+				priv->io_base + _REG(ENCI_DE_H_END));
+
+		de_v_begin_even = readl_relaxed(priv->io_base +
+					_REG(ENCI_VFIFO2VD_LINE_TOP_START));
+		de_v_end_even  = de_v_begin_even + mode->vdisplay;
+		de_v_begin_odd = readl_relaxed(priv->io_base +
+					_REG(ENCI_VFIFO2VD_LINE_BOT_START));
+		de_v_end_odd = de_v_begin_odd + mode->vdisplay;
+
+		writel_relaxed(de_v_begin_even,
+				priv->io_base + _REG(ENCI_DE_V_BEGIN_EVEN));
+		writel_relaxed(de_v_end_even,
+				priv->io_base + _REG(ENCI_DE_V_END_EVEN));
+		writel_relaxed(de_v_begin_odd,
+				priv->io_base + _REG(ENCI_DE_V_BEGIN_ODD));
+		writel_relaxed(de_v_end_odd,
+				priv->io_base + _REG(ENCI_DE_V_END_ODD));
+
+		/* Program Hsync timing */
+		hs_begin = de_h_end + front_porch_venc;
+		if (de_h_end + front_porch_venc >= total_pixels_venc) {
+			hs_begin -= total_pixels_venc;
+			vs_adjust  = 1;
+		} else {
+			hs_begin = de_h_end + front_porch_venc;
+			vs_adjust  = 0;
+		}
+
+		hs_end = modulo(hs_begin + hsync_pixels_venc,
+				total_pixels_venc);
+		writel_relaxed(hs_begin,
+				priv->io_base + _REG(ENCI_DVI_HSO_BEGIN));
+		writel_relaxed(hs_end,
+				priv->io_base + _REG(ENCI_DVI_HSO_END));
+
+		/* Program Vsync timing for even field */
+		if (((de_v_end_odd - 1) + eof_lines + vs_adjust) >= lines_f1) {
+			vs_bline_evn = (de_v_end_odd - 1)
+					+ eof_lines
+					+ vs_adjust
+					- lines_f1;
+			vs_eline_evn = vs_bline_evn + vsync_lines;
+
+			writel_relaxed(vs_bline_evn,
+				priv->io_base + _REG(ENCI_DVI_VSO_BLINE_EVN));
+			
+			writel_relaxed(vs_eline_evn,
+				priv->io_base + _REG(ENCI_DVI_VSO_ELINE_EVN));
+
+			writel_relaxed(hs_begin,
+				priv->io_base + _REG(ENCI_DVI_VSO_BEGIN_EVN));
+			writel_relaxed(hs_begin,
+				priv->io_base + _REG(ENCI_DVI_VSO_END_EVN));
+		} else {
+			vs_bline_odd = (de_v_end_odd - 1)
+					+ eof_lines
+					+ vs_adjust;
+
+			writel_relaxed(vs_bline_odd,
+				priv->io_base + _REG(ENCI_DVI_VSO_BLINE_ODD));
+
+			writel_relaxed(hs_begin,
+				priv->io_base + _REG(ENCI_DVI_VSO_BEGIN_ODD));
+
+			if ((vs_bline_odd + vsync_lines) >= lines_f1) {
+				vs_eline_evn = vs_bline_odd
+						+ vsync_lines
+						- lines_f1;
+
+				writel_relaxed(vs_eline_evn, priv->io_base
+						+ _REG(ENCI_DVI_VSO_ELINE_EVN));
+				
+				writel_relaxed(hs_begin, priv->io_base
+						+ _REG(ENCI_DVI_VSO_END_EVN));
+			} else {
+				vs_eline_odd = vs_bline_odd
+						+ vsync_lines;
+
+				writel_relaxed(vs_eline_odd, priv->io_base
+						+ _REG(ENCI_DVI_VSO_ELINE_ODD));
+
+				writel_relaxed(hs_begin, priv->io_base
+						+ _REG(ENCI_DVI_VSO_END_ODD));
+			}
+		}
+
+		/* Program Vsync timing for odd field */
+		if (((de_v_end_even - 1) + (eof_lines + 1)) >= lines_f0) {
+			vs_bline_odd = (de_v_end_even - 1)
+					+ (eof_lines + 1)
+					- lines_f0;
+			vs_eline_odd = vs_bline_odd + vsync_lines;
+
+			writel_relaxed(vs_bline_odd,
+				priv->io_base + _REG(ENCI_DVI_VSO_BLINE_ODD));
+			
+			writel_relaxed(vs_eline_odd,
+				priv->io_base + _REG(ENCI_DVI_VSO_ELINE_ODD));
+			
+			vso_begin_odd  = modulo(hs_begin
+						+ (total_pixels_venc >> 1),
+						total_pixels_venc);
+
+			writel_relaxed(vso_begin_odd,
+				priv->io_base + _REG(ENCI_DVI_VSO_BEGIN_ODD));
+			writel_relaxed(vso_begin_odd,
+				priv->io_base + _REG(ENCI_DVI_VSO_END_ODD));
+		} else {
+			vs_bline_evn = (de_v_end_even - 1)
+					+ (eof_lines + 1);
+
+			writel_relaxed(vs_bline_evn,
+				priv->io_base + _REG(ENCI_DVI_VSO_BLINE_EVN));
+
+			vso_begin_evn  = modulo(hs_begin
+						+ (total_pixels_venc >> 1),
+						total_pixels_venc);
+
+			writel_relaxed(vso_begin_evn, priv->io_base 
+					+ _REG(ENCI_DVI_VSO_BEGIN_EVN));
+
+			if (vs_bline_evn + vsync_lines >= lines_f0) {
+				vs_eline_odd = vs_bline_evn
+						+ vsync_lines
+						- lines_f0;
+
+				writel_relaxed(vs_eline_odd, priv->io_base
+						+ _REG(ENCI_DVI_VSO_ELINE_ODD));
+				
+				writel_relaxed(vso_begin_evn, priv->io_base
+						+ _REG(ENCI_DVI_VSO_END_ODD));
+			} else {
+				vs_eline_evn = vs_bline_evn + vsync_lines;
+
+				writel_relaxed(vs_eline_evn, priv->io_base
+						+ _REG(ENCI_DVI_VSO_ELINE_EVN));
+				
+				writel_relaxed(vso_begin_evn, priv->io_base
+						+ _REG(ENCI_DVI_VSO_END_EVN));
+			}
+		}
+	} else {
+		/* Set DE signal’s polarity is active high */
+		writel_bits_relaxed(BIT(14), BIT(14),
+				    priv->io_base + _REG(ENCP_VIDEO_MODE));
+
+		/* Program DE timing */
+		de_h_begin = modulo(readl_relaxed(priv->io_base +
+					_REG(ENCP_VIDEO_HAVON_BEGIN))
+					+ venc_hdmi_latency,
+				    total_pixels_venc);
+		de_h_end  = modulo(de_h_begin + active_pixels_venc,
+				   total_pixels_venc);
+
+		writel_relaxed(de_h_begin,
+				priv->io_base + _REG(ENCP_DE_H_BEGIN));
+		writel_relaxed(de_h_end,
+				priv->io_base + _REG(ENCP_DE_H_END));
+
+		/* Program DE timing for even field */
+		de_v_begin_even = readl_relaxed(priv->io_base
+						+ _REG(ENCP_VIDEO_VAVON_BLINE));
+		de_v_end_even  = de_v_begin_even + mode->vdisplay;
+
+		writel_relaxed(de_v_begin_even,
+				priv->io_base + _REG(ENCP_DE_V_BEGIN_EVEN));
+		writel_relaxed(de_v_end_even,
+				priv->io_base + _REG(ENCP_DE_V_END_EVEN));
+
+		/* Program DE timing for odd field if needed */
+		if (mode->flags & DRM_MODE_FLAG_INTERLACE) {
+			unsigned int ofld_voav_ofst =
+				readl_relaxed(priv->io_base +
+					_REG(ENCP_VIDEO_OFLD_VOAV_OFST));
+			de_v_begin_odd = to_signed((ofld_voav_ofst & 0xf0) >> 4)
+						+ de_v_begin_even
+						+ ((mode->vtotal - 1) / 2);
+			de_v_end_odd = de_v_begin_odd + mode->vdisplay;
+
+			writel_relaxed(de_v_begin_odd,
+				priv->io_base + _REG(ENCP_DE_V_BEGIN_ODD));
+			writel_relaxed(de_v_end_odd,
+				priv->io_base + _REG(ENCP_DE_V_END_ODD));
+		}
+
+		/* Program Hsync timing */
+		if ((de_h_end + front_porch_venc) >= total_pixels_venc) {
+			hs_begin = de_h_end
+				   + front_porch_venc
+				   - total_pixels_venc;
+			vs_adjust  = 1;
+		} else {
+			hs_begin = de_h_end
+				   + front_porch_venc;
+			vs_adjust  = 0;
+		}
+
+		hs_end = modulo(hs_begin + hsync_pixels_venc,
+				total_pixels_venc);
+
+		writel_relaxed(hs_begin,
+				priv->io_base + _REG(ENCP_DVI_HSO_BEGIN));
+		writel_relaxed(hs_end,
+				priv->io_base + _REG(ENCP_DVI_HSO_END));
+
+		/* Program Vsync timing for even field */
+		if (de_v_begin_even >=
+				(sof_lines + vsync_lines + (1 - vs_adjust)))
+			vs_bline_evn = de_v_begin_even
+					- sof_lines
+					- vsync_lines
+					- (1 - vs_adjust);
+		else
+			vs_bline_evn = mode->vtotal
+					+ de_v_begin_even
+					- sof_lines
+					- vsync_lines
+					- (1 - vs_adjust);
+
+		vs_eline_evn = modulo(vs_bline_evn + vsync_lines,
+					mode->vtotal);
+
+		writel_relaxed(vs_bline_evn,
+				priv->io_base + _REG(ENCP_DVI_VSO_BLINE_EVN));
+		writel_relaxed(vs_eline_evn,
+				priv->io_base + _REG(ENCP_DVI_VSO_ELINE_EVN));
+		
+		vso_begin_evn = hs_begin;
+		writel_relaxed(vso_begin_evn,
+				priv->io_base + _REG(ENCP_DVI_VSO_BEGIN_EVN));
+		writel_relaxed(vso_begin_evn,
+				priv->io_base + _REG(ENCP_DVI_VSO_END_EVN));
+
+		/* Program Vsync timing for odd field if needed */
+		if (mode->flags & DRM_MODE_FLAG_INTERLACE) {
+			vs_bline_odd = (de_v_begin_odd - 1)
+					- sof_lines
+					- vsync_lines;
+			vs_eline_odd = (de_v_begin_odd - 1)
+					- vsync_lines;
+			vso_begin_odd  = modulo(hs_begin
+						+ (total_pixels_venc >> 1),
+						total_pixels_venc);
+
+			writel_relaxed(vs_bline_odd,
+				priv->io_base + _REG(ENCP_DVI_VSO_BLINE_ODD));
+			writel_relaxed(vs_eline_odd,
+				priv->io_base + _REG(ENCP_DVI_VSO_ELINE_ODD));
+			writel_relaxed(vso_begin_odd,
+				priv->io_base + _REG(ENCP_DVI_VSO_BEGIN_ODD));
+			writel_relaxed(vso_begin_odd,
+				priv->io_base + _REG(ENCP_DVI_VSO_END_ODD));
+		}
+	}
+
+	writel_relaxed((use_enci ? 1 : 2) |
+		       (mode->flags & DRM_MODE_FLAG_PHSYNC ? 1 << 2 : 0) |
+		       (mode->flags & DRM_MODE_FLAG_PVSYNC ? 1 << 3 : 0) |
+		       4 << 5 |
+		       (venc_repeat ? 1 << 8 : 0) |
+		       (hdmi_repeat ? 1 << 12 : 0),
+		       priv->io_base + _REG(VPU_HDMI_SETTING));
+
+	priv->venc.hdmi_repeat = hdmi_repeat;
+	priv->venc.venc_repeat = venc_repeat;
+	priv->venc.hdmi_use_enci = use_enci;
+
+	priv->venc.current_mode = MESON_VENC_MODE_HDMI;
+}
+
 void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 			       struct meson_cvbs_enci_mode *mode)
 {
@@ -246,6 +627,10 @@ void meson_venc_init(struct meson_drm *priv)
 	writel_relaxed(0, priv->io_base + _REG(ENCI_VIDEO_EN));
 	writel_relaxed(0, priv->io_base + _REG(ENCP_VIDEO_EN));
 	writel_relaxed(0, priv->io_base + _REG(ENCL_VIDEO_EN));
+
+	/* Disable HDMI */
+	writel_bits_relaxed(0x3, 0,
+			    priv->io_base + _REG(VPU_HDMI_SETTING));
 
 	/* Disable VSync IRQ */
 	meson_venc_disable_vsync(priv);

@@ -30,6 +30,7 @@ enum {
 	MESON_VENC_MODE_NONE = 0,
 	MESON_VENC_MODE_CVBS_PAL,
 	MESON_VENC_MODE_CVBS_NTSC,
+	MESON_VENC_MODE_HDMI,
 };
 
 struct meson_cvbs_enci_mode {
@@ -62,6 +63,8 @@ extern struct meson_cvbs_enci_mode meson_cvbs_enci_ntsc;
 
 void meson_venci_cvbs_mode_set(struct meson_drm *priv,
 			       struct meson_cvbs_enci_mode *mode);
+void meson_venc_hdmi_mode_set(struct meson_drm *priv, int vic,
+			      struct drm_display_mode *mode);
 unsigned int meson_venci_get_field(struct meson_drm *priv);
 
 void meson_venc_enable_vsync(struct meson_drm *priv);
