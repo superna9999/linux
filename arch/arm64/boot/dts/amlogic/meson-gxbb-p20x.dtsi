@@ -290,13 +290,15 @@
 
 &cvbs_vdac_port {
 	cvbs_vdac_out: endpoint {
+	/*
 		remote-endpoint = <&cvbs_connector_in>;
+	*/
 	};
 };
 
 &hdmi_tx {
 	status = "okay";
-	hpd-gpios = <&gpio GPIOH_0>;
+	hpd-gpios = <&gpio GPIOH_0 0>;
 	ddc-i2c-bus = <&i2c_hdmi>;
 };
 

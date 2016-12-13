@@ -382,9 +382,9 @@
 			};
 		};
 
-		hdmi_tx: hdmi-tx@da83a000 {
+		hdmi_tx: hdmi-tx@c883a000 {
 			compatible = "amlogic,meson-gx-dw-hdmi";
-			reg = <0x0 0xda83a000 0x0 0x1c>;
+			reg = <0x0 0xc883a000 0x0 0x1c>;
 			interrupts = <GIC_SPI 54 IRQ_TYPE_EDGE_RISING>;
 			#address-cells = <1>;
 			#size-cells = <0>;
