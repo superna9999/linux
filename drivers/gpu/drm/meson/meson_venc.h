@@ -57,6 +57,12 @@ struct meson_cvbs_enci_mode {
 	unsigned int analog_sync_adj;
 };
 
+/* HDMI Clock parameters */
+bool meson_venc_hdmi_supported_vic(int vic);
+bool meson_venc_hdmi_use_enci(int vic);
+bool meson_venc_hdmi_venc_repeat(int vic);
+bool meson_venc_hdmi_hdmi_repeat(struct drm_display_mode *mode);
+
 /* CVBS Timings and Parameters */
 extern struct meson_cvbs_enci_mode meson_cvbs_enci_pal;
 extern struct meson_cvbs_enci_mode meson_cvbs_enci_ntsc;
