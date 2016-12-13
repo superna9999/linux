@@ -22,6 +22,7 @@
 #include <linux/component.h>
 #include <linux/of_graph.h>
 #include <linux/gpio/consumer.h>
+#include <linux/reset.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
@@ -56,11 +57,64 @@
 #define HDMITX_DWC_CTRL_REG		0x18
 
 /* DWC Registers */
+#define HDMITX_DWC_FC_AUDICONF0         0x1025
+#define HDMITX_DWC_FC_AUDICONF1         0x1026
+#define HDMITX_DWC_FC_AUDICONF2         0x1027
+#define HDMITX_DWC_FC_AUDICONF3         0x1028
+
+#define HDMITX_DWC_FC_AUDSCONF          0x1063
+#define HDMITX_DWC_FC_AUDSV             0x1065
+#define HDMITX_DWC_FC_AUDSU             0x1066
+#define HDMITX_DWC_FC_AUDSCHNLS0        0x1067
+#define HDMITX_DWC_FC_AUDSCHNLS1        0x1068
+#define HDMITX_DWC_FC_AUDSCHNLS2        0x1069
+#define HDMITX_DWC_FC_AUDSCHNLS3        0x106A
+#define HDMITX_DWC_FC_AUDSCHNLS4        0x106B
+#define HDMITX_DWC_FC_AUDSCHNLS5        0x106C
+#define HDMITX_DWC_FC_AUDSCHNLS6        0x106D
+#define HDMITX_DWC_FC_AUDSCHNLS7        0x106E
+#define HDMITX_DWC_FC_AUDSCHNLS8        0x106F
+#define HDMITX_DWC_FC_CTRLQHIGH         0x1073
+#define HDMITX_DWC_FC_CTRLQLOW          0x1074
+
+#define HDMITX_DWC_FC_DATAUTO0          0x10B3
+#define HDMITX_DWC_FC_DATAUTO1          0x10B4
+#define HDMITX_DWC_FC_DATAUTO2          0x10B5
+#define HDMITX_DWC_FC_DATMAN            0x10B6
+#define HDMITX_DWC_FC_DATAUTO3          0x10B7
+#define HDMITX_DWC_FC_RDRB0             0x10B8
+#define HDMITX_DWC_FC_RDRB1             0x10B9
+#define HDMITX_DWC_FC_RDRB2             0x10BA
+#define HDMITX_DWC_FC_RDRB3             0x10BB
+#define HDMITX_DWC_FC_RDRB4             0x10BC
+#define HDMITX_DWC_FC_RDRB5             0x10BD
+#define HDMITX_DWC_FC_RDRB6             0x10BE
+#define HDMITX_DWC_FC_RDRB7             0x10BF
+#define HDMITX_DWC_FC_RDRB8             0x10C0
+#define HDMITX_DWC_FC_RDRB9             0x10C1
+#define HDMITX_DWC_FC_RDRB10            0x10C2
+#define HDMITX_DWC_FC_RDRB11            0x10C3
+
+#define HDMITX_DWC_FC_MULTISTREAM_CTRL  0x10E2
+#define HDMITX_DWC_FC_PACKET_TX_EN      0x10E3
+
+#define HDMITX_DWC_AUD_CONF0            0x3100
+#define HDMITX_DWC_AUD_CONF1            0x3101
+#define HDMITX_DWC_AUD_INT              0x3102
+#define HDMITX_DWC_AUD_CONF2            0x3103
+#define HDMITX_DWC_AUD_INT1             0x3104
+#define HDMITX_DWC_AUD_SPDIFINT         0x3302
+#define HDMITX_DWC_AUD_SPDIFINT1        0x3303
+#define HDMITX_DWC_AUD_SPDIF0           0x3300
+#define HDMITX_DWC_AUD_SPDIF1           0x3301
+
+#define HDMITX_DWC_MC_CLKDIS            0x4001
 #define HDMITX_DWC_MC_LOCKONCLOCK	0x4006
 #define HDMITX_DWC_MC_FLOWCTRL		0x4004
 #define HDMITX_DWC_FC_SCRAMBLER_CTRL	0x10E1
 
 /* HHI Registers */
+#define HHI_MEM_PD_REG0		0x100 /* 0x40 */
 #define HHI_GCLK_MPEG2 		0x148 /* 0x52 */
 #define HHI_GCLK_OTHER		0x150 /* 0x54 */
 #define HHI_HDMI_CLK_CNTL	0x1cc /* 0x73 */
@@ -84,6 +138,7 @@ struct meson_dw_hdmi {
 	struct device *dev;
 	void __iomem *hdmitx;
 	struct gpio_desc *hpd;
+	struct reset_control *hdmitx_apb, *hdmitx_ctrl, *hdmitx_phy;	
 };
 #define encoder_to_meson_dw_hdmi(x) \
 	container_of(x, struct meson_dw_hdmi, encoder)
@@ -256,7 +311,34 @@ static inline void dw_hdmi_phy_reset(struct meson_dw_hdmi *dw_hdmi)
 static void dw_hdmi_set_vclk(struct meson_dw_hdmi *dw_hdmi,
 			     struct drm_display_mode *mode)
 {
-	/* TODO */
+	struct meson_drm *priv = dw_hdmi->priv;
+	int vic = drm_match_cea_mode(mode);
+	unsigned vclk_freq;
+	unsigned venc_freq;
+	unsigned hdmi_freq;
+
+	vclk_freq = mode->clock;
+
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+		vclk_freq *= 2;
+
+	venc_freq = vclk_freq;
+	hdmi_freq = vclk_freq;
+
+	if (meson_venc_hdmi_venc_repeat(vic))
+		venc_freq *= 2;
+
+	vclk_freq = max(venc_freq, hdmi_freq);
+
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+		venc_freq /= 2;
+
+	pr_info("%s: vclk:%d venc=%d hdmi=%d enci=%d\n",
+		__func__, vclk_freq, venc_freq, hdmi_freq,
+		priv->venc.hdmi_use_enci);
+	
+	meson_vclk_setup(priv, MESON_VCLK_TARGET_HDMI, vclk_freq,
+			 venc_freq, hdmi_freq, priv->venc.hdmi_use_enci);
 }
 
 static int dw_hdmi_phy_init(const struct dw_hdmi_plat_data *data,
@@ -264,22 +346,16 @@ static int dw_hdmi_phy_init(const struct dw_hdmi_plat_data *data,
 {
 	struct meson_dw_hdmi *dw_hdmi = plat_data_to_meson_dw_hdmi(data);
 	struct meson_drm *priv = dw_hdmi->priv;
+	unsigned int wr_clk;
 
-	/* Configure Color Space Converter */
-	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_MC_FLOWCTRL, !!cscon);
+	pr_info("%s:%d\n", __func__, __LINE__);
 
-	/* clk40 */
-	/* TOFIX clk40 for 4k2k */
-	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_01, 0);
-	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_23, 0x03ff03ff);
-	dw_hdmi_top_write_bits(dw_hdmi, HDMITX_DWC_FC_SCRAMBLER_CTRL,
-				BIT(0), 0);
-	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_CNTL, 0x1);
-	msleep(20);
-	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_CNTL, 0x2);
+	/* Enable clocks */
+	regmap_update_bits(priv->hhi, HHI_HDMI_CLK_CNTL, 0xffff, 0x100);
+	regmap_update_bits(priv->hhi, HHI_GCLK_MPEG2, BIT(4), BIT(4));
 
-	/* VCLK Set clock */
-	dw_hdmi_set_vclk(dw_hdmi, mode);
+	/* Bring HDMITX MEM output of power down */
+	regmap_update_bits(priv->hhi, HHI_MEM_PD_REG0, 0xff << 8, 0);
 
 	/* Bring out of reset */
 	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_SW_RESET,  0);
@@ -292,13 +368,81 @@ static int dw_hdmi_phy_init(const struct dw_hdmi_plat_data *data,
 
 	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_MC_LOCKONCLOCK, 0xff);
 
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_MC_CLKDIS, 0);
+
 	/* Enable normal output to PHY */
 	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_BIST_CNTL, BIT(12));
 
+	/* Configure Color Space Converter */
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_MC_FLOWCTRL, !!cscon);
+
+	/* Configure Audio */
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_INT, BIT(2) | BIT(3));
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_INT1, BIT(4));
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_MULTISTREAM_CTRL, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_CONF0, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_CONF1, 24);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_CONF2, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_SPDIFINT, BIT(2) | BIT(3));
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_SPDIFINT1, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_SPDIF0, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_AUD_SPDIF1, 24);
+
+	/* write Audio Infoframe packet configuration */
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDICONF0, BIT(4));
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDICONF1, 3 << 4);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDICONF2, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDICONF3, BIT(5));
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCONF, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSV, BIT(0) | BIT(4));
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSU, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS0, 0x01);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS1, 0x23);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS2, 0x45);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS3, 0x67);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS4, 0x89);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS5, 0xab);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS6, 0xcd);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS7, 0x2f);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_AUDSCHNLS8, 0xf0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_CTRLQHIGH, 15);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_CTRLQLOW, 3);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_DATAUTO0, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_DATAUTO1, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_DATAUTO2, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_DATMAN, 0);
+	/* No HDR */
+	dw_hdmi_dwc_write_bits(dw_hdmi, HDMITX_DWC_FC_DATAUTO3, 0x3f, 0xe);
+	dw_hdmi_dwc_write_bits(dw_hdmi, HDMITX_DWC_FC_PACKET_TX_EN, BIT(7), 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB0, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB1, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB2, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB3, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB4, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB5, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB6, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB7, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB8, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB9, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB10, 0);
+	dw_hdmi_dwc_write(dw_hdmi, HDMITX_DWC_FC_RDRB11, 0);
+	dw_hdmi_dwc_write_bits(dw_hdmi, HDMITX_DWC_FC_PACKET_TX_EN, BIT(1), BIT(1));
+	dw_hdmi_dwc_write_bits(dw_hdmi, HDMITX_DWC_FC_PACKET_TX_EN, BIT(2), BIT(2));
+
+	/* clk40 */
+	/* TOFIX clk40 for 4k2k */
+	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_01, 0);
+	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_23, 0x03ff03ff);
+	dw_hdmi_top_write_bits(dw_hdmi, HDMITX_DWC_FC_SCRAMBLER_CTRL,
+				BIT(0), 0);
+	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_CNTL, 0x1);
+	msleep(20);
+	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_TMDS_CLK_PTTN_CNTL, 0x2);
+
 	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_INTR_STAT_CLR, 0x1f);
 
-	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_INTR_MASKN,
-			  BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4));
+	dw_hdmi_top_write(dw_hdmi, HDMITX_TOP_INTR_MASKN, 0);
+	//BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4));
 
 	/* Setup PHY parameters */
 	meson_hdmi_phy_setup_mode(dw_hdmi, mode);
@@ -324,6 +468,35 @@ static int dw_hdmi_phy_init(const struct dw_hdmi_plat_data *data,
 	dw_hdmi_phy_reset(dw_hdmi);
 	dw_hdmi_phy_reset(dw_hdmi);
 	dw_hdmi_phy_reset(dw_hdmi);
+
+	wr_clk = readl_relaxed(priv->io_base + _REG(VPU_HDMI_SETTING));
+
+	/* VPU Bridge Reset */
+	if (priv->venc.hdmi_use_enci)
+		writel_relaxed(0, priv->io_base + _REG(ENCI_VIDEO_EN));
+	else
+		writel_relaxed(0, priv->io_base + _REG(ENCP_VIDEO_EN));
+
+	writel_bits_relaxed(0x3, 0,
+			    priv->io_base + _REG(VPU_HDMI_SETTING));
+	writel_bits_relaxed(0xf << 8, 0,
+			    priv->io_base + _REG(VPU_HDMI_SETTING));
+	
+	if (priv->venc.hdmi_use_enci)
+		writel_relaxed(1, priv->io_base + _REG(ENCI_VIDEO_EN));
+	else
+		writel_relaxed(1, priv->io_base + _REG(ENCP_VIDEO_EN));
+	
+	writel_bits_relaxed(0xf << 8, wr_clk & (0xf << 8),
+			    priv->io_base + _REG(VPU_HDMI_SETTING));
+
+
+	if (priv->venc.hdmi_use_enci)
+		writel_bits_relaxed(0x3, MESON_VENC_SOURCE_ENCI,
+				    priv->io_base + _REG(VPU_HDMI_SETTING));
+	else
+		writel_bits_relaxed(0x3, MESON_VENC_SOURCE_ENCP,
+				    priv->io_base + _REG(VPU_HDMI_SETTING));
 
 	return 0;
 }
@@ -357,13 +530,56 @@ static bool dw_hdmi_read_hpd(const struct dw_hdmi_plat_data *data)
 static enum drm_mode_status dw_hdmi_mode_valid(struct drm_connector *connector,
 					       struct drm_display_mode *mode)
 {
+	unsigned vclk_freq;
+	unsigned venc_freq;
+	unsigned hdmi_freq;
+	int vic = drm_match_cea_mode(mode);
+
 	pr_info("%s:%d\n", __func__, __LINE__);
 
-	/* For now, only accept VIC modes */
-	if (drm_match_cea_mode(mode))
-		return MODE_OK;
+	pr_info("Modeline %d:\"%s\" %d %d %d %d %d %d %d %d %d %d 0x%x 0x%x\n",
+		mode->base.id, mode->name, mode->vrefresh, mode->clock,
+		mode->hdisplay, mode->hsync_start,
+		mode->hsync_end, mode->htotal,
+		mode->vdisplay, mode->vsync_start,
+		mode->vsync_end, mode->vtotal, mode->type, mode->flags);
 
-	return MODE_BAD;
+	/* For now, only accept VIC modes */
+	if (!vic)
+		return MODE_BAD;
+
+	/* For now, filter by supported VIC modes */
+	if (!meson_venc_hdmi_supported_vic(vic))
+		return MODE_BAD;
+
+	vclk_freq = mode->clock;
+
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+		vclk_freq *= 2;
+
+	venc_freq = vclk_freq;
+	hdmi_freq = vclk_freq;
+
+	if (meson_venc_hdmi_venc_repeat(vic))
+		venc_freq *= 2;
+
+	vclk_freq = max(venc_freq, hdmi_freq);
+
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+		venc_freq /= 2;
+
+	pr_info("%s: vclk:%d venc=%d hdmi=%d\n", __func__, vclk_freq, venc_freq, hdmi_freq);
+
+	switch (vclk_freq) {
+		case 54000:
+		case 74250:
+		case 148500:
+		case 297000:
+		case 594000:
+			return MODE_OK;
+	}
+
+	return MODE_CLOCK_RANGE;
 }
 
 /* Encoder */
@@ -381,8 +597,6 @@ static int meson_venc_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 					struct drm_crtc_state *crtc_state,
 					struct drm_connector_state *conn_state)
 {
-	/* TODO */
-
 	pr_info("%s:%d\n", __func__, __LINE__);
 
 	return 0;
@@ -406,11 +620,12 @@ static void meson_venc_hdmi_encoder_enable(struct drm_encoder *encoder)
 {
 	struct meson_dw_hdmi *dw_hdmi = encoder_to_meson_dw_hdmi(encoder);
 	struct meson_drm *priv = dw_hdmi->priv;
-	unsigned int wr_clk =
-		readl_relaxed(priv->io_base + _REG(VPU_HDMI_SETTING));
+	/*unsigned int wr_clk =
+		readl_relaxed(priv->io_base + _REG(VPU_HDMI_SETTING));*/
 
 	pr_info("%s:%d\n", __func__, __LINE__);
-	
+
+#if 0
 	if (priv->venc.hdmi_use_enci)
 		writel_relaxed(0, priv->io_base + _REG(ENCI_VIDEO_EN));
 	else
@@ -436,6 +651,7 @@ static void meson_venc_hdmi_encoder_enable(struct drm_encoder *encoder)
 	else
 		writel_bits_relaxed(0x3, MESON_VENC_SOURCE_ENCP,
 				    priv->io_base + _REG(VPU_HDMI_SETTING));
+#endif
 }
 
 static void meson_venc_hdmi_encoder_mode_set(struct drm_encoder *encoder,
@@ -446,13 +662,17 @@ static void meson_venc_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	struct meson_drm *priv = dw_hdmi->priv;
 	int vic = drm_match_cea_mode(mode);
 
-	pr_info("%s: '%s' vic=%x\n", __func__, mode->name, vic);
+	pr_info("%s: '%s' vic=%d\n", __func__, mode->name, vic);
 
 	/* Should have been filtered */
 	if (!vic)
 		return;
 
+	/* VENC + VENC-DVI Mode setup */
 	meson_venc_hdmi_mode_set(priv, vic, mode);
+
+	/* VCLK Set clock */
+	dw_hdmi_set_vclk(dw_hdmi, mode);
 }
 
 static const struct drm_encoder_helper_funcs
@@ -529,34 +749,63 @@ static int meson_dw_hdmi_bind(struct device *dev, struct device *master,
 	struct drm_encoder *encoder;
 	struct resource *res;
 	int ret;
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	if (!meson_hdmi_connector_is_available(dev)) {
 		dev_info(drm->dev, "HDMI Output connector not available\n");
 		return -ENODEV;
 	}
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	meson_dw_hdmi = devm_kzalloc(dev, sizeof(*meson_dw_hdmi),
 				     GFP_KERNEL);
 	if (!meson_dw_hdmi)
 		return -ENOMEM;
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	meson_dw_hdmi->priv = priv;
+	meson_dw_hdmi->dev = dev;
 	dw_plat_data = &meson_dw_hdmi->dw_plat_data;
 	encoder = &meson_dw_hdmi->encoder;
+	pr_info("%s:%d\n", __func__, __LINE__);
+
+	meson_dw_hdmi->hdmitx_apb = devm_reset_control_get_exclusive(dev,
+						"hdmitx_apb");
+	if (IS_ERR(meson_dw_hdmi->hdmitx_apb)) {
+		dev_err(dev, "Failed to get hdmitx_apb reset\n");
+		return PTR_ERR(meson_dw_hdmi->hdmitx_apb);
+	}
+
+	meson_dw_hdmi->hdmitx = devm_reset_control_get_exclusive(dev,
+						"hdmitx");
+	if (IS_ERR(meson_dw_hdmi->hdmitx)) {
+		dev_err(dev, "Failed to get hdmitx reset\n");
+		return PTR_ERR(meson_dw_hdmi->hdmitx);
+	}
+
+	meson_dw_hdmi->hdmitx_phy = devm_reset_control_get_exclusive(dev,
+						"hdmitx_phy");
+	if (IS_ERR(meson_dw_hdmi->hdmitx_phy)) {
+		dev_err(dev, "Failed to get hdmitx_phy reset\n");
+		return PTR_ERR(meson_dw_hdmi->hdmitx_phy);
+	}
 
 	meson_dw_hdmi->hpd = devm_gpiod_get(dev, "hpd", GPIOD_IN);
 	if (IS_ERR(meson_dw_hdmi->hpd))
 		return PTR_ERR(meson_dw_hdmi->hpd);
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	meson_dw_hdmi->hdmitx = devm_ioremap_resource(dev, res);
 	if (IS_ERR(meson_dw_hdmi->hdmitx))
 		return PTR_ERR(meson_dw_hdmi->hdmitx);
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	dw_plat_data->regm = devm_regmap_init(dev, NULL, meson_dw_hdmi,
 					      &meson_dw_hdmi_regmap_config);
 	if (IS_ERR(dw_plat_data->regm))
 		return PTR_ERR(dw_plat_data->regm);
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	/* Encoder */
 
@@ -570,24 +819,20 @@ static int meson_dw_hdmi_bind(struct device *dev, struct device *master,
 	}
 
 	encoder->possible_crtcs = BIT(0);
-
-	/* Bridge / Connector */
-
-	dw_plat_data->dev_type = MESON_GX_HDMI;
-	dw_plat_data->mode_valid = dw_hdmi_mode_valid;
-	dw_plat_data->hdmi_phy_init = dw_hdmi_phy_init;
-	dw_plat_data->hdmi_phy_disable = dw_hdmi_phy_disable;
-	dw_plat_data->hdmi_read_hpd = dw_hdmi_read_hpd;
-
-	ret = dw_hdmi_bind(dev, master, data, encoder,
-			   NULL, -1, &meson_dw_hdmi->dw_plat_data);
-	if (ret)
-		return ret;
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	/* Enable clocks */
 	regmap_update_bits(priv->hhi, HHI_HDMI_CLK_CNTL, 0xffff, 0x100);
 	regmap_update_bits(priv->hhi, HHI_GCLK_MPEG2, BIT(4), BIT(4));
 	regmap_update_bits(priv->hhi, HHI_GCLK_OTHER, BIT(17), BIT(17));
+
+	/* Bring HDMITX MEM output of power down */
+	regmap_update_bits(priv->hhi, HHI_MEM_PD_REG0, 0xff << 8, 0);
+
+	/* Reset HDMITX APB & TX & PHY */
+	reset_control_reset(meson_dw_hdmi->hdmitx_apb);
+	reset_control_reset(meson_dw_hdmi->hdmitx_ctrl);
+	reset_control_reset(meson_dw_hdmi->hdmitx_phy);
 
 	/* Enable APB3 fail on error */
 	writel_bits_relaxed(BIT(15), BIT(15),
@@ -600,14 +845,24 @@ static int meson_dw_hdmi_bind(struct device *dev, struct device *master,
 
 	msleep(1);
 	
-	dw_hdmi_top_write_bits(meson_dw_hdmi, HDMITX_TOP_CLK_CNTL,
-			       0x3, 0x3);
-	dw_hdmi_top_write_bits(meson_dw_hdmi, HDMITX_TOP_CLK_CNTL,
-			       0x3 << 4, 0x3 << 4);
+	dw_hdmi_top_write(meson_dw_hdmi, HDMITX_TOP_CLK_CNTL, 0xff);
 
 	dw_hdmi_dwc_write(meson_dw_hdmi, HDMITX_DWC_MC_LOCKONCLOCK, 0xff);
+	dw_hdmi_dwc_write(meson_dw_hdmi, HDMITX_DWC_MC_CLKDIS, 0x00);
 
-	dw_hdmi_top_write(meson_dw_hdmi, HDMITX_TOP_INTR_MASKN, 0x1f);
+	/* Bridge / Connector */
+
+	dw_plat_data->dev_type = MESON_GX_HDMI;
+	dw_plat_data->mode_valid = dw_hdmi_mode_valid;
+	dw_plat_data->hdmi_phy_init = dw_hdmi_phy_init;
+	dw_plat_data->hdmi_phy_disable = dw_hdmi_phy_disable;
+	dw_plat_data->hdmi_read_hpd = dw_hdmi_read_hpd;
+	pr_info("%s:%d\n", __func__, __LINE__);
+
+	ret = dw_hdmi_bind(dev, master, data, encoder,
+			   NULL, -1, &meson_dw_hdmi->dw_plat_data);
+	if (ret)
+		return ret;
 
 	return 0;
 }
