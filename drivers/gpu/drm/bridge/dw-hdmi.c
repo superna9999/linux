@@ -844,17 +844,6 @@ static int dw_hdmi_phy_init(struct dw_hdmi *hdmi)
 	/*check csc whether needed activated in HDMI mode */
 	cscon = hdmi->sink_is_hdmi && is_color_space_conversion(hdmi);
 
-	/* Run platform specific HDMI PHY init if necessary */
-	if (hdmi->plat_data && hdmi->plat_data->hdmi_phy_init) {
-		ret = hdmi->plat_data->hdmi_phy_init(hdmi->plat_data,
-						     &hdmi->previous_mode,
-						     cscon);
-		if (ret)
-			return ret;
-
-		goto phy_init_out;
-	}
-
 	/* HDMI Phy spec says to do the phy initialization sequence twice */
 	for (i = 0; i < 2; i++) {
 		dw_hdmi_phy_sel_data_en_pol(hdmi, 1);
@@ -868,7 +857,6 @@ static int dw_hdmi_phy_init(struct dw_hdmi *hdmi)
 			return ret;
 	}
 
-phy_init_out:
 	hdmi->phy_enabled = true;
 	return 0;
 }
@@ -1148,6 +1136,13 @@ static void dw_hdmi_clear_overflow(struct dw_hdmi *hdmi)
 	hdmi_writeb(hdmi, (u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ, HDMI_MC_SWRSTZ);
 
 	val = hdmi_readb(hdmi, HDMI_FC_INVIDCONF);
+	if (hdmi->dev_type == MESON_GX_HDMI) {
+		hdmi_writeb(hdmi, val & ~HDMI_FC_INVIDCONF_DVI_MODEZ_HDMI_MODE,
+			    HDMI_FC_INVIDCONF);
+		udelay(1000);	
+		hdmi_writeb(hdmi, val, HDMI_FC_INVIDCONF);
+		return;
+	}
 	if (hdmi->dev_type == IMX6DL_HDMI) {
 		hdmi_writeb(hdmi, val, HDMI_FC_INVIDCONF);
 		return;
@@ -1191,8 +1186,13 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	else
 		hdmi->hdmi_data.colorimetry = HDMI_COLORIMETRY_ITU_709;
 
-	hdmi->hdmi_data.video_mode.mpixelrepetitionoutput = 0;
-	hdmi->hdmi_data.video_mode.mpixelrepetitioninput = 0;
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK) {
+		hdmi->hdmi_data.video_mode.mpixelrepetitionoutput = 1;
+		hdmi->hdmi_data.video_mode.mpixelrepetitioninput = 1;
+	} else {
+		hdmi->hdmi_data.video_mode.mpixelrepetitionoutput = 0;
+		hdmi->hdmi_data.video_mode.mpixelrepetitioninput = 0;
+	}
 
 	/* TODO: Get input format from IPU (via FB driver interface) */
 	if (hdmi->dev_type == MESON_GX_HDMI)
@@ -1211,9 +1211,11 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	hdmi_av_composer(hdmi, mode);
 
 	/* HDMI Initializateion Step B.2 */
-	ret = dw_hdmi_phy_init(hdmi);
-	if (ret)
-		return ret;
+	if (hdmi->dev_type != MESON_GX_HDMI) {
+		ret = dw_hdmi_phy_init(hdmi);
+		if (ret)
+			return ret;
+	}
 
 	/* HDMI Initialization Step B.3 */
 	dw_hdmi_enable_video_path(hdmi);
@@ -1240,6 +1242,22 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	hdmi_video_csc(hdmi);
 	hdmi_video_sample(hdmi);
 	hdmi_tx_hdcp_config(hdmi);
+
+	if (hdmi->dev_type == MESON_GX_HDMI) {
+		bool cscon = hdmi->sink_is_hdmi &&
+			     is_color_space_conversion(hdmi);
+
+		if (hdmi->plat_data->hdmi_phy_init)
+			ret = hdmi->plat_data->hdmi_phy_init(hdmi->plat_data,
+						     &hdmi->previous_mode,
+						     cscon);
+		else
+			ret = -EINVAL;
+		if (ret)
+			return ret;
+
+		hdmi->phy_enabled = true;
+	}
 
 	dw_hdmi_clear_overflow(hdmi);
 	if (hdmi->cable_plugin && hdmi->sink_is_hdmi)
@@ -1477,7 +1495,8 @@ dw_hdmi_connector_mode_valid(struct drm_connector *connector,
 	enum drm_mode_status mode_status = MODE_OK;
 
 	/* We don't support double-clocked modes */
-	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+	if (hdmi->dev_type != MESON_GX_HDMI &&
+	    mode->flags & DRM_MODE_FLAG_DBLCLK)
 		return MODE_BAD;
 
 	if (hdmi->plat_data->mode_valid)
