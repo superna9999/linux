@@ -249,12 +249,21 @@ static int meson_drv_bind(struct device *dev)
 
 	drm_vblank_init(drm, 1);
 	drm_mode_config_init(drm);
+	drm->mode_config.max_width = 3840;
+	drm->mode_config.max_height = 2160;
+	drm->mode_config.funcs = &meson_mode_config_funcs;
 
 	/* Encoder Initialization */
 
 	ret = meson_venc_cvbs_create(priv);
 	if (ret)
 		goto free_drm;
+
+	ret = component_bind_all(drm->dev, drm);
+	if (ret) {
+		dev_err(drm->dev, "Couldn't bind all components\n");
+		goto free_drm;
+	}
 
 	/* Hardware Initialization */
 
@@ -275,9 +284,6 @@ static int meson_drv_bind(struct device *dev)
 		goto free_drm;
 
 	drm_mode_config_reset(drm);
-	drm->mode_config.max_width = 8192;
-	drm->mode_config.max_height = 8192;
-	drm->mode_config.funcs = &meson_mode_config_funcs;
 
 	priv->fbdev = drm_fbdev_cma_init(drm, 32,
 					 drm->mode_config.num_crtc,
@@ -346,7 +352,7 @@ static int meson_probe_remote(struct platform_device *pdev,
 			      struct device_node *remote)
 {
 	struct device_node *ep, *remote_node;
-	int count = 0;
+	int count = 1;
 
 	/* If node is a connector, return and do not add to match table */
 	if (of_device_compatible_match(remote, connectors_match))
@@ -357,7 +363,7 @@ static int meson_probe_remote(struct platform_device *pdev,
 	for_each_endpoint_of_node(remote, ep) {
 		remote_node = of_graph_get_remote_port_parent(ep);
 		if (!remote_node ||
-		    remote_node == remote || /* Ignore parent endpoint */
+		    remote_node == parent || /* Ignore parent endpoint */
 		    !of_device_is_available(remote_node))
 			continue;
 
