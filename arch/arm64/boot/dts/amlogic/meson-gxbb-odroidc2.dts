@@ -137,6 +137,22 @@
 	};
 };
 
+&cpu0 {
+	arm,scpi-dvfs-max-freq = <1536000000>;
+};
+
+&cpu1 {
+	arm,scpi-dvfs-max-freq = <1536000000>;
+};
+
+&cpu2 {
+	arm,scpi-dvfs-max-freq = <1536000000>;
+};
+
+&cpu3 {
+	arm,scpi-dvfs-max-freq = <1536000000>;
+};
+
 &uart_AO {
 	status = "okay";
 	pinctrl-0 = <&uart_ao_a_pins>;
