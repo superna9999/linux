@@ -276,6 +276,14 @@ nodes to be present and contain the properties described below.
 
 			    where voltage is in uV, frequency is in MHz.
 
+	- arm,scpi-dvfs-max-freq
+		Usage: optional
+		Value type: <u32>
+		Definition:
+			Specifies the maximum DVFS frequency in Hz unit this
+			CPU can support when the OPP tables are obtained via
+			the SCP interface.
+
 Example 1 (dual-cluster big.LITTLE system 32-bit):
 
 	cpus {
