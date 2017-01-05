@@ -25,6 +25,7 @@
 #include <linux/pm_opp.h>
 #include <linux/scpi_protocol.h>
 #include <linux/types.h>
+#include <linux/of.h>
 
 #include "arm_big_little.h"
 
@@ -54,6 +55,11 @@ static int scpi_init_opp_table(const struct cpumask *cpumask)
 	struct scpi_opp *opp;
 	struct device *cpu_dev = get_cpu_device(cpumask_first(cpumask));
 	struct scpi_dvfs_info *info = scpi_get_dvfs_info(cpu_dev);
+	u32 max_freq = 0;
+
+	/* Eventually get a platform frequency limitation */
+	of_property_read_u32(cpu_dev->of_node, "arm,scpi-dvfs-max-freq",
+			     &max_freq);
 
 	if (IS_ERR(info))
 		return PTR_ERR(info);
@@ -62,6 +68,10 @@ static int scpi_init_opp_table(const struct cpumask *cpumask)
 		return -EIO;
 
 	for (opp = info->opps, idx = 0; idx < info->count; idx++, opp++) {
+		/* Drop unsupported frequencies */
+		if (max_freq && opp->freq > max_freq)
+			continue;
+
 		ret = dev_pm_opp_add(cpu_dev, opp->freq, opp->m_volt * 1000);
 		if (ret) {
 			dev_warn(cpu_dev, "failed to add opp %uHz %umV\n",
