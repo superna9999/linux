@@ -548,7 +548,8 @@ static void meson_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	writel(0, host->regs + SD_EMMC_START);
 
 	/* clear, ack, enable all interrupts */
-	writel(0, host->regs + SD_EMMC_IRQ_EN);
+	writel(readl(host->regs + SD_EMMC_IRQ_EN) & ~IRQ_EN_MASK,
+		host->regs + SD_EMMC_IRQ_EN);
 	writel(IRQ_EN_MASK, host->regs + SD_EMMC_STATUS);
 	writel(IRQ_EN_MASK, host->regs + SD_EMMC_IRQ_EN);
 
@@ -587,14 +588,6 @@ static irqreturn_t meson_mmc_irq(int irq, void *dev_id)
 	if (WARN_ON(!host))
 		return IRQ_NONE;
 
-	mrq = host->mrq;
-
-	if (WARN_ON(!mrq))
-		return IRQ_NONE;
-
-	if (WARN_ON(!cmd))
-		return IRQ_NONE;
-
 	spin_lock(&host->lock);
 	irq_en = readl(host->regs + SD_EMMC_IRQ_EN);
 	raw_status = readl(host->regs + SD_EMMC_STATUS);
@@ -606,6 +599,17 @@ static irqreturn_t meson_mmc_irq(int irq, void *dev_id)
 		ret = IRQ_NONE;
 		goto out;
 	}
+
+	if (status & IRQ_SDIO)
+		dev_dbg(host->dev, "Unhandled IRQ: SDIO.\n");
+
+	mrq = host->mrq;
+
+	if (WARN_ON(!mrq))
+		return IRQ_NONE;
+
+	if (WARN_ON(!cmd))
+		return IRQ_NONE;
 
 	cmd->error = 0;
 	if (status & IRQ_RXD_ERR_MASK) {
@@ -630,8 +634,6 @@ static irqreturn_t meson_mmc_irq(int irq, void *dev_id)
 		dev_dbg(host->dev, "Unhandled IRQ: Descriptor timeout\n");
 		cmd->error = -ETIMEDOUT;
 	}
-	if (status & IRQ_SDIO)
-		dev_dbg(host->dev, "Unhandled IRQ: SDIO.\n");
 
 	if (status & (IRQ_END_OF_CHAIN | IRQ_RESP_STATUS))
 		ret = IRQ_WAKE_THREAD;
