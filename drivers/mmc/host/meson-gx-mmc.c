@@ -80,9 +80,11 @@
 #define   CFG_RESP_TIMEOUT_MASK 0xf
 #define   CFG_RC_CC_SHIFT 12
 #define   CFG_RC_CC_MASK 0xf
+#define   CFG_SDIO_IRQ_BLK_GAP BIT(17)
 #define   CFG_STOP_CLOCK BIT(22)
 #define   CFG_CLK_ALWAYS_ON BIT(18)
 #define   CFG_AUTO_CLK BIT(23)
+#define   CFG_SDIO_IRQ_DS BIT(26)
 
 #define SD_EMMC_STATUS 0x48
 #define   STATUS_BUSY BIT(31)
