@@ -143,6 +143,8 @@ struct meson_host {
 	dma_addr_t bounce_dma_addr;
 
 	bool vqmmc_enabled;
+
+	bool sdio_irq_en;
 };
 
 struct sd_emmc_desc {
@@ -430,6 +432,11 @@ static int meson_mmc_request_done(struct mmc_host *mmc, struct mmc_request *mrq)
 	host->cmd = NULL;
 	mmc_request_done(host->mmc, mrq);
 
+	if (host->sdio_irq_en) {
+		writel(IRQ_SDIO, host->regs + SD_EMMC_STATUS);
+		writel(IRQ_SDIO, host->regs + SD_EMMC_IRQ_EN);
+	}	
+
 	return 0;
 }
 
@@ -548,8 +555,7 @@ static void meson_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	writel(0, host->regs + SD_EMMC_START);
 
 	/* clear, ack, enable all interrupts */
-	writel(readl(host->regs + SD_EMMC_IRQ_EN) & ~IRQ_EN_MASK,
-		host->regs + SD_EMMC_IRQ_EN);
+	writel(0, host->regs + SD_EMMC_IRQ_EN);
 	writel(IRQ_EN_MASK, host->regs + SD_EMMC_STATUS);
 	writel(IRQ_EN_MASK, host->regs + SD_EMMC_IRQ_EN);
 
@@ -600,8 +606,15 @@ static irqreturn_t meson_mmc_irq(int irq, void *dev_id)
 		goto out;
 	}
 
-	if (status & IRQ_SDIO)
-		dev_dbg(host->dev, "Unhandled IRQ: SDIO.\n");
+	if (status & IRQ_SDIO) {
+		writel(IRQ_SDIO, host->regs + SD_EMMC_STATUS);
+
+		mmc_signal_sdio_irq(host->mmc);
+
+		spin_unlock(&host->lock);
+
+		return IRQ_HANDLED;
+	}
 
 	mrq = host->mrq;
 
@@ -713,10 +726,34 @@ static int meson_mmc_get_cd(struct mmc_host *mmc)
 	return status;
 }
 
+static void meson_mmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
+{
+	struct meson_host *host = mmc_priv(mmc);
+	u32 irq_en;
+
+	spin_lock(&host->lock);
+
+	irq_en = readl(host->regs + SD_EMMC_IRQ_EN);
+
+	if (enable)
+		irq_en |= IRQ_SDIO;
+	else
+		irq_en &= ~IRQ_SDIO;
+
+	writel(IRQ_SDIO, host->regs + SD_EMMC_STATUS);
+
+	writel(irq_en, host->regs + SD_EMMC_IRQ_EN);
+
+	host->sdio_irq_en = enable;
+
+	spin_unlock(&host->lock);
+}
+
 static const struct mmc_host_ops meson_mmc_ops = {
 	.request	= meson_mmc_request,
 	.set_ios	= meson_mmc_set_ios,
 	.get_cd         = meson_mmc_get_cd,
+	.enable_sdio_irq = meson_mmc_enable_sdio_irq,
 };
 
 static int meson_mmc_probe(struct platform_device *pdev)
