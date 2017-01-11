@@ -281,9 +281,19 @@ static int xhci_plat_probe(struct platform_device *pdev)
 			goto put_usb3_hcd;
 	}
 
-	ret = usb_add_hcd(hcd, irq, IRQF_SHARED);
+	xhci->platform_roothub = platform_roothub_init(sysdev);
+	if (IS_ERR(xhci->platform_roothub)) {
+		ret = PTR_ERR(xhci->platform_roothub);
+		goto disable_clk;
+	}
+
+	ret = platform_roothub_power_on(xhci->platform_roothub);
 	if (ret)
 		goto disable_usb_phy;
+
+	ret = usb_add_hcd(hcd, irq, IRQF_SHARED);
+	if (ret)
+		goto disable_platform_roothub;
 
 	if (HCC_MAX_PSA(xhci->hcc_params) >= 4)
 		xhci->shared_hcd->can_do_streams = 1;
@@ -306,6 +316,9 @@ static int xhci_plat_probe(struct platform_device *pdev)
 
 dealloc_usb2_hcd:
 	usb_remove_hcd(hcd);
+
+disable_platform_roothub:
+	platform_roothub_power_off(xhci->platform_roothub);
 
 disable_usb_phy:
 	usb_phy_shutdown(hcd->usb_phy);
@@ -337,6 +350,8 @@ static int xhci_plat_remove(struct platform_device *dev)
 
 	usb_remove_hcd(xhci->shared_hcd);
 	usb_phy_shutdown(hcd->usb_phy);
+
+	platform_roothub_power_off(xhci->platform_roothub);
 
 	usb_remove_hcd(hcd);
 	usb_put_hcd(xhci->shared_hcd);
@@ -370,6 +385,11 @@ static int __maybe_unused xhci_plat_suspend(struct device *dev)
 	if (!device_may_wakeup(dev) && !IS_ERR(xhci->clk))
 		clk_disable_unprepare(xhci->clk);
 
+	if (ret)
+		return ret;
+
+	platform_roothub_power_off(xhci->platform_roothub);
+
 	return ret;
 }
 
@@ -381,6 +401,10 @@ static int __maybe_unused xhci_plat_resume(struct device *dev)
 
 	if (!device_may_wakeup(dev) && !IS_ERR(xhci->clk))
 		clk_prepare_enable(xhci->clk);
+
+	ret = platform_roothub_power_on(xhci->platform_roothub);
+	if (ret)
+		return ret;
 
 	ret = xhci_priv_resume_quirk(hcd);
 	if (ret)
