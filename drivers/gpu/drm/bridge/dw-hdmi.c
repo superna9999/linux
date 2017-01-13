@@ -35,12 +35,6 @@
 
 #define HDMI_EDID_LEN		512
 
-#define RGB			0
-#define YCBCR444		1
-#define YCBCR422_16BITS		2
-#define YCBCR422_8BITS		3
-#define XVYCC444		4
-
 enum hdmi_datamap {
 	RGB444_8B = 0x01,
 	RGB444_10B = 0x03,
@@ -94,8 +88,8 @@ struct hdmi_vmode {
 };
 
 struct hdmi_data_info {
-	unsigned int enc_in_format;
-	unsigned int enc_out_format;
+	enum dw_hdmi_color_enc_format enc_in_format;
+	enum dw_hdmi_color_enc_format enc_out_format;
 	unsigned int enc_color_depth;
 	unsigned int colorimetry;
 	unsigned int pix_repet_factor;
@@ -569,7 +563,7 @@ static void hdmi_video_sample(struct dw_hdmi *hdmi)
 	int color_format = 0;
 	u8 val;
 
-	if (hdmi->hdmi_data.enc_in_format == RGB) {
+	if (hdmi->hdmi_data.enc_in_format == DW_HDMI_ENC_FMT_RGB) {
 		if (hdmi->hdmi_data.enc_color_depth == 8)
 			color_format = 0x01;
 		else if (hdmi->hdmi_data.enc_color_depth == 10)
@@ -580,7 +574,7 @@ static void hdmi_video_sample(struct dw_hdmi *hdmi)
 			color_format = 0x07;
 		else
 			return;
-	} else if (hdmi->hdmi_data.enc_in_format == YCBCR444) {
+	} else if (hdmi->hdmi_data.enc_in_format == DW_HDMI_ENC_FMT_YCBCR444) {
 		if (hdmi->hdmi_data.enc_color_depth == 8)
 			color_format = 0x09;
 		else if (hdmi->hdmi_data.enc_color_depth == 10)
@@ -591,7 +585,8 @@ static void hdmi_video_sample(struct dw_hdmi *hdmi)
 			color_format = 0x0F;
 		else
 			return;
-	} else if (hdmi->hdmi_data.enc_in_format == YCBCR422_8BITS) {
+	} else if (hdmi->hdmi_data.enc_in_format ==
+					DW_HDMI_ENC_FMT_YCBCR422_8BITS) {
 		if (hdmi->hdmi_data.enc_color_depth == 8)
 			color_format = 0x16;
 		else if (hdmi->hdmi_data.enc_color_depth == 10)
@@ -627,20 +622,20 @@ static int is_color_space_conversion(struct dw_hdmi *hdmi)
 
 static int is_color_space_decimation(struct dw_hdmi *hdmi)
 {
-	if (hdmi->hdmi_data.enc_out_format != YCBCR422_8BITS)
+	if (hdmi->hdmi_data.enc_out_format != DW_HDMI_ENC_FMT_YCBCR422_8BITS)
 		return 0;
-	if (hdmi->hdmi_data.enc_in_format == RGB ||
-	    hdmi->hdmi_data.enc_in_format == YCBCR444)
+	if (hdmi->hdmi_data.enc_in_format == DW_HDMI_ENC_FMT_RGB ||
+	    hdmi->hdmi_data.enc_in_format == DW_HDMI_ENC_FMT_YCBCR444)
 		return 1;
 	return 0;
 }
 
 static int is_color_space_interpolation(struct dw_hdmi *hdmi)
 {
-	if (hdmi->hdmi_data.enc_in_format != YCBCR422_8BITS)
+	if (hdmi->hdmi_data.enc_in_format != DW_HDMI_ENC_FMT_YCBCR422_8BITS)
 		return 0;
-	if (hdmi->hdmi_data.enc_out_format == RGB ||
-	    hdmi->hdmi_data.enc_out_format == YCBCR444)
+	if (hdmi->hdmi_data.enc_out_format == DW_HDMI_ENC_FMT_RGB ||
+	    hdmi->hdmi_data.enc_out_format == DW_HDMI_ENC_FMT_YCBCR444)
 		return 1;
 	return 0;
 }
@@ -652,13 +647,14 @@ static void dw_hdmi_update_csc_coeffs(struct dw_hdmi *hdmi)
 	u32 csc_scale = 1;
 
 	if (is_color_space_conversion(hdmi)) {
-		if (hdmi->hdmi_data.enc_out_format == RGB) {
+		if (hdmi->hdmi_data.enc_out_format == DW_HDMI_ENC_FMT_RGB) {
 			if (hdmi->hdmi_data.colorimetry ==
 					HDMI_COLORIMETRY_ITU_601)
 				csc_coeff = &csc_coeff_rgb_out_eitu601;
 			else
 				csc_coeff = &csc_coeff_rgb_out_eitu709;
-		} else if (hdmi->hdmi_data.enc_in_format == RGB) {
+		} else if (hdmi->hdmi_data.enc_in_format ==
+					DW_HDMI_ENC_FMT_RGB) {
 			if (hdmi->hdmi_data.colorimetry ==
 					HDMI_COLORIMETRY_ITU_601)
 				csc_coeff = &csc_coeff_rgb_in_eitu601;
@@ -730,8 +726,8 @@ static void hdmi_video_packetize(struct dw_hdmi *hdmi)
 	struct hdmi_data_info *hdmi_data = &hdmi->hdmi_data;
 	u8 val, vp_conf;
 
-	if (hdmi_data->enc_out_format == RGB ||
-	    hdmi_data->enc_out_format == YCBCR444) {
+	if (hdmi_data->enc_out_format == DW_HDMI_ENC_FMT_RGB ||
+	    hdmi_data->enc_out_format == DW_HDMI_ENC_FMT_YCBCR444) {
 		if (!hdmi_data->enc_color_depth) {
 			output_select = HDMI_VP_CONF_OUTPUT_SELECTOR_BYPASS;
 		} else if (hdmi_data->enc_color_depth == 8) {
@@ -746,7 +742,8 @@ static void hdmi_video_packetize(struct dw_hdmi *hdmi)
 		} else {
 			return;
 		}
-	} else if (hdmi_data->enc_out_format == YCBCR422_8BITS) {
+	} else if (hdmi_data->enc_out_format ==
+					DW_HDMI_ENC_FMT_YCBCR422_8BITS) {
 		if (!hdmi_data->enc_color_depth ||
 		    hdmi_data->enc_color_depth == 8)
 			remap_size = HDMI_VP_REMAP_YCC422_16bit;
@@ -1149,15 +1146,16 @@ static void hdmi_config_AVI(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	/* Initialise info frame from DRM mode */
 	drm_hdmi_avi_infoframe_from_display_mode(&frame, mode);
 
-	if (hdmi->hdmi_data.enc_out_format == YCBCR444)
+	if (hdmi->hdmi_data.enc_out_format == DW_HDMI_ENC_FMT_YCBCR444)
 		frame.colorspace = HDMI_COLORSPACE_YUV444;
-	else if (hdmi->hdmi_data.enc_out_format == YCBCR422_8BITS)
+	else if (hdmi->hdmi_data.enc_out_format ==
+					DW_HDMI_ENC_FMT_YCBCR422_8BITS)
 		frame.colorspace = HDMI_COLORSPACE_YUV422;
 	else
 		frame.colorspace = HDMI_COLORSPACE_RGB;
 
 	/* Set up colorimetry */
-	if (hdmi->hdmi_data.enc_out_format == XVYCC444) {
+	if (hdmi->hdmi_data.enc_out_format == DW_HDMI_ENC_FMT_XVYCC444) {
 		frame.colorimetry = HDMI_COLORIMETRY_EXTENDED;
 		if (hdmi->hdmi_data.colorimetry == HDMI_COLORIMETRY_ITU_601)
 			frame.extended_colorimetry =
@@ -1165,7 +1163,7 @@ static void hdmi_config_AVI(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 		else /*hdmi->hdmi_data.colorimetry == HDMI_COLORIMETRY_ITU_709*/
 			frame.extended_colorimetry =
 				HDMI_EXTENDED_COLORIMETRY_XV_YCC_709;
-	} else if (hdmi->hdmi_data.enc_out_format != RGB) {
+	} else if (hdmi->hdmi_data.enc_out_format != DW_HDMI_ENC_FMT_RGB) {
 		frame.colorimetry = hdmi->hdmi_data.colorimetry;
 		frame.extended_colorimetry = HDMI_EXTENDED_COLORIMETRY_XV_YCC_601;
 	} else { /* Carries no data */
@@ -1454,10 +1452,13 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	hdmi->hdmi_data.video_mode.mpixelrepetitionoutput = 0;
 	hdmi->hdmi_data.video_mode.mpixelrepetitioninput = 0;
 
-	/* TODO: Get input format from IPU (via FB driver interface) */
-	hdmi->hdmi_data.enc_in_format = RGB;
+	/* Get input format from plat data or fallback to RGB */
+	if (hdmi->plat_data->input_fmt >= 0)
+		hdmi->hdmi_data.enc_in_format = hdmi->plat_data->input_fmt;
+	else
+		hdmi->hdmi_data.enc_in_format = DW_HDMI_ENC_FMT_RGB;
 
-	hdmi->hdmi_data.enc_out_format = RGB;
+	hdmi->hdmi_data.enc_out_format = DW_HDMI_ENC_FMT_RGB;
 
 	hdmi->hdmi_data.enc_color_depth = 8;
 	hdmi->hdmi_data.pix_repet_factor = 0;
