@@ -954,12 +954,16 @@ static struct clk_mux *gxbb_clk_muxes[] = {
 	&gxbb_mali_0_sel,
 	&gxbb_mali_1_sel,
 	&gxbb_mali,
+	&gxbb_mpeg_clk_sel,
+	&gxbb_sar_adc_clk_sel,
 };
 
 static struct clk_divider *gxbb_clk_dividers[] = {
 	&gxbb_mpeg_clk_div,
 	&gxbb_mali_0_div,
 	&gxbb_mali_1_div,
+	&gxbb_mpeg_clk_div,
+	&gxbb_sar_adc_clk_div,
 };
 
 struct gxbb_composite_clk {
