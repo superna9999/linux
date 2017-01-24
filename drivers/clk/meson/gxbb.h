@@ -265,11 +265,12 @@
 /* CLKID_SD_EMMC_A */
 /* CLKID_SD_EMMC_B */
 /* CLKID_SD_EMMC_C */
+#define CLKID_MPLL0_PLL		  97
 /* CLKID_MALI_0	*/
 /* CLKID_MALI_1	*/
 /* CLKID_MALI	*/
 
-#define NR_CLKS			  100
+#define NR_CLKS			  101
 
 /* include the CLKIDs that have been made part of the stable DT binding */
 #include <dt-bindings/clock/gxbb-clkc.h>
