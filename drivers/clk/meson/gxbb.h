@@ -181,8 +181,8 @@
 #define CLKID_MPEG_SEL		  10
 #define CLKID_MPEG_DIV		  11
 /* CLKID_CLK81 */
-#define CLKID_MPLL0		  13
-#define CLKID_MPLL1		  14
+/* CLKID_MPLL0 */
+/* CLKID_MPLL1 */
 /* CLKID_MPLL2 */
 #define CLKID_DDR		  16
 #define CLKID_DOS		  17

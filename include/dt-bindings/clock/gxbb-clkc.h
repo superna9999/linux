@@ -12,6 +12,8 @@
 #define CLKID_FCLK_DIV4		6
 #define CLKID_GP0_PLL		9
 #define CLKID_CLK81		12
+#define CLKID_MPLL0		13
+#define CLKID_MPLL1		14
 #define CLKID_MPLL2		15
 #define CLKID_SPI		34
 #define CLKID_I2C		22
