@@ -29,8 +29,10 @@
 #define CLKID_SD_EMMC_A		94
 #define CLKID_SD_EMMC_B		95
 #define CLKID_SD_EMMC_C		96
-#define CLKID_MALI_0		97
-#define CLKID_MALI_1		98
-#define CLKID_MALI		99
+#define CLKID_CTS_AMCLK		98
+#define CLKID_CTS_AMCLK_SEL	99
+#define CLKID_MALI_0		101
+#define CLKID_MALI_1		102
+#define CLKID_MALI		103
 
 #endif /* __GXBB_CLKC_H */
