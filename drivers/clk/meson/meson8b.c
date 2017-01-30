@@ -246,6 +246,115 @@ static struct clk_fixed_factor meson8b_fclk_div7 = {
 };
 
 /*
+ * Unlike mpll1 and mpll2, mpll0 has an additional enable / disable bit. Let's
+ * model this using a clock gate. To make this oddity transparent to the clock
+ * consumer, let's give the CLKID_MPLL0 id to the gate and let the rate
+ * propagate to the pll itself.
+ */
+static struct meson_clk_mpll meson8b_mpll0_pll = {
+	.sdm = {
+		.reg_off = HHI_MPLL_CNTL7,
+		.shift   = 0,
+		.width   = 14,
+	},
+	.sdm_en = {
+		.reg_off = HHI_MPLL_CNTL7,
+		.shift   = 15,
+		.width   = 1,
+	},
+	.n2 = {
+		.reg_off = HHI_MPLL_CNTL7,
+		.shift   = 16,
+		.width   = 9,
+	},
+	.en = {
+		.reg_off = HHI_MPLL_CNTL7,
+		.shift   = 14,
+		.width   = 1,
+	},
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data){
+		.name = "mpll0_pll",
+		.ops = &meson_clk_mpll_ops,
+		.parent_names = (const char *[]){ "fixed_pll" },
+		.num_parents = 1,
+	},
+};
+
+static struct clk_gate meson8b_mpll0 = {
+	.reg = (void *)HHI_MPLL_CNTL,
+	.bit_idx = 25,
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data){
+		.name = "mpll0",
+		.ops = &clk_gate_ops,
+		.parent_names = (const char *[]){ "mpll0_pll" },
+		.num_parents = 1,
+		.flags = (CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED),
+	},
+};
+
+static struct meson_clk_mpll meson8b_mpll1 = {
+	.sdm = {
+		.reg_off = HHI_MPLL_CNTL8,
+		.shift   = 0,
+		.width   = 14,
+	},
+	.sdm_en = {
+		.reg_off = HHI_MPLL_CNTL8,
+		.shift   = 15,
+		.width   = 1,
+	},
+	.n2 = {
+		.reg_off = HHI_MPLL_CNTL8,
+		.shift   = 16,
+		.width   = 9,
+	},
+	.en = {
+		.reg_off = HHI_MPLL_CNTL8,
+		.shift   = 14,
+		.width   = 1,
+	},
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data){
+		.name = "mpll1",
+		.ops = &meson_clk_mpll_ops,
+		.parent_names = (const char *[]){ "fixed_pll" },
+		.num_parents = 1,
+	},
+};
+
+static struct meson_clk_mpll meson8b_mpll2 = {
+	.sdm = {
+		.reg_off = HHI_MPLL_CNTL9,
+		.shift   = 0,
+		.width   = 14,
+	},
+	.sdm_en = {
+		.reg_off = HHI_MPLL_CNTL9,
+		.shift   = 15,
+		.width   = 1,
+	},
+	.n2 = {
+		.reg_off = HHI_MPLL_CNTL9,
+		.shift   = 16,
+		.width   = 9,
+	},
+	.en = {
+		.reg_off = HHI_MPLL_CNTL9,
+		.shift   = 14,
+		.width   = 1,
+	},
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data){
+		.name = "mpll2",
+		.ops = &meson_clk_mpll_ops,
+		.parent_names = (const char *[]){ "fixed_pll" },
+		.num_parents = 1,
+	},
+};
+
+/*
  * FIXME cpu clocks and the legacy composite clocks (e.g. clk81) are both PLL
  * post-dividers and should be modeled with their respective PLLs via the
  * forthcoming coordinated clock rates feature
@@ -491,6 +600,10 @@ static struct clk_hw_onecell_data meson8b_hw_onecell_data = {
 		[CLKID_AO_AHB_SRAM]	    = &meson8b_ao_ahb_sram.hw,
 		[CLKID_AO_AHB_BUS]	    = &meson8b_ao_ahb_bus.hw,
 		[CLKID_AO_IFACE]	    = &meson8b_ao_iface.hw,
+		[CLKID_MPLL0_PLL]	    = &meson8b_mpll0_pll.hw,
+		[CLKID_MPLL0]		    = &meson8b_mpll0.hw,
+		[CLKID_MPLL1]		    = &meson8b_mpll1.hw,
+		[CLKID_MPLL2]		    = &meson8b_mpll2.hw,
 	},
 	.num = CLK_NR_CLKS,
 };
@@ -499,6 +612,12 @@ static struct meson_clk_pll *const meson8b_clk_plls[] = {
 	&meson8b_fixed_pll,
 	&meson8b_vid_pll,
 	&meson8b_sys_pll,
+};
+
+static struct meson_clk_mpll *const meson8b_clk_mplls[] = {
+	&meson8b_mpll0_pll,
+	&meson8b_mpll1,
+	&meson8b_mpll2,
 };
 
 static struct clk_gate *meson8b_clk_gates[] = {
@@ -600,6 +719,10 @@ static int meson8b_clkc_probe(struct platform_device *pdev)
 	/* Populate base address for PLLs */
 	for (i = 0; i < ARRAY_SIZE(meson8b_clk_plls); i++)
 		meson8b_clk_plls[i]->base = clk_base;
+
+	/* Populate base address for MPLLs */
+	for (i = 0; i < ARRAY_SIZE(meson8b_clk_mplls); i++)
+		meson8b_clk_mplls[i]->base = clk_base;
 
 	/* Populate the base address for CPU clk */
 	meson8b_cpu_clk.base = clk_base;
