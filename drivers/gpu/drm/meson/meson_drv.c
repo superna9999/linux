@@ -38,6 +38,8 @@
 #include <drm/drm_rect.h>
 #include <drm/drm_fb_helper.h>
 
+#include <uapi/drm/meson_drm.h>
+
 #include "meson_drv.h"
 #include "meson_plane.h"
 #include "meson_crtc.h"
@@ -122,6 +124,27 @@ static const struct file_operations fops = {
 	.mmap		= drm_gem_cma_mmap,
 };
 
+static int meson_gem_create_ioctl(struct drm_device *drm, void *data,
+				  struct drm_file *file_priv)
+{
+	struct drm_meson_gem_create *args = data;
+	struct drm_gem_cma_object *cma_obj;
+	size_t size;
+
+	/* The Mali requires a 64 bytes alignment */
+	size = ALIGN(args->size, 64);
+
+	cma_obj = drm_gem_cma_create_with_handle(file_priv, drm, size,
+						 &args->handle);
+
+	return PTR_ERR_OR_ZERO(cma_obj);
+}
+
+static const struct drm_ioctl_desc meson_drv_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(MESON_GEM_CREATE, meson_gem_create_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH),
+};
+
 static struct drm_driver meson_driver = {
 	.driver_features	= DRIVER_HAVE_IRQ | DRIVER_GEM |
 				  DRIVER_MODESET | DRIVER_PRIME |
@@ -152,6 +175,10 @@ static struct drm_driver meson_driver = {
 	.dumb_map_offset	= drm_gem_cma_dumb_map_offset,
 	.gem_free_object_unlocked = drm_gem_cma_free_object,
 	.gem_vm_ops		= &drm_gem_cma_vm_ops,
+
+	/* Custom ioctls */
+	.ioctls			= meson_drv_ioctls,
+	.num_ioctls		= ARRAY_SIZE(meson_drv_ioctls),
 
 	/* Misc */
 	.fops			= &fops,
