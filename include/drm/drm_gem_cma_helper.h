@@ -51,6 +51,11 @@ int drm_gem_cma_mmap(struct file *filp, struct vm_area_struct *vma);
 struct drm_gem_cma_object *drm_gem_cma_create(struct drm_device *drm,
 					      size_t size);
 
+struct drm_gem_cma_object *
+drm_gem_cma_create_with_handle(struct drm_file *file_priv,
+			       struct drm_device *drm, size_t size,
+			       uint32_t *handle);
+
 extern const struct vm_operations_struct drm_gem_cma_vm_ops;
 
 #ifndef CONFIG_MMU
