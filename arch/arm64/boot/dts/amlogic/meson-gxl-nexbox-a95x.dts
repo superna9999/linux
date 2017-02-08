@@ -118,6 +118,19 @@
 		clock-names = "ext_clock";
 	};
 
+	usb_pwr: regulator-usb-pwrs {
+		compatible = "regulator-fixed";
+
+		regulator-name = "USB_PWR";
+
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+
+		/* signal name in schematic: USB_PWR_EN */
+		gpio = <&gpio GPIODV_24 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
 	cvbs-connector {
 		compatible = "composite-video-connector";
 
@@ -241,4 +254,17 @@
 	hdmi_tx_tmds_out: endpoint {
 		remote-endpoint = <&hdmi_connector_in>;
 	};
+};
+
+&usb2_phys {
+	status = "okay";
+};
+
+&usb3_phy0 {
+	status = "okay";
+	phy-supply = <&usb_pwr>;
+};
+
+&usb0 {
+	status = "okay";
 };
