@@ -140,8 +140,12 @@ struct dw_hdmi {
 	u8 edid[HDMI_EDID_LEN];
 	bool cable_plugin;
 
-	const struct dw_hdmi_phy_data *phy;
-	bool phy_enabled;
+	struct {
+		const struct dw_hdmi_phy_ops *ops;
+		const char *name;
+		void *data;
+		bool enabled;
+	} phy;
 
 	struct drm_display_mode previous_mode;
 
@@ -830,6 +834,10 @@ static void hdmi_video_packetize(struct dw_hdmi *hdmi)
 		  HDMI_VP_CONF);
 }
 
+/* -----------------------------------------------------------------------------
+ * Synopsys PHY Handling
+ */
+
 static inline void hdmi_phy_test_clear(struct dw_hdmi *hdmi,
 				       unsigned char bit)
 {
@@ -917,6 +925,7 @@ static void dw_hdmi_phy_sel_interface_control(struct dw_hdmi *hdmi, u8 enable)
 static int hdmi_phy_configure(struct dw_hdmi *hdmi, int cscon)
 {
 	u8 val, msec;
+	const struct dw_hdmi_phy_data *phy = hdmi->phy.data;
 	const struct dw_hdmi_plat_data *pdata = hdmi->plat_data;
 	const struct dw_hdmi_mpll_config *mpll_config = pdata->mpll_cfg;
 	const struct dw_hdmi_curr_ctrl *curr_ctrl = pdata->cur_ctr;
@@ -961,7 +970,7 @@ static int hdmi_phy_configure(struct dw_hdmi *hdmi, int cscon)
 	dw_hdmi_phy_gen2_pddq(hdmi, 1);
 
 	/* Leave low power consumption mode by asserting SVSRET. */
-	if (hdmi->phy->has_svsret)
+	if (phy->has_svsret)
 		dw_hdmi_phy_enable_svsret(hdmi, 1);
 
 	/* PHY reset. The reset signal is active high on Gen2 PHYs. */
@@ -1025,7 +1034,8 @@ static int hdmi_phy_configure(struct dw_hdmi *hdmi, int cscon)
 	return 0;
 }
 
-static int dw_hdmi_phy_init(struct dw_hdmi *hdmi)
+static int dw_hdmi_phy_init(struct dw_hdmi *hdmi, void *data,
+			    struct drm_display_mode *mode)
 {
 	int i, ret;
 	bool cscon;
@@ -1046,9 +1056,31 @@ static int dw_hdmi_phy_init(struct dw_hdmi *hdmi)
 			return ret;
 	}
 
-	hdmi->phy_enabled = true;
 	return 0;
 }
+
+static void dw_hdmi_phy_disable(struct dw_hdmi *hdmi, void *data)
+{
+	dw_hdmi_phy_enable_tmds(hdmi, 0);
+	dw_hdmi_phy_enable_powerdown(hdmi, true);
+}
+
+static enum drm_connector_status dw_hdmi_phy_read_hpd(struct dw_hdmi *hdmi,
+						      void *data)
+{
+	return hdmi_readb(hdmi, HDMI_PHY_STAT0) & HDMI_PHY_HPD ?
+		connector_status_connected : connector_status_disconnected;
+}
+
+static const struct dw_hdmi_phy_ops dw_hdmi_synopsys_phy_ops = {
+	.init = dw_hdmi_phy_init,
+	.disable = dw_hdmi_phy_disable,
+	.read_hpd = dw_hdmi_phy_read_hpd,
+};
+
+/* -----------------------------------------------------------------------------
+ * HDMI TX Setup
+ */
 
 static void hdmi_tx_hdcp_config(struct dw_hdmi *hdmi)
 {
@@ -1264,17 +1296,6 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 	hdmi_writeb(hdmi, vsync_len, HDMI_FC_VSYNCINWIDTH);
 }
 
-static void dw_hdmi_phy_disable(struct dw_hdmi *hdmi)
-{
-	if (!hdmi->phy_enabled)
-		return;
-
-	dw_hdmi_phy_enable_tmds(hdmi, 0);
-	dw_hdmi_phy_enable_powerdown(hdmi, true);
-
-	hdmi->phy_enabled = false;
-}
-
 /* HDMI Initialization Step B.4 */
 static void dw_hdmi_enable_video_path(struct dw_hdmi *hdmi)
 {
@@ -1399,9 +1420,10 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	hdmi_av_composer(hdmi, mode);
 
 	/* HDMI Initializateion Step B.2 */
-	ret = dw_hdmi_phy_init(hdmi);
+	ret = hdmi->phy.ops->init(hdmi, hdmi->phy.data, &hdmi->previous_mode);
 	if (ret)
 		return ret;
+	hdmi->phy.enabled = true;
 
 	/* HDMI Initialization Step B.3 */
 	dw_hdmi_enable_video_path(hdmi);
@@ -1516,7 +1538,11 @@ static void dw_hdmi_poweron(struct dw_hdmi *hdmi)
 
 static void dw_hdmi_poweroff(struct dw_hdmi *hdmi)
 {
-	dw_hdmi_phy_disable(hdmi);
+	if (hdmi->phy.enabled) {
+		hdmi->phy.ops->disable(hdmi, hdmi->phy.data);
+		hdmi->phy.enabled = false;
+	}
+
 	hdmi->bridge_is_on = false;
 }
 
@@ -1579,8 +1605,7 @@ dw_hdmi_connector_detect(struct drm_connector *connector, bool force)
 	dw_hdmi_update_phy_mask(hdmi);
 	mutex_unlock(&hdmi->mutex);
 
-	return hdmi_readb(hdmi, HDMI_PHY_STAT0) & HDMI_PHY_HPD ?
-		connector_status_connected : connector_status_disconnected;
+	return hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
 }
 
 static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
@@ -1860,19 +1885,31 @@ static int dw_hdmi_detect_phy(struct dw_hdmi *hdmi)
 
 	phy_type = hdmi_readb(hdmi, HDMI_CONFIG2_ID);
 
+	if (phy_type == DW_HDMI_PHY_VENDOR_PHY) {
+		/* Vendor PHYs require support from the glue layer. */
+		if (!hdmi->plat_data->phy_ops || !hdmi->plat_data->phy_name) {
+			dev_err(hdmi->dev,
+				"Vendor HDMI PHY not supported by glue layer\n");
+			return -ENODEV;
+		}
+
+		hdmi->phy.ops = hdmi->plat_data->phy_ops;
+		hdmi->phy.data = hdmi->plat_data->phy_data;
+		hdmi->phy.name = hdmi->plat_data->phy_name;
+		return 0;
+	}
+
+	/* Synopsys PHYs are handled internally. */
 	for (i = 0; i < ARRAY_SIZE(dw_hdmi_phys); ++i) {
 		if (dw_hdmi_phys[i].type == phy_type) {
-			hdmi->phy = &dw_hdmi_phys[i];
+			hdmi->phy.ops = &dw_hdmi_synopsys_phy_ops;
+			hdmi->phy.name = dw_hdmi_phys[i].name;
+			hdmi->phy.data = (void *)&dw_hdmi_phys[i];
 			return 0;
 		}
 	}
 
-	if (phy_type == DW_HDMI_PHY_VENDOR_PHY)
-		dev_err(hdmi->dev, "Unsupported vendor HDMI PHY\n");
-	else
-		dev_err(hdmi->dev, "Unsupported HDMI PHY type (%02x)\n",
-			phy_type);
-
+	dev_err(hdmi->dev, "Unsupported HDMI PHY type (%02x)\n", phy_type);
 	return -ENODEV;
 }
 
@@ -1993,7 +2030,7 @@ __dw_hdmi_probe(struct platform_device *pdev,
 	dev_info(dev, "Detected HDMI TX controller v%x.%03x %s HDCP (%s)\n",
 		 hdmi->version >> 12, hdmi->version & 0xfff,
 		 prod_id1 & HDMI_PRODUCT_ID1_HDCP ? "with" : "without",
-		 hdmi->phy->name);
+		 hdmi->phy.name);
 
 	initialize_hdmi_ih_mutes(hdmi);
 
