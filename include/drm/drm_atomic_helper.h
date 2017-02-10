@@ -48,9 +48,6 @@ int drm_atomic_helper_commit(struct drm_device *dev,
 int drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 					struct drm_atomic_state *state,
 					bool pre_swap);
-bool drm_atomic_helper_framebuffer_changed(struct drm_device *dev,
-					   struct drm_atomic_state *old_state,
-					   struct drm_crtc *crtc);
 
 void drm_atomic_helper_wait_for_vblanks(struct drm_device *dev,
 					struct drm_atomic_state *old_state);
@@ -124,6 +121,12 @@ int drm_atomic_helper_page_flip(struct drm_crtc *crtc,
 				struct drm_framebuffer *fb,
 				struct drm_pending_vblank_event *event,
 				uint32_t flags);
+int drm_atomic_helper_page_flip_target(
+				struct drm_crtc *crtc,
+				struct drm_framebuffer *fb,
+				struct drm_pending_vblank_event *event,
+				uint32_t flags,
+				uint32_t target);
 int drm_atomic_helper_connector_dpms(struct drm_connector *connector,
 				     int mode);
 struct drm_encoder *

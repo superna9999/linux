@@ -9,12 +9,13 @@
 #include "drmP.h"
 #include "drm_gem_cma_helper.h"
 
+#include <drm/drm_encoder.h>
+
 struct vc4_dev {
 	struct drm_device *dev;
 
 	struct vc4_hdmi *hdmi;
 	struct vc4_hvs *hvs;
-	struct vc4_crtc *crtc[3];
 	struct vc4_v3d *v3d;
 	struct vc4_dpi *dpi;
 	struct vc4_vec *vec;

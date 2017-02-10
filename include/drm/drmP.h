@@ -360,6 +360,7 @@ struct drm_ioctl_desc {
 /* Event queued up for userspace to read */
 struct drm_pending_event {
 	struct completion *completion;
+	void (*completion_release)(struct completion *completion);
 	struct drm_event *event;
 	struct dma_fence *fence;
 	struct list_head link;
@@ -634,6 +635,19 @@ struct drm_device {
 	int switch_power_state;
 };
 
+/**
+ * drm_drv_uses_atomic_modeset - check if the driver implements
+ * atomic_commit()
+ * @dev: DRM device
+ *
+ * This check is useful if drivers do not have DRIVER_ATOMIC set but
+ * have atomic modesetting internally implemented.
+ */
+static inline bool drm_drv_uses_atomic_modeset(struct drm_device *dev)
+{
+	return dev->mode_config.funcs->atomic_commit != NULL;
+}
+
 #include <drm/drm_irq.h>
 
 #define DRM_SWITCH_POWER_ON 0
@@ -716,11 +730,6 @@ int drm_noop(struct drm_device *dev, void *data,
 	     struct drm_file *file_priv);
 int drm_invalid_op(struct drm_device *dev, void *data,
 		   struct drm_file *file_priv);
-
-/* Cache management (drm_cache.c) */
-void drm_clflush_pages(struct page *pages[], unsigned long num_pages);
-void drm_clflush_sg(struct sg_table *st);
-void drm_clflush_virt_range(void *addr, unsigned long length);
 
 /*
  * These are exported to drivers so that they can implement fencing using
