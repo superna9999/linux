@@ -1,6 +1,14 @@
 menu "Amlogic SoC Audio Support"
 	depends on ARCH_MESON || COMPILE_TEST
 
+config SND_MESON_AIU_I2S_DAI
+	tristate "Meson I2S Output DAI Support"
+	select MFD_SYSCON
+	select SND_MESON_AIU_COMMON
+	help
+	  This adds ASoC driver the Amlogic Meson i2s DAI
+	  If unsure select "N".
+
 config SND_MESON_AIU_I2S_DMA
 	tristate "Meson I2S Output DMA Support"
 	select MFD_SYSCON
