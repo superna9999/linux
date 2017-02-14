@@ -48,7 +48,7 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 		return -EINVAL;
 	}
 
-	inputclkfs	= HDMI_AUD_INPUTCLKFS_64FS;
+	inputclkfs	= HDMI_AUD_INPUTCLKFS_256FS;
 	conf0		= HDMI_AUD_CONF0_I2S_ALL_ENABLE;
 
 	switch (hparms->sample_width) {
