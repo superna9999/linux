@@ -248,6 +248,35 @@ static const struct pll_rate_table gp0_pll_rate_table[] = {
 	{ /* sentinel */ },
 };
 
+static const struct pll_rate_table gp0_gxl_pll_rate_table[] = {
+	PLL_RATE(504000000, 42, 1, 1),
+	PLL_RATE(516000000, 43, 1, 1),
+	PLL_RATE(528000000, 44, 1, 1),
+	PLL_RATE(540000000, 45, 1, 1),
+	PLL_RATE(552000000, 46, 1, 1),
+	PLL_RATE(564000000, 47, 1, 1),
+	PLL_RATE(576000000, 48, 1, 1),
+	PLL_RATE(588000000, 49, 1, 1),
+	PLL_RATE(600000000, 50, 1, 1),
+	PLL_RATE(612000000, 51, 1, 1),
+	PLL_RATE(624000000, 52, 1, 1),
+	PLL_RATE(636000000, 53, 1, 1),
+	PLL_RATE(648000000, 54, 1, 1),
+	PLL_RATE(660000000, 55, 1, 1),
+	PLL_RATE(672000000, 56, 1, 1),
+	PLL_RATE(684000000, 57, 1, 1),
+	PLL_RATE(696000000, 58, 1, 1),
+	PLL_RATE(708000000, 59, 1, 1),
+	PLL_RATE(720000000, 60, 1, 1),
+	PLL_RATE(732000000, 61, 1, 1),
+	PLL_RATE(744000000, 62, 1, 1),
+	PLL_RATE(756000000, 63, 1, 1),
+	PLL_RATE(768000000, 64, 1, 1),
+	PLL_RATE(780000000, 65, 1, 1),
+	PLL_RATE(792000000, 66, 1, 1),
+	{ /* sentinel */ },
+};
+
 static const struct clk_div_table cpu_div_table[] = {
 	{ .val = 1, .div = 1 },
 	{ .val = 2, .div = 2 },
@@ -386,6 +415,55 @@ static struct meson_clk_pll gxbb_gp0_pll = {
 	.init_data = gxbb_gp0_init_data,
 	.init_count = 4,
 	.rate_table = gp0_pll_rate_table,
+	.rate_count = ARRAY_SIZE(gp0_pll_rate_table),
+	.lock = &clk_lock,
+	.hw.init = &(struct clk_init_data){
+		.name = "gp0_pll",
+		.ops = &meson_clk_pll_ops,
+		.parent_names = (const char *[]){ "xtal" },
+		.num_parents = 1,
+		.flags = CLK_GET_RATE_NOCACHE,
+	},
+};
+
+static void __iomem *gxl_gp0_init_regs[] = {
+	(void *)HHI_GP0_PLL_CNTL,
+	(void *)HHI_GP0_PLL_CNTL1,
+	(void *)HHI_GP0_PLL_CNTL2,
+	(void *)HHI_GP0_PLL_CNTL3,
+	(void *)HHI_GP0_PLL_CNTL4,
+	(void *)HHI_GP0_PLL_CNTL5,
+};
+
+static u32 gxl_gp0_init_data[] = {
+	0x40010250,
+	0xc084a000,
+	0xb75020be,
+	0x0a59a288,
+	0xc000004d,
+	0x00078000,
+};
+
+static struct meson_clk_pll gxl_gp0_pll = {
+	.m = {
+		.reg_off = HHI_GP0_PLL_CNTL,
+		.shift   = 0,
+		.width   = 9,
+	},
+	.n = {
+		.reg_off = HHI_GP0_PLL_CNTL,
+		.shift   = 9,
+		.width   = 5,
+	},
+	.od = {
+		.reg_off = HHI_GP0_PLL_CNTL,
+		.shift   = 16,
+		.width   = 2,
+	},
+	.init_regs = gxl_gp0_init_regs,
+	.init_data = gxl_gp0_init_data,
+	.init_count = 4,
+	.rate_table = gp0_gxl_pll_rate_table,
 	.rate_count = ARRAY_SIZE(gp0_pll_rate_table),
 	.lock = &clk_lock,
 	.hw.init = &(struct clk_init_data){
@@ -854,6 +932,7 @@ static struct meson_clk_pll *const gxbb_clk_plls[] = {
 	&gxbb_hdmi_pll,
 	&gxbb_sys_pll,
 	&gxbb_gp0_pll,
+	&gxl_gp0_pll,
 };
 
 static struct meson_clk_mpll *const gxbb_clk_mplls[] = {
@@ -1022,6 +1101,11 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+	/* Replace clocks for variants */
+	if (of_device_is_compatible(dev->of_node, "amlogic,gxl-clkc")) {
+		gxbb_hw_onecell_data.hws[CLKID_GP0_PLL] = &gxl_gp0_pll.hw;
+	}
+
 	/* Populate base address for PLLs */
 	for (i = 0; i < ARRAY_SIZE(gxbb_clk_plls); i++)
 		gxbb_clk_plls[i]->base = clk_base;
@@ -1052,6 +1136,9 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 	for (i = 0; i < ARRAY_SIZE(gxbb_gp0_init_regs); ++i)
 		gxbb_gp0_init_regs[i] = clk_base +
 			(u64)gxbb_gp0_init_regs[i];
+	for (i = 0; i < ARRAY_SIZE(gxl_gp0_init_regs); ++i)
+		gxl_gp0_init_regs[i] = clk_base +
+			(u64)gxl_gp0_init_regs[i];
 
 	/*
 	 * register all clks
@@ -1136,6 +1223,7 @@ iounmap:
 
 static const struct of_device_id gxbb_clkc_match_table[] = {
 	{ .compatible = "amlogic,gxbb-clkc" },
+	{ .compatible = "amlogic,gxl-clkc" },
 	{ }
 };
 
