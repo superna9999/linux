@@ -49,56 +49,11 @@
 / {
 	compatible = "amlogic,p200", "amlogic,meson-gxbb";
 	model = "Amlogic Meson GXBB P200 Development Board";
-
-	soc {
-		i2s_codec: external-codec {
-			#sound-dai-cells = <0>;
-			compatible = "everest,es7134lv";
-			status = "okay";
-		};
-
-		sound {
-			compatible = "simple-audio-card";
-			simple-audio-card,name = "meson-gxbb";
-			status = "okay";
-
-			simple-audio-card,dai-link@0 {
-				/* RCA Output */
-				format = "i2s";
-				mclk-fs = <256>;
-				bitclock-master =  <&aiu_i2s_dai>;
-				frame-master = <&aiu_i2s_dai>;
-				plat {
-					sound-dai = <&aiu_i2s_dma>;
-				};
-
-				cpu {
-					sound-dai = <&aiu_i2s_dai>;
-				};
-
-				codec {
-					//sound-dai = <&i2s_codec>;
-					sound-dai = <&hdmi_tx>;
-				};
-			};
-		};
-	};
 };
 
 &i2c_B {
 	status = "okay";
 	pinctrl-0 = <&i2c_b_pins>;
 	pinctrl-names = "default";
-};
-
-&aiu_i2s_dai {
-	pinctrl-0 = <&i2s_am_clk_pins>, <&i2s_out_bclks_pins>,
-		    <&i2s_out_ch01_ao_pins>;
-	pinctrl-names = "default";
-	status = "okay";
-};
-
-&aiu_i2s_dma {
-	status = "okay";
 };
 
