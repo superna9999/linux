@@ -135,6 +135,32 @@
 			dr_mode = "host";
 			status = "disabled";
 		};
+
+		sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "meson-gxbb";
+			status = "okay";
+
+			simple-audio-card,dai-link@0 {
+				/* HDMI Output */
+				format = "i2s";
+				mclk-fs = <256>;
+				bitclock-master =  <&aiu_i2s_dai>;
+				frame-master = <&aiu_i2s_dai>;
+				plat {
+					sound-dai = <&aiu_i2s_dma>;
+				};
+
+				cpu {
+					sound-dai = <&aiu_i2s_dai>;
+				};
+
+				codec {
+					sound-dai = <&hdmi_tx>;
+				};
+			};
+		};
+
 	};
 };
 
@@ -178,7 +204,7 @@
 				  <&clkc CLKID_MIXER_IFACE>;
 			clock-names = "amclk","aiu_top", "aiu_glue",
 				      "aoclk", "mixer_if";
-			status = "disbaled";
+			status = "okay";
 		};
 
 		aiu_i2s_dma: aiu_i2s_dma {
@@ -190,7 +216,7 @@
 				 <&clkc CLKID_I2S_OUT>;
 			clock-names = "aiu_top", "aiu_glue",
 				      "i2s_out";
-			status = "disabled";
+			status = "okay";
 		};
 	};
 
