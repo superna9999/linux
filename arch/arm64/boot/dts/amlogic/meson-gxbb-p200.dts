@@ -77,7 +77,8 @@
 				};
 
 				codec {
-					sound-dai = <&i2s_codec>;
+					//sound-dai = <&i2s_codec>;
+					sound-dai = <&hdmi_tx>;
 				};
 			};
 		};
