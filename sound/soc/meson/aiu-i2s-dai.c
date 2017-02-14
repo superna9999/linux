@@ -206,6 +206,17 @@ static int aiu_i2s_dai_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
+	/* Quick and dirty hack for HDMI */
+	regmap_update_bits(priv->regmap, AIU_HDMI_CLK_DATA_CTRL,
+			   AIU_HDMI_CLK_DATA_CTRL_CLK_SEL_MASK |
+			   AIU_HDMI_CLK_DATA_CTRL_DATA_SEL_MASK,
+			   AIU_HDMI_CLK_DATA_CTRL_CLK_I2S |
+			   AIU_HDMI_CLK_DATA_CTRL_DATA_I2S);
+
+	regmap_update_bits(priv->regmap, AIU_CLK_CTRL_MORE,
+			   AIU_CLK_CTRL_MORE_HDMI_TX_SEL_MASK,
+			   AIU_CLK_CTRL_MORE_HDMI_TX_INT_CLK);
+
 	return 0;
 }
 
