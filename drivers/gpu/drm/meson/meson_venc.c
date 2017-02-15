@@ -611,18 +611,22 @@ struct meson_hdmi_venc_vic_mode {
 	unsigned int vic;
 	union meson_hdmi_venc_mode *mode;
 } meson_hdmi_venc_vic_modes[] = {
+#if 0
 	{ 6, &meson_hdmi_enci_mode_480i },
 	{ 7, &meson_hdmi_enci_mode_480i },
 	{ 21, &meson_hdmi_enci_mode_576i },
 	{ 22, &meson_hdmi_enci_mode_576i },
+#endif
 	{ 2, &meson_hdmi_encp_mode_480p },
 	{ 3, &meson_hdmi_encp_mode_480p },
 	{ 17, &meson_hdmi_encp_mode_576p },
 	{ 18, &meson_hdmi_encp_mode_576p },
+#if 0
 	{ 4, &meson_hdmi_encp_mode_720p60 },
 	{ 19, &meson_hdmi_encp_mode_720p50 },
 	{ 5, &meson_hdmi_encp_mode_1080i60 },
 	{ 20, &meson_hdmi_encp_mode_1080i50 },
+#endif
 	{ 32, &meson_hdmi_encp_mode_1080p24 },
 	{ 34, &meson_hdmi_encp_mode_1080p30 },
 	{ 31, &meson_hdmi_encp_mode_1080p50 },
