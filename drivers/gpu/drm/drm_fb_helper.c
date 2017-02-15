@@ -1240,6 +1240,69 @@ int drm_fb_helper_setcmap(struct fb_cmap *cmap, struct fb_info *info)
 EXPORT_SYMBOL(drm_fb_helper_setcmap);
 
 /**
+ * drm_fb_helper_ioctl - legacy ioctl implementation
+ * @info: fbdev registered by the helper
+ * @cmd: ioctl command
+ * @arg: ioctl argument
+ *
+ * A helper to implement the standard fbdev ioctl. Only
+ * FBIO_WAITFORVSYNC is implemented for now.
+ */
+int drm_fb_helper_ioctl(struct fb_info *info, unsigned int cmd,
+			unsigned long arg)
+{
+	struct drm_fb_helper *fb_helper = info->par;
+	struct drm_device *dev = fb_helper->dev;
+	struct drm_mode_set *mode_set;
+	struct drm_crtc *crtc;
+	u32 karg;
+	int ret = 0;
+
+	mutex_lock(&dev->mode_config.mutex);
+	if (!drm_fb_helper_is_bound(fb_helper)) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
+	switch (cmd) {
+	case FBIO_WAITFORVSYNC:
+		if (get_user(karg, (__u32 __user *)arg)) {
+			ret = -EFAULT;
+			goto unlock;
+		}
+
+		if (karg >= fb_helper->crtc_count) {
+			ret = -EINVAL;
+			goto unlock;
+		}
+
+		mode_set = &fb_helper->crtc_info[karg].mode_set;
+		crtc = mode_set->crtc;
+
+		/*
+		 * Only wait for a vblank event if the CRTC is
+		 * enabled, otherwise just don't do anythintg,
+		 * not even report an error.
+		 */
+		ret = drm_crtc_vblank_get(crtc);
+		if (!ret) {
+			drm_crtc_wait_one_vblank(crtc);
+			drm_crtc_vblank_put(crtc);
+		}
+
+		ret = 0;
+		goto unlock;
+	default:
+		ret = -ENOTTY;
+	}
+
+unlock:
+	mutex_unlock(&dev->mode_config.mutex);
+	return ret;
+}
+EXPORT_SYMBOL(drm_fb_helper_ioctl);
+
+/**
  * drm_fb_helper_check_var - implementation for ->fb_check_var
  * @var: screeninfo to check
  * @info: fbdev registered by the helper
