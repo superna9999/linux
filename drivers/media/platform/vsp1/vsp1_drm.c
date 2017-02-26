@@ -83,7 +83,8 @@ int vsp1_du_setup_lif(struct device *dev, unsigned int width,
 		__func__, width, height);
 
 	if (width == 0 || height == 0) {
-		/* Zero width or height means the CRTC is being disabled, stop
+		/*
+		 * Zero width or height means the CRTC is being disabled, stop
 		 * the pipeline and turn the light off.
 		 */
 		ret = vsp1_pipeline_stop(pipe);
@@ -108,7 +109,8 @@ int vsp1_du_setup_lif(struct device *dev, unsigned int width,
 		return 0;
 	}
 
-	/* Configure the format at the BRU sinks and propagate it through the
+	/*
+	 * Configure the format at the BRU sinks and propagate it through the
 	 * pipeline.
 	 */
 	memset(&format, 0, sizeof(format));
@@ -177,7 +179,8 @@ int vsp1_du_setup_lif(struct device *dev, unsigned int width,
 		__func__, format.format.width, format.format.height,
 		format.format.code);
 
-	/* Verify that the format at the output of the pipeline matches the
+	/*
+	 * Verify that the format at the output of the pipeline matches the
 	 * requested frame size and media bus code.
 	 */
 	if (format.format.width != width || format.format.height != height ||
@@ -186,7 +189,8 @@ int vsp1_du_setup_lif(struct device *dev, unsigned int width,
 		return -EPIPE;
 	}
 
-	/* Mark the pipeline as streaming and enable the VSP1. This will store
+	/*
+	 * Mark the pipeline as streaming and enable the VSP1. This will store
 	 * the pipeline pointer in all entities, which the s_stream handlers
 	 * will need. We don't start the entities themselves right at this point
 	 * as there's no plane configured yet, so we can't start processing
@@ -318,7 +322,8 @@ static int vsp1_du_setup_rpf_pipe(struct vsp1_device *vsp1,
 	const struct v4l2_rect *crop;
 	int ret;
 
-	/* Configure the format on the RPF sink pad and propagate it up to the
+	/*
+	 * Configure the format on the RPF sink pad and propagate it up to the
 	 * BRU sink pad.
 	 */
 	crop = &vsp1->drm->inputs[rpf->entity.index].crop;
@@ -357,7 +362,8 @@ static int vsp1_du_setup_rpf_pipe(struct vsp1_device *vsp1,
 		__func__, sel.r.left, sel.r.top, sel.r.width, sel.r.height,
 		rpf->entity.index);
 
-	/* RPF source, hardcode the format to ARGB8888 to turn on format
+	/*
+	 * RPF source, hardcode the format to ARGB8888 to turn on format
 	 * conversion if needed.
 	 */
 	format.pad = RWPF_PAD_SOURCE;
@@ -529,7 +535,8 @@ int vsp1_drm_create_links(struct vsp1_device *vsp1)
 	unsigned int i;
 	int ret;
 
-	/* VSPD instances require a BRU to perform composition and a LIF to
+	/*
+	 * VSPD instances require a BRU to perform composition and a LIF to
 	 * output to the DU.
 	 */
 	if (!vsp1->bru || !vsp1->lif)
