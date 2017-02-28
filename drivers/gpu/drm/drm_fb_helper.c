@@ -1270,6 +1270,7 @@ int drm_fb_helper_ioctl(struct fb_info *info, unsigned int cmd,
 
 	switch (cmd) {
 	case FBIO_WAITFORVSYNC:
+		goto unlock;
 		if (get_user(karg, (__u32 __user *)arg)) {
 			ret = -EFAULT;
 			goto unlock;
