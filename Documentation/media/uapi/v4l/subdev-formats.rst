@@ -114,7 +114,7 @@ The following tables list existing packed RGB formats.
 .. it switches to long table, and there's no way to override it.
 
 
-.. tabularcolumns:: |p{4.0cm}|p{0.7cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
+.. tabularcolumns:: |p{4.0cm}|p{0.7cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
 
 .. _v4l2-mbus-pixelcode-rgb:
 
@@ -127,7 +127,7 @@ The following tables list existing packed RGB formats.
 .. flat-table:: RGB formats
     :header-rows:  2
     :stub-columns: 0
-    :widths: 36 7 3 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+    :widths: 36 7 3 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
 
     * - Identifier
       - Code
@@ -136,6 +136,22 @@ The following tables list existing packed RGB formats.
     * -
       -
       - Bit
+      - 47
+      - 46
+      - 45
+      - 44
+      - 43
+      - 42
+      - 41
+      - 40
+      - 39
+      - 38
+      - 37
+      - 36
+      - 35
+      - 34
+      - 33
+      - 32
       - 31
       - 30
       - 29
@@ -172,6 +188,22 @@ The following tables list existing packed RGB formats.
 
       - MEDIA_BUS_FMT_RGB444_1X12
       - 0x1016
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -234,6 +266,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - 0
       - 0
       - 0
@@ -243,6 +291,22 @@ The following tables list existing packed RGB formats.
       - r\ :sub:`1`
       - r\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -306,6 +370,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - g\ :sub:`3`
       - g\ :sub:`2`
       - g\ :sub:`1`
@@ -315,6 +395,22 @@ The following tables list existing packed RGB formats.
       - b\ :sub:`1`
       - b\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -378,6 +474,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - 0
       - r\ :sub:`4`
       - r\ :sub:`3`
@@ -387,6 +499,22 @@ The following tables list existing packed RGB formats.
       - g\ :sub:`4`
       - g\ :sub:`3`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -450,6 +578,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - g\ :sub:`2`
       - g\ :sub:`1`
       - g\ :sub:`0`
@@ -459,6 +603,22 @@ The following tables list existing packed RGB formats.
       - b\ :sub:`1`
       - b\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -497,6 +657,22 @@ The following tables list existing packed RGB formats.
 
       - MEDIA_BUS_FMT_RGB565_1X16
       - 0x1017
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -559,6 +735,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - b\ :sub:`4`
       - b\ :sub:`3`
       - b\ :sub:`2`
@@ -568,6 +760,22 @@ The following tables list existing packed RGB formats.
       - g\ :sub:`4`
       - g\ :sub:`3`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -631,6 +839,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - g\ :sub:`2`
       - g\ :sub:`1`
       - g\ :sub:`0`
@@ -640,6 +864,22 @@ The following tables list existing packed RGB formats.
       - r\ :sub:`1`
       - r\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -703,6 +943,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - r\ :sub:`4`
       - r\ :sub:`3`
       - r\ :sub:`2`
@@ -712,6 +968,22 @@ The following tables list existing packed RGB formats.
       - g\ :sub:`4`
       - g\ :sub:`3`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -775,6 +1047,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - g\ :sub:`2`
       - g\ :sub:`1`
       - g\ :sub:`0`
@@ -784,6 +1072,22 @@ The following tables list existing packed RGB formats.
       - b\ :sub:`1`
       - b\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -837,6 +1141,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - r\ :sub:`5`
       - r\ :sub:`4`
       - r\ :sub:`3`
@@ -859,6 +1179,22 @@ The following tables list existing packed RGB formats.
 
       - MEDIA_BUS_FMT_RBG888_1X24
       - 0x100e
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -905,6 +1241,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - 0
       - 0
       - r\ :sub:`5`
@@ -933,6 +1285,22 @@ The following tables list existing packed RGB formats.
 
       - MEDIA_BUS_FMT_BGR888_1X24
       - 0x1013
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -979,6 +1347,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - g\ :sub:`7`
       - g\ :sub:`6`
       - g\ :sub:`5`
@@ -1007,6 +1391,22 @@ The following tables list existing packed RGB formats.
 
       - MEDIA_BUS_FMT_RGB888_1X24
       - 0x100a
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -1065,6 +1465,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - r\ :sub:`7`
       - r\ :sub:`6`
       - r\ :sub:`5`
@@ -1078,6 +1494,22 @@ The following tables list existing packed RGB formats.
       - g\ :sub:`5`
       - g\ :sub:`4`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -1137,6 +1569,22 @@ The following tables list existing packed RGB formats.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - g\ :sub:`3`
       - g\ :sub:`2`
       - g\ :sub:`1`
@@ -1150,6 +1598,22 @@ The following tables list existing packed RGB formats.
       - b\ :sub:`1`
       - b\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -1189,6 +1653,22 @@ The following tables list existing packed RGB formats.
       - MEDIA_BUS_FMT_ARGB888_1X32
       - 0x100d
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - a\ :sub:`7`
       - a\ :sub:`6`
       - a\ :sub:`5`
@@ -1226,6 +1706,22 @@ The following tables list existing packed RGB formats.
       - MEDIA_BUS_FMT_RGB888_1X32_PADHI
       - 0x100f
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - 0
       - 0
       - 0
@@ -1250,6 +1746,165 @@ The following tables list existing packed RGB formats.
       - g\ :sub:`2`
       - g\ :sub:`1`
       - g\ :sub:`0`
+      - b\ :sub:`7`
+      - b\ :sub:`6`
+      - b\ :sub:`5`
+      - b\ :sub:`4`
+      - b\ :sub:`3`
+      - b\ :sub:`2`
+      - b\ :sub:`1`
+      - b\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-RGB101010-1X30:
+
+      - MEDIA_BUS_FMT_RGB101010_1X30
+      - 0x1018
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - 0
+      - 0
+      - r\ :sub:`9`
+      - r\ :sub:`8`
+      - r\ :sub:`7`
+      - r\ :sub:`6`
+      - r\ :sub:`5`
+      - r\ :sub:`4`
+      - r\ :sub:`3`
+      - r\ :sub:`2`
+      - r\ :sub:`1`
+      - r\ :sub:`0`
+      - g\ :sub:`9`
+      - g\ :sub:`8`
+      - g\ :sub:`7`
+      - g\ :sub:`6`
+      - g\ :sub:`5`
+      - g\ :sub:`4`
+      - g\ :sub:`3`
+      - g\ :sub:`2`
+      - g\ :sub:`1`
+      - g\ :sub:`0`
+      - b\ :sub:`9`
+      - b\ :sub:`8`
+      - b\ :sub:`7`
+      - b\ :sub:`6`
+      - b\ :sub:`5`
+      - b\ :sub:`4`
+      - b\ :sub:`3`
+      - b\ :sub:`2`
+      - b\ :sub:`1`
+      - b\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-RGB121212-1X36:
+
+      - MEDIA_BUS_FMT_RGB121212_1X36
+      - 0x1019
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - r\ :sub:`11`
+      - r\ :sub:`10`
+      - r\ :sub:`9`
+      - r\ :sub:`8`
+      - r\ :sub:`7`
+      - r\ :sub:`6`
+      - r\ :sub:`5`
+      - r\ :sub:`4`
+      - r\ :sub:`3`
+      - r\ :sub:`2`
+      - r\ :sub:`1`
+      - r\ :sub:`0`
+      - g\ :sub:`11`
+      - g\ :sub:`10`
+      - g\ :sub:`9`
+      - g\ :sub:`8`
+      - g\ :sub:`7`
+      - g\ :sub:`6`
+      - g\ :sub:`5`
+      - g\ :sub:`4`
+      - g\ :sub:`3`
+      - g\ :sub:`2`
+      - g\ :sub:`1`
+      - g\ :sub:`0`
+      - b\ :sub:`11`
+      - b\ :sub:`10`
+      - b\ :sub:`9`
+      - b\ :sub:`8`
+      - b\ :sub:`7`
+      - b\ :sub:`6`
+      - b\ :sub:`5`
+      - b\ :sub:`4`
+      - b\ :sub:`3`
+      - b\ :sub:`2`
+      - b\ :sub:`1`
+      - b\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-RGB161616-1X48:
+
+      - MEDIA_BUS_FMT_RGB161616_1X48
+      - 0x10
+      -
+      - r\ :sub:`15`
+      - r\ :sub:`14`
+      - r\ :sub:`13`
+      - r\ :sub:`12`
+      - r\ :sub:`11`
+      - r\ :sub:`10`
+      - r\ :sub:`9`
+      - r\ :sub:`8`
+      - r\ :sub:`7`
+      - r\ :sub:`6`
+      - r\ :sub:`5`
+      - r\ :sub:`4`
+      - r\ :sub:`3`
+      - r\ :sub:`2`
+      - r\ :sub:`1`
+      - r\ :sub:`0`
+      - g\ :sub:`15`
+      - g\ :sub:`14`
+      - g\ :sub:`13`
+      - g\ :sub:`12`
+      - g\ :sub:`11`
+      - g\ :sub:`10`
+      - g\ :sub:`9`
+      - g\ :sub:`8`
+      - g\ :sub:`7`
+      - g\ :sub:`6`
+      - g\ :sub:`5`
+      - g\ :sub:`4`
+      - g\ :sub:`3`
+      - g\ :sub:`2`
+      - g\ :sub:`1`
+      - g\ :sub:`0`
+      - b\ :sub:`15`
+      - b\ :sub:`14`
+      - b\ :sub:`13`
+      - b\ :sub:`12`
+      - b\ :sub:`11`
+      - b\ :sub:`10`
+      - b\ :sub:`9`
+      - b\ :sub:`8`
       - b\ :sub:`7`
       - b\ :sub:`6`
       - b\ :sub:`5`
@@ -2387,14 +3042,14 @@ the following codes.
     \tiny
     \setlength{\tabcolsep}{2pt}
 
-.. tabularcolumns:: |p{4.0cm}|p{0.7cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
+.. tabularcolumns:: |p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{0.7cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
 
 .. _v4l2-mbus-pixelcode-yuv8:
 
 .. flat-table:: YUV Formats
     :header-rows:  2
     :stub-columns: 0
-    :widths: 36 7 3 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+    :widths: 36 7 3 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
 
     * - Identifier
       - Code
@@ -2403,6 +3058,22 @@ the following codes.
     * -
       -
       - Bit
+      - 47 
+      - 46
+      - 45
+      - 44
+      - 43
+      - 42
+      - 41
+      - 40
+      - 39
+      - 38
+      - 37
+      - 36
+      - 35
+      - 34
+      - 33
+      - 32
       - 31
       - 30
       - 29
@@ -2439,6 +3110,22 @@ the following codes.
 
       - MEDIA_BUS_FMT_Y8_1X8
       - 0x2001
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -2501,6 +3188,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`7`
       - u\ :sub:`6`
       - u\ :sub:`5`
@@ -2510,6 +3213,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -2573,6 +3292,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`7`
       - u\ :sub:`6`
       - u\ :sub:`5`
@@ -2608,25 +3343,6 @@ the following codes.
       -
       -
       -
-      - y\ :sub:`7`
-      - y\ :sub:`6`
-      - y\ :sub:`5`
-      - y\ :sub:`4`
-      - y\ :sub:`3`
-      - y\ :sub:`2`
-      - y\ :sub:`1`
-      - y\ :sub:`0`
-    * -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
       -
       -
       -
@@ -2652,6 +3368,73 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -2713,6 +3496,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -2722,6 +3521,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -2785,6 +3600,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`7`
       - v\ :sub:`6`
       - v\ :sub:`5`
@@ -2820,25 +3651,6 @@ the following codes.
       -
       -
       -
-      - y\ :sub:`7`
-      - y\ :sub:`6`
-      - y\ :sub:`5`
-      - y\ :sub:`4`
-      - y\ :sub:`3`
-      - y\ :sub:`2`
-      - y\ :sub:`1`
-      - y\ :sub:`0`
-    * -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
       -
       -
       -
@@ -2864,6 +3676,73 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -2925,6 +3804,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -2934,6 +3829,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -2997,25 +3908,6 @@ the following codes.
       -
       -
       -
-      - y\ :sub:`7`
-      - y\ :sub:`6`
-      - y\ :sub:`5`
-      - y\ :sub:`4`
-      - y\ :sub:`3`
-      - y\ :sub:`2`
-      - y\ :sub:`1`
-      - y\ :sub:`0`
-    * -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
       -
       -
       -
@@ -3041,6 +3933,73 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3102,25 +4061,6 @@ the following codes.
       -
       -
       -
-      - y\ :sub:`7`
-      - y\ :sub:`6`
-      - y\ :sub:`5`
-      - y\ :sub:`4`
-      - y\ :sub:`3`
-      - y\ :sub:`2`
-      - y\ :sub:`1`
-      - y\ :sub:`0`
-    * -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
       -
       -
       -
@@ -3146,6 +4086,73 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3209,25 +4216,6 @@ the following codes.
       -
       -
       -
-      - y\ :sub:`7`
-      - y\ :sub:`6`
-      - y\ :sub:`5`
-      - y\ :sub:`4`
-      - y\ :sub:`3`
-      - y\ :sub:`2`
-      - y\ :sub:`1`
-      - y\ :sub:`0`
-    * -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
       -
       -
       -
@@ -3253,6 +4241,73 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3314,25 +4369,6 @@ the following codes.
       -
       -
       -
-      - y\ :sub:`7`
-      - y\ :sub:`6`
-      - y\ :sub:`5`
-      - y\ :sub:`4`
-      - y\ :sub:`3`
-      - y\ :sub:`2`
-      - y\ :sub:`1`
-      - y\ :sub:`0`
-    * -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
-      -
       -
       -
       -
@@ -3358,6 +4394,73 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3421,6 +4524,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`7`
       - u\ :sub:`6`
       - u\ :sub:`5`
@@ -3430,6 +4549,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3491,6 +4626,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`7`
       - v\ :sub:`6`
       - v\ :sub:`5`
@@ -3500,6 +4651,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3563,6 +4730,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`7`
       - v\ :sub:`6`
       - v\ :sub:`5`
@@ -3572,6 +4755,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3633,6 +4832,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`7`
       - u\ :sub:`6`
       - u\ :sub:`5`
@@ -3642,6 +4857,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3705,6 +4936,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -3714,6 +4961,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3775,6 +5038,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -3784,6 +5063,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3847,6 +5142,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -3856,6 +5167,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3917,6 +5244,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -3926,6 +5269,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -3987,6 +5346,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -4001,6 +5376,22 @@ the following codes.
 
       - MEDIA_BUS_FMT_UYVY10_2X10
       - 0x2018
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4059,6 +5450,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -4094,6 +5501,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`9`
       - v\ :sub:`8`
       - v\ :sub:`7`
@@ -4105,6 +5528,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4166,6 +5605,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`9`
       - v\ :sub:`8`
       - v\ :sub:`7`
@@ -4177,6 +5632,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4236,6 +5707,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`9`
       - u\ :sub:`8`
       - u\ :sub:`7`
@@ -4247,6 +5734,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4308,6 +5811,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -4319,6 +5838,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4378,6 +5913,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -4389,6 +5940,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4450,6 +6017,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -4461,6 +6044,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4520,6 +6119,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -4531,6 +6146,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4590,6 +6221,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -4606,6 +6253,22 @@ the following codes.
 
       - MEDIA_BUS_FMT_UYVY12_2X12
       - 0x201c
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4662,6 +6325,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -4697,6 +6376,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`11`
       - v\ :sub:`10`
       - v\ :sub:`9`
@@ -4710,6 +6405,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4769,6 +6480,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`11`
       - v\ :sub:`10`
       - v\ :sub:`9`
@@ -4782,6 +6509,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4839,6 +6582,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`11`
       - u\ :sub:`10`
       - u\ :sub:`9`
@@ -4852,6 +6611,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4911,6 +6686,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -4924,6 +6715,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -4981,6 +6788,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -4994,6 +6817,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5053,6 +6892,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -5066,6 +6921,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5123,6 +6994,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -5136,6 +7023,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5191,6 +7094,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`7`
       - u\ :sub:`6`
       - u\ :sub:`5`
@@ -5208,6 +7127,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5263,6 +7198,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`7`
       - v\ :sub:`6`
       - v\ :sub:`5`
@@ -5280,6 +7231,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5335,6 +7302,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -5352,6 +7335,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5407,6 +7406,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -5424,6 +7439,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5479,6 +7510,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -5496,6 +7543,22 @@ the following codes.
       - d
       - d
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5549,6 +7612,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -5566,6 +7645,22 @@ the following codes.
       - d
       - d
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5617,6 +7712,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - u\ :sub:`9`
       - u\ :sub:`8`
       - u\ :sub:`7`
@@ -5638,6 +7749,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5689,6 +7816,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`9`
       - v\ :sub:`8`
       - v\ :sub:`7`
@@ -5710,6 +7853,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5761,6 +7920,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -5782,6 +7957,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5833,6 +8024,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -5854,6 +8061,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -5901,6 +8124,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`7`
       - v\ :sub:`6`
       - v\ :sub:`5`
@@ -5938,6 +8177,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`7`
       - y\ :sub:`6`
       - y\ :sub:`5`
@@ -5962,10 +8217,130 @@ the following codes.
       - v\ :sub:`2`
       - v\ :sub:`1`
       - v\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-UYVY8-1-1X24:
+
+      - MEDIA_BUS_FMT_UYVY8_1_1X24
+      - 0x2026
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - u\ :sub:`7`
+      - u\ :sub:`6`
+      - u\ :sub:`5`
+      - u\ :sub:`4`
+      - u\ :sub:`3`
+      - u\ :sub:`2`
+      - u\ :sub:`1`
+      - u\ :sub:`0`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - v\ :sub:`7`
+      - v\ :sub:`6`
+      - v\ :sub:`5`
+      - v\ :sub:`4`
+      - v\ :sub:`3`
+      - v\ :sub:`2`
+      - v\ :sub:`1`
+      - v\ :sub:`0`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
     * .. _MEDIA-BUS-FMT-UYVY12-1X24:
 
       - MEDIA_BUS_FMT_UYVY12_1X24
       - 0x2020
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -6000,6 +8375,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -6047,6 +8438,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - v\ :sub:`11`
       - v\ :sub:`10`
       - v\ :sub:`9`
@@ -6072,6 +8479,22 @@ the following codes.
       - y\ :sub:`1`
       - y\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -6119,6 +8542,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -6144,6 +8583,22 @@ the following codes.
       - u\ :sub:`1`
       - u\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -6191,6 +8646,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`11`
       - y\ :sub:`10`
       - y\ :sub:`9`
@@ -6216,6 +8687,22 @@ the following codes.
       - v\ :sub:`1`
       - v\ :sub:`0`
     * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       -
       -
@@ -6257,6 +8744,22 @@ the following codes.
       -
       -
       -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       - y\ :sub:`9`
       - y\ :sub:`8`
       - y\ :sub:`7`
@@ -6287,10 +8790,130 @@ the following codes.
       - v\ :sub:`2`
       - v\ :sub:`1`
       - v\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-UYVY10-1-1X30:
+
+      - MEDIA_BUS_FMT_UYVY10_1_1X30
+      - 0x2027
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - u\ :sub:`9`
+      - u\ :sub:`8`
+      - u\ :sub:`7`
+      - u\ :sub:`6`
+      - u\ :sub:`5`
+      - u\ :sub:`4`
+      - u\ :sub:`3`
+      - u\ :sub:`2`
+      - u\ :sub:`1`
+      - u\ :sub:`0`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - v\ :sub:`9`
+      - v\ :sub:`8`
+      - v\ :sub:`7`
+      - v\ :sub:`6`
+      - v\ :sub:`5`
+      - v\ :sub:`4`
+      - v\ :sub:`3`
+      - v\ :sub:`2`
+      - v\ :sub:`1`
+      - v\ :sub:`0`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
     * .. _MEDIA-BUS-FMT-AYUV8-1X32:
 
       - MEDIA_BUS_FMT_AYUV8_1X32
       - 0x2017
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
       -
       - a\ :sub:`7`
       - a\ :sub:`6`
@@ -6324,6 +8947,317 @@ the following codes.
       - v\ :sub:`2`
       - v\ :sub:`1`
       - v\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-UYVY12-1-1X36:
+
+      - MEDIA_BUS_FMT_UYVY12_1_1X36
+      - 0x2028
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - u\ :sub:`11`
+      - u\ :sub:`10`
+      - u\ :sub:`9`
+      - u\ :sub:`8`
+      - u\ :sub:`7`
+      - u\ :sub:`6`
+      - u\ :sub:`5`
+      - u\ :sub:`4`
+      - u\ :sub:`3`
+      - u\ :sub:`2`
+      - u\ :sub:`1`
+      - u\ :sub:`0`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`8`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - v\ :sub:`11`
+      - v\ :sub:`10`
+      - v\ :sub:`9`
+      - v\ :sub:`8`
+      - v\ :sub:`7`
+      - v\ :sub:`6`
+      - v\ :sub:`5`
+      - v\ :sub:`4`
+      - v\ :sub:`3`
+      - v\ :sub:`2`
+      - v\ :sub:`1`
+      - v\ :sub:`0`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`8`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-YUV12-1X36:
+
+      - MEDIA_BUS_FMT_YUV12_1X36
+      - 0x2029
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      -
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`8`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - v\ :sub:`11`
+      - u\ :sub:`11`
+      - u\ :sub:`10`
+      - u\ :sub:`9`
+      - u\ :sub:`8`
+      - u\ :sub:`7`
+      - u\ :sub:`6`
+      - u\ :sub:`5`
+      - u\ :sub:`4`
+      - u\ :sub:`3`
+      - u\ :sub:`2`
+      - u\ :sub:`1`
+      - u\ :sub:`0`
+      - v\ :sub:`10`
+      - v\ :sub:`9`
+      - v\ :sub:`8`
+      - v\ :sub:`7`
+      - v\ :sub:`6`
+      - v\ :sub:`5`
+      - v\ :sub:`4`
+      - v\ :sub:`3`
+      - v\ :sub:`2`
+      - v\ :sub:`1`
+      - v\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-YUV16-1X48:
+
+      - MEDIA_BUS_FMT_YUV16_1X48
+      - 0x202a
+      - y\ :sub:`15`
+      - y\ :sub:`14`
+      - y\ :sub:`13`
+      - y\ :sub:`12`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`8`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - u\ :sub:`15`
+      - u\ :sub:`14`
+      - u\ :sub:`13`
+      - u\ :sub:`12`
+      - u\ :sub:`11`
+      - u\ :sub:`10`
+      - u\ :sub:`9`
+      - u\ :sub:`8`
+      - u\ :sub:`7`
+      - u\ :sub:`6`
+      - u\ :sub:`5`
+      - u\ :sub:`4`
+      - u\ :sub:`3`
+      - u\ :sub:`2`
+      - u\ :sub:`1`
+      - u\ :sub:`0`
+      - v\ :sub:`15`
+      - v\ :sub:`14`
+      - v\ :sub:`13`
+      - v\ :sub:`12`
+      - v\ :sub:`11`
+      - v\ :sub:`10`
+      - v\ :sub:`9`
+      - v\ :sub:`8`
+      - v\ :sub:`7`
+      - v\ :sub:`6`
+      - v\ :sub:`5`
+      - v\ :sub:`4`
+      - v\ :sub:`3`
+      - v\ :sub:`2`
+      - v\ :sub:`1`
+      - v\ :sub:`0`
+    * .. _MEDIA-BUS-FMT-UYVY16-1-1X48:
+
+      - MEDIA_BUS_FMT_UYVY16_1_1X48
+      - 0x202b
+      - u\ :sub:`15`
+      - u\ :sub:`14`
+      - u\ :sub:`13`
+      - u\ :sub:`12`
+      - u\ :sub:`11`
+      - u\ :sub:`10`
+      - u\ :sub:`9`
+      - u\ :sub:`8`
+      - u\ :sub:`7`
+      - u\ :sub:`6`
+      - u\ :sub:`5`
+      - u\ :sub:`4`
+      - u\ :sub:`3`
+      - u\ :sub:`2`
+      - u\ :sub:`1`
+      - u\ :sub:`0`
+      - y\ :sub:`15`
+      - y\ :sub:`14`
+      - y\ :sub:`13`
+      - y\ :sub:`12`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`15`
+      - y\ :sub:`14`
+      - y\ :sub:`13`
+      - y\ :sub:`12`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`8`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+    * -
+      -
+      - v\ :sub:`15`
+      - v\ :sub:`14`
+      - v\ :sub:`13`
+      - v\ :sub:`12`
+      - v\ :sub:`11`
+      - v\ :sub:`10`
+      - v\ :sub:`9`
+      - v\ :sub:`8`
+      - v\ :sub:`7`
+      - v\ :sub:`6`
+      - v\ :sub:`5`
+      - v\ :sub:`4`
+      - v\ :sub:`3`
+      - v\ :sub:`2`
+      - v\ :sub:`1`
+      - v\ :sub:`0`
+      - y\ :sub:`15`
+      - y\ :sub:`14`
+      - y\ :sub:`13`
+      - y\ :sub:`12`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`9`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
+      - y\ :sub:`15`
+      - y\ :sub:`14`
+      - y\ :sub:`13`
+      - y\ :sub:`12`
+      - y\ :sub:`11`
+      - y\ :sub:`10`
+      - y\ :sub:`8`
+      - y\ :sub:`8`
+      - y\ :sub:`7`
+      - y\ :sub:`6`
+      - y\ :sub:`5`
+      - y\ :sub:`4`
+      - y\ :sub:`3`
+      - y\ :sub:`2`
+      - y\ :sub:`1`
+      - y\ :sub:`0`
 
 
 .. raw:: latex
