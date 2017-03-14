@@ -112,11 +112,18 @@ struct clk_gate _name = { 						\
 	},								\
 };
 
+struct meson_vid_pll_div {
+	struct clk_hw hw;
+	void __iomem *base;
+	spinlock_t *lock;
+};
+
 /* clk_ops */
 extern const struct clk_ops meson_clk_pll_ro_ops;
 extern const struct clk_ops meson_clk_pll_ops;
 extern const struct clk_ops meson_clk_cpu_ops;
 extern const struct clk_ops meson_clk_mpll_ro_ops;
 extern const struct clk_ops meson_clk_mpll_ops;
+extern const struct clk_ops meson_vid_pll_div_ro_ops;
 
 #endif /* __CLKC_H */
