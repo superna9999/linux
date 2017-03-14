@@ -40,5 +40,8 @@
 #define CLKID_MALI_1_SEL	103
 #define CLKID_MALI_1		105
 #define CLKID_MALI		106
+#define CLKID_VPU0_SEL		148
+#define CLKID_VPU1_SEL		149
+#define CLKID_VPU		152
 
 #endif /* __GXBB_CLKC_H */
