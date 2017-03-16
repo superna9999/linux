@@ -172,6 +172,15 @@
 	pinctrl-names = "default";
 };
 
+&gpio_ao {
+	usb-hub {
+		gpio-hog;
+		gpios = <GPIOAO_4 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "usb-hub-reset";
+	};
+};
+
 &usb0_phy {
 	status = "okay";
 	phy-supply = <&usb_otg_pwr>;
