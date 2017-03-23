@@ -351,6 +351,9 @@ static int meson_i2s_dai_startup(struct snd_pcm_substream *substream,
 			   AIU_I2S_SOURCE_DESC_MODE_SPLIT,
 			   AIU_I2S_SOURCE_DESC_MODE_SPLIT);
 
+	/* We can't tolerate glitches or rate change on this clock */
+	clk_rate_protect(priv->mclk);
+
 	return 0;
 
 out_bclks:
@@ -368,6 +371,7 @@ static void meson_i2s_dai_shutdown(struct snd_pcm_substream *substream,
 {
 	struct meson_i2s_dai *priv = snd_soc_dai_get_drvdata(dai);
 
+	clk_rate_unprotect(priv->mclk);
 	clk_disable_unprepare(priv->bclks);
 	clk_disable_unprepare(priv->mclk);
 	clk_disable_unprepare(priv->iface);
