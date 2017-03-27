@@ -128,6 +128,8 @@ static int aiu_i2s_dai_trigger(struct snd_pcm_substream *substream, int cmd,
 
 static int __get_lrclk_div(unsigned int os, unsigned int width)
 {
+	return 64;
+#if 0
 	if (((os % 48) == 0) && (width == 24))
 		return 48;
 	else if (((os % 64) == 0) && (width == 24))
@@ -136,6 +138,7 @@ static int __get_lrclk_div(unsigned int os, unsigned int width)
 		return 32;
 
 	return -EINVAL;
+#endif
 }
 
 /*
