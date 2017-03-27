@@ -126,18 +126,6 @@ static int aiu_i2s_dai_trigger(struct snd_pcm_substream *substream, int cmd,
 	}
 }
 
-static int __get_lrclk_div(unsigned int os, unsigned int width)
-{
-	if (((os % 48) == 0) && (width == 24))
-		return 48;
-	else if (((os % 64) == 0) && (width == 24))
-		return 64;
-	else if (((os % 32) == 0) && (width == 16))
-		return 32;
-
-	return -EINVAL;
-}
-
 /*
  * FIXME: Most of this stuff should be done using CCF when the support of
  * regmap based clocks is added
@@ -145,41 +133,24 @@ static int __get_lrclk_div(unsigned int os, unsigned int width)
 static int __bclks_set_rate(struct aiu_i2s_dai *priv, unsigned int srate,
 			    unsigned int width)
 {
-	int div_lrclk, div_bclk;
+	int div_bclk;
 	unsigned int os;
 	u32 val;
 
 	/* Get the oversampling factor */
 	os = DIV_ROUND_CLOSEST(clk_get_rate(priv->amclk), srate);
 
-	/* Get the divider between bclk and lrclk */
-	div_lrclk = __get_lrclk_div(os, width);
-
-	switch (div_lrclk) {
-	case 32:
-		val = AIU_I2S_DAC_CFG_AOCLK_32;
-		break;
-	case 48:
-		val = AIU_I2S_DAC_CFG_AOCLK_48;
-		break;
-	case 64:
-		val = AIU_I2S_DAC_CFG_AOCLK_64;
-		break;
-	default:
-		return -EINVAL;
-	}
-
 	/* Set the divider between lrclk and bclk */
 	regmap_update_bits(priv->regmap, AIU_I2S_DAC_CFG,
 			   AIU_I2S_DAC_CFG_PAYLOAD_SIZE_MASK,
-			   val);
+			   AIU_I2S_DAC_CFG_AOCLK_64);
 
 	regmap_update_bits(priv->regmap, AIU_CODEC_DAC_LRCLK_CTRL,
 			   AIU_CODEC_DAC_LRCLK_CTRL_DIV_MASK,
-			   AIU_CODEC_DAC_LRCLK_CTRL_DIV(div_lrclk));
+			   AIU_CODEC_DAC_LRCLK_CTRL_DIV(64));
 
 	/* Set the divider between blclk and amclk */
-	div_bclk = os / div_lrclk;
+	div_bclk = os / 64;
 
 	/* Use CLK_MORE for the i2s divider */
 	regmap_update_bits(priv->regmap, AIU_CLK_CTRL,
