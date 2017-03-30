@@ -18,6 +18,7 @@
 #define CLKID_RNG0		25
 #define CLKID_UART0		26
 #define CLKID_SPI		34
+#define CLKID_I2S_SPDIF		35
 #define CLKID_ETH		36
 #define CLKID_AIU_GLUE		38
 #define CLKID_IEC958		39
