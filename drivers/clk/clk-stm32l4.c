@@ -161,7 +161,7 @@ static const char * const plladc2clk_parents[] = {
 };
 
 static const char * const rtc_lcd_mux_parents[] = {
-	"lsi", "lse", "hse_div32",
+	"off", "lse", "lsi", "hse_div32",
 };
 
 static const char * const rtc_lcd_parents[] = {
@@ -201,7 +201,7 @@ static const char * const adc_parents[] = {
 };
 
 static const char * const sai1_mux_parents[] = {
-	"pllsai3clk", "pllsai1clk", "pllsai2clk", "sai1_extclk",
+	"pllsai1clk", "pllsai2clk", "pllsai3clk", "sai1_extclk",
 };
 
 static const char * const sai1_parents[] = {
@@ -209,7 +209,7 @@ static const char * const sai1_parents[] = {
 };
 
 static const char * const sai2_mux_parents[] = {
-	"pllsai3clk", "pllsai1clk", "pllsai2clk", "sai2_extclk",
+	"pllsai1clk", "pllsai2clk", "pllsai3clk", "sai2_extclk",
 };
 
 static const char * const sai2_parents[] = {
@@ -269,7 +269,7 @@ static const char * const apb2_periphs_parents[] = {
 };
 
 static const char * const uart_2_5_mux_parents[] = {
-	"pclk1", "lse", "hsi", "sysclk",
+	"pclk1", "sysclk", "hsi", "lse",
 };
 
 static const char * const uart2_parents[] = {
@@ -293,7 +293,7 @@ static const char * const lpuart1_parents[] = {
 };
 
 static const char * const i2c_mux_parents[] = {
-	"pclk1", "hsi", "sysclk",
+	"pclk1", "sysclk", "hsi",
 };
 
 static const char * const i2c1_parents[] = {
@@ -313,7 +313,7 @@ static const char * const i2c4_parents[] = {
 };
 
 static const char * const lptim_mux_parents[] = {
-	"pclk1", "lsi", "lse", "hsi",
+	"pclk1", "lsi", "hsi", "lse",
 };
 
 static const char * const lptim1_parents[] = {
@@ -341,7 +341,7 @@ static const char * const dfsdm1_parents[] = {
 };
 
 static const char * const uart1_mux_parents[] = {
-	"pclk2", "lse", "hsi", "sysclk",
+	"pclk2", "sysclk", "hsi", "lse",
 };
 
 static const char * const uart1_parents[] = {
@@ -642,11 +642,18 @@ static RCC_DIV(ahb_presc, STM32L4_RCC_CFGR, 4, 4,
 
 struct clk_rcc_range {
 	struct clk_hw	hw;
-	void __iomem	*reg;
-	u8		shift;
-	u8		width;
+	void __iomem	*base;
+	unsigned long	csr_reg;
+	u8		csr_shift;
+	u8		csr_width;
+	const unsigned int *csr_table;
+	unsigned long	cr_reg;
+	u8		cr_shift;
+	u8		cr_width;
+	const unsigned int *cr_table;
+	unsigned long	sel_reg;
+	u8		sel_shift;
 	spinlock_t	*lock;
-	const unsigned int *table;
 };
 
 #define to_clk_rcc_range(_hw) container_of(_hw, struct clk_rcc_range, hw)
@@ -656,11 +663,22 @@ static unsigned long rcc_range_recalc_rate(struct clk_hw *hw,
 {
 	struct clk_rcc_range *range = to_clk_rcc_range(hw);
 	unsigned int val;
-	
-	val = clk_readl(range->reg) >> range->shift;
-	val &= ((1 << (range->width)) - 1);
 
-	return range->table[val];
+	/* Switch between CR and CSR range register */
+	if ((clk_readl(range->base + range->sel_reg)
+		& (1 << range->sel_shift))) {
+		val = clk_readl(range->base + range->cr_reg)
+				>> range->cr_shift;
+		val &= ((1 << (range->cr_width)) - 1);
+
+		return range->cr_table[val];
+	} else {
+		val = clk_readl(range->base + range->csr_reg)
+				>> range->csr_shift;
+		val &= ((1 << (range->csr_width)) - 1);
+
+		return range->csr_table[val];
+	}
 }
 
 /* TOFIX make it configurable */
@@ -668,12 +686,20 @@ const struct clk_ops rcc_range_ops = {
 	.recalc_rate = rcc_range_recalc_rate,
 };
 
-#define RCC_RANGE(_name, _reg, _shift, _width, _table, _flags)	\
+#define RCC_RANGE(_name, _csr_reg, _csr_shift, _csr_width, _csr_table,	\
+		  _cr_reg, _cr_shift, _cr_width, _cr_table,		\
+		  _sel_reg, _sel_shift, _flags)				\
 struct clk_rcc_range _name = {						\
-	.reg = (void __iomem *) _reg,					\
-	.shift = (_shift),						\
-	.width = (_width),						\
-	.table = _table,						\
+	.csr_reg = (_csr_reg),						\
+	.csr_shift = (_csr_shift),					\
+	.csr_width = (_csr_width),					\
+	.csr_table = _csr_table,					\
+	.cr_reg = (_cr_reg),						\
+	.cr_shift = (_cr_shift),					\
+	.cr_width = (_cr_width),					\
+	.cr_table = _cr_table,						\
+	.sel_reg = (_sel_reg),						\
+	.sel_shift = (_sel_shift),					\
 	.lock = &clk_lock,						\
 	.hw.init = &(struct clk_init_data){				\
 		.name = #_name,						\
@@ -682,7 +708,26 @@ struct clk_rcc_range _name = {						\
 	},								\
 };
 
-static const unsigned int msi_freq_table[] = {
+static const unsigned int msi_csr_freq_table[] = {
+	0,
+	0,
+	0,
+	0,
+	1000000,
+	2000000,
+	4000000,
+	8000000,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0
+};
+
+static const unsigned int msi_cr_freq_table[] = {
 	100000,
 	200000,
 	400000,
@@ -701,29 +746,80 @@ static const unsigned int msi_freq_table[] = {
 	0
 };
 
-static RCC_RANGE(msi_rc, STM32L4_RCC_CSR, 8, 3, msi_freq_table, 0);
+static RCC_RANGE(msi_rc, STM32L4_RCC_CSR, 8, 4, msi_csr_freq_table,
+		 STM32L4_RCC_CR, 4, 4, msi_cr_freq_table,
+		 STM32L4_RCC_CR, 3, 0);
 
 /* PLLs */
 
-/* TOFIX proper PLL code.... */
-#define RCC_PLL(_name, _reg, _shift, _width, _min, _max, __parents, _flags)\
-struct clk_multiplier _name = {						\
-	.reg = (void __iomem *) _reg,					\
-	.shift = (_shift),						\
-	.width = (_width),						\
+struct clk_rcc_pll {
+	struct clk_hw	hw;
+	void __iomem	*base;
+	unsigned int	stat_reg;
+	u8		gate_shift;
+	u8		ready_shift;
+	unsigned int	mult_reg;
+	u8		mult_shift;
+	u8		mult_width;
+	u8		mult_min;
+	u8		mult_max;
+	spinlock_t	*lock;
+};
+
+#define to_clk_rcc_pll(_hw) container_of(_hw, struct clk_rcc_pll, hw)
+
+static unsigned long rcc_pll_recalc_rate(struct clk_hw *hw,
+					 unsigned long parent_rate)
+{
+	struct clk_rcc_pll *pll = to_clk_rcc_pll(hw);
+	unsigned int val;
+
+	if (!(clk_readl(pll->base + pll->stat_reg) & (1 << pll->gate_shift)) ||
+	    !(clk_readl(pll->base + pll->stat_reg) & (1 << pll->ready_shift)))
+		return 0;
+	
+	val = clk_readl(pll->base + pll->mult_reg) >> pll->mult_shift;
+	val &= ((1 << (pll->mult_width)) - 1);
+
+	return parent_rate * val;
+}
+
+/* TOFIX make it configurable */
+const struct clk_ops rcc_pll_ops = {
+	.recalc_rate = rcc_pll_recalc_rate,
+};
+
+#define RCC_PLL(_name, _s_reg, _g_shift, _r_shift,			\
+		_m_reg, _m_shift, _m_width, 				\
+		_min, _max, __parents, _flags)				\
+struct clk_rcc_pll _name = {						\
+	.stat_reg = (_s_reg),						\
+	.gate_shift = (_g_shift),					\
+	.ready_shift = (_r_shift),					\
+	.mult_reg = (_m_reg),						\
+	.mult_shift = (_m_shift),					\
+	.mult_width = (_m_width),					\
+	.mult_min = (_min),						\
+	.mult_max = (_max),						\
 	.lock = &clk_lock,						\
 	.hw.init = &(struct clk_init_data){				\
 		.name = #_name,						\
-		.ops = &clk_multiplier_ops,				\
+		.ops = &rcc_pll_ops,					\
 		.parent_names = __parents ## _parents,			\
 		.num_parents = ARRAY_SIZE(__parents ## _parents),	\
-		.flags =  (_flags),					\
+		.flags = (_flags),					\
 	},								\
 };
 
-static RCC_PLL(pll, STM32L4_RCC_PLLCFGR, 8, 7, 8, 86, pll, 0);
-static RCC_PLL(pllsai1, STM32L4_RCC_PLLSAI1CFGR, 8, 7, 8, 86, pll, 0);
-static RCC_PLL(pllsai2, STM32L4_RCC_PLLSAI2CFGR, 8, 7, 8, 86, pll, 0);
+static RCC_PLL(pll, STM32L4_RCC_CR, 24, 25,
+	       STM32L4_RCC_PLLCFGR, 8, 7,
+	       8, 86, pll, 0);
+static RCC_PLL(pllsai1, STM32L4_RCC_CR, 26, 27,
+	       STM32L4_RCC_PLLSAI1CFGR, 8, 7,
+	       8, 86, pll, 0);
+static RCC_PLL(pllsai2, STM32L4_RCC_CR, 28, 29,
+	       STM32L4_RCC_PLLSAI2CFGR, 8, 7,
+	       8, 86, pll, 0);
 
 /* Registry tables */
 
@@ -1180,7 +1276,7 @@ static struct clk_divider *stm32l476_clk_dividers[] = {
 	&ahb_presc,
 };
 
-static struct clk_multiplier *stm32l476_clk_multipliers[] = {
+static struct clk_rcc_pll *stm32l476_clk_rcc_plls[] = {
 	&pll,
 	&pllsai1,
 	&pllsai2,
@@ -1197,8 +1293,8 @@ struct stm32l4_rcc_data {
 	unsigned int clk_muxes_count;
 	struct clk_divider *const *clk_dividers;
 	unsigned int clk_dividers_count;
-	struct clk_multiplier *const *clk_multipliers;
-	unsigned int clk_multipliers_count;
+	struct clk_rcc_pll *const *clk_rcc_plls;
+	unsigned int clk_rcc_plls_count;
 	struct clk_rcc_range *const *clk_rcc_ranges;
 	unsigned int clk_rcc_ranges_count;
 	struct clk_hw_onecell_data *hw_onecell_data;
@@ -1211,8 +1307,8 @@ static const struct stm32l4_rcc_data stm32l476_rcc_data = {
 	.clk_muxes_count = ARRAY_SIZE(stm32l476_clk_muxes),
 	.clk_dividers = stm32l476_clk_dividers,
 	.clk_dividers_count = ARRAY_SIZE(stm32l476_clk_dividers),
-	.clk_multipliers = stm32l476_clk_multipliers,
-	.clk_multipliers_count = ARRAY_SIZE(stm32l476_clk_multipliers),
+	.clk_rcc_plls = stm32l476_clk_rcc_plls,
+	.clk_rcc_plls_count = ARRAY_SIZE(stm32l476_clk_rcc_plls),
 	.clk_rcc_ranges = stm32l476_clk_rcc_ranges,
 	.clk_rcc_ranges_count = ARRAY_SIZE(stm32l476_clk_rcc_ranges),
 	.hw_onecell_data = &stm32l476_hw_onecell_data,
@@ -1225,8 +1321,8 @@ static const struct stm32l4_rcc_data stm32l496_rcc_data = {
 	.clk_muxes_count = ARRAY_SIZE(stm32l476_clk_muxes),
 	.clk_dividers = stm32l476_clk_dividers,
 	.clk_dividers_count = ARRAY_SIZE(stm32l476_clk_dividers),
-	.clk_multipliers = stm32l476_clk_multipliers,
-	.clk_multipliers_count = ARRAY_SIZE(stm32l476_clk_multipliers),
+	.clk_rcc_plls = stm32l476_clk_rcc_plls,
+	.clk_rcc_plls_count = ARRAY_SIZE(stm32l476_clk_rcc_plls),
 	.clk_rcc_ranges = stm32l476_clk_rcc_ranges,
 	.clk_rcc_ranges_count = ARRAY_SIZE(stm32l476_clk_rcc_ranges),
 	.hw_onecell_data = &stm32l496_hw_onecell_data,
@@ -1271,15 +1367,13 @@ static int stm32l4_rcc_probe(struct platform_device *pdev)
 		rcc_data->clk_dividers[i]->reg = clk_base +
 			(u32)rcc_data->clk_dividers[i]->reg;
 
-	/* Populate base address for multipliers */
-	for (i = 0; i < rcc_data->clk_multipliers_count; i++)
-		rcc_data->clk_multipliers[i]->reg = clk_base +
-			(u32)rcc_data->clk_multipliers[i]->reg;
+	/* Populate base address for rcc_plls */
+	for (i = 0; i < rcc_data->clk_rcc_plls_count; i++)
+		rcc_data->clk_rcc_plls[i]->base = clk_base;
 
 	/* Populate base address for rcc_ranges */
 	for (i = 0; i < rcc_data->clk_rcc_ranges_count; i++)
-		rcc_data->clk_rcc_ranges[i]->reg = clk_base +
-			(u32)rcc_data->clk_rcc_ranges[i]->reg;
+		rcc_data->clk_rcc_ranges[i]->base = clk_base;
 
 	/*
 	 * register all clks
