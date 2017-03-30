@@ -158,6 +158,12 @@
 		enable-gpios = <&gpio GPIOH_3 0>;
 		status = "okay";
 	};
+
+	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
+		compatible = "linux,spdif-dit";
+		status = "okay";
+	};
 };
 
 /* This UART is brought out to the DB9 connector */
