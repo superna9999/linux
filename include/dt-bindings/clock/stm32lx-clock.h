@@ -59,9 +59,9 @@
 #define CLKID_SPI2		48
 #define CLKID_SPI3		49
 #define CLKID_USART2		50
-#define CLKID_UART3		51
-#define CLKID_UART4		52
-#define CLKID_UART5		53
+#define CLKID_USART3		51
+#define CLKID_USART4		52
+#define CLKID_USART5		53
 #define CLKID_I2C1		54
 #define CLKID_I2C2		55
 #define CLKID_I2C3		56

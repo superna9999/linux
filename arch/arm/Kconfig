@@ -899,6 +899,11 @@ config MACH_STM32F746
 	depends on ARCH_STM32
 	default y
 
+config MACH_STM32L476
+	bool "STMicrolectronics STM32L476"
+	depends on ARCH_STM32
+	default y
+
 config ARCH_MPS2
 	bool "ARM MPS2 platform"
 	depends on ARM_SINGLE_ARMV7M

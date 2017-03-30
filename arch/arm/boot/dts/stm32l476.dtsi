@@ -52,7 +52,7 @@
 		timer2: timer@40000000 {
 			compatible = "st,stm32-timer";
 			reg = <0x40000000 0x400>;
-			interrupts = <TODO>;
+			interrupts = <28>;
 			clocks = <&rcc CLKID_TIM2>;
 			resets = <&rcc RESETID_TIM2>;
 			status = "disabled";
@@ -61,7 +61,7 @@
 		timer3: timer@40000400 {
 			compatible = "st,stm32-timer";
 			reg = <0x40000400 0x400>;
-			interrupts = <TODO>;
+			interrupts = <29>;
 			clocks = <&rcc CLKID_TIM3>;
 			resets = <&rcc RESETID_TIM3>;
 			status = "disabled";
@@ -143,7 +143,7 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			reg = <0x40010400 0x400>;
-			interrupts = <1>, <2>, <3>, <6>, <7>, <8>, <9>, <10>, <23>, <40>, <41>, <42>, <62>, <76>;
+			interrupts = <6>, <7>, <8>, <9>, <10>, <23>, <40>;
 		};
 
 		rcc: rcc@40021000 {
@@ -151,6 +151,7 @@
 			#reset-cells = <1>;
 			compatible = "st,stm32l476-rcc", "st,stm32-rcc";
 			reg = <0x 0x400>;
+			interrupts = <5>;
 		};
 
 		usart1: serial@40038000 {
@@ -244,13 +245,13 @@
 
 			usart1_pins_a: usart1@0 {
 				pins1 {
-					pinmux = <STM32F746_PA9_FUNC_USART1_TX>;
+					pinmux = <STM32L476_FUNC(PA(9), AF7)>;
 					bias-disable;
 					drive-push-pull;
 					slew-rate = <0>;
 				};
 				pins2 {
-					pinmux = <STM32F746_PA10_FUNC_USART1_RX>;
+					pinmux = <STM32L476_FUNC(PA(10), AF7)>;
 					bias-disable;
 				};
 			};
