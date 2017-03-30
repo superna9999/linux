@@ -90,6 +90,27 @@
 		compatible = "linux,spdif-dit";
 		status = "okay";
 	};
+
+	soc {
+		sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "meson-gxl-p230";
+
+			simple-audio-card,dai-link@0 {
+				plat {
+					sound-dai = <&aiu_spdif_dma>;
+				};
+
+				cpu {
+					sound-dai = <&spdif_dai>;
+				};
+
+				codec {
+					sound-dai = <&spdif_out>;
+				};
+			};
+		};
+	};
 };
 
 &cec_AO {
