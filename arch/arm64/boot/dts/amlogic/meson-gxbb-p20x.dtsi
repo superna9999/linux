@@ -146,6 +146,12 @@
 			};
 		};
 	};
+
+	i2s_codec: external-codec {
+		#sound-dai-cells = <0>;
+		compatible = "everest,es7134";
+		status = "okay";
+	};
 };
 
 &cec_AO {
