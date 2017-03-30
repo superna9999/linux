@@ -58,7 +58,7 @@
 #define CLKID_WWDG		47
 #define CLKID_SPI2		48
 #define CLKID_SPI3		49
-#define CLKID_UART2		50
+#define CLKID_USART2		50
 #define CLKID_UART3		51
 #define CLKID_UART4		52
 #define CLKID_UART5		53
@@ -80,7 +80,7 @@
 #define CLKID_TIM1		69
 #define CLKID_SPI1		70
 #define CLKID_TIM8		71
-#define CLKID_UART1		72
+#define CLKID_USART1		72
 #define CLKID_TIM15		73
 #define CLKID_TIM16		74
 #define CLKID_TIM17		75
@@ -97,11 +97,11 @@
 #define CLKID_LSCO_SEL		86	
 #define CLKID_MCO_SEC		87
 #define CLKID_SYSCLK		88
-#define CLKID_UART1_SEL		89
-#define CLKID_UART2_SEL		90
-#define CLKID_UART3_SEL		91
-#define CLKID_UART4_SEL		92
-#define CLKID_UART5_SEL		93
+#define CLKID_USART1_SEL	89
+#define CLKID_USART2_SEL	90
+#define CLKID_USART3_SEL	91
+#define CLKID_USART4_SEL	92
+#define CLKID_USART5_SEL	93
 #define CLKID_LPUART1_SEL	94	
 #define CLKID_I2C1_SEL		95
 #define CLKID_I2C2_SEL		96

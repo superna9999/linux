@@ -1,0 +1,74 @@
+/*
+ * stm32lx-reset.h
+ *
+ * Author: Neil Armstrong <narmstrong@baylibre.com>
+ * License terms:  GNU General Public License (GPL), version 2
+ */
+
+#ifndef _DT_BINDINGS_RESET_STMLX_H
+#define _DT_BINDINGS_RESET_STMLX_H
+
+#define RESETID_DMA1	0
+#define RESETID_DMA2	1
+#define RESETID_FLASH	2
+#define RESETID_CRC	3
+#define RESETID_TSC	4
+#define RESETID_DMA2D	5
+#define RESETID_GPIOA	6
+#define RESETID_GPIOB	7
+#define RESETID_GPIOC	8
+#define RESETID_GPIOD	9
+#define RESETID_GPIOE	10
+#define RESETID_GPIOF	11
+#define RESETID_GPIOG	12
+#define RESETID_GPIOH	13
+#define RESETID_GPIOI	14
+#define RESETID_OTGFS	15
+#define RESETID_ADC	16
+#define RESETID_DCMI	17
+#define RESETID_AES	18
+#define RESETID_HASH	19
+#define RESETID_RNG	20
+#define RESETID_FMC	21
+#define RESETID_QSPI	22
+#define RESETID_TIM2	23
+#define RESETID_TIM3	24
+#define RESETID_TIM4	25
+#define RESETID_TIM5	26
+#define RESETID_TIM6	27
+#define RESETID_TIM7	28
+#define RESETID_LCD	29
+#define RESETID_SPI2	30
+#define RESETID_SPI3	31
+#define RESETID_USART2	32
+#define RESETID_USART3	33
+#define RESETID_UART4	34
+#define RESETID_UART5	35
+#define RESETID_I2C1	36
+#define RESETID_I2C2	37
+#define RESETID_I2C3	38
+#define RESETID_CRS	39
+#define RESETID_CAN1	40
+#define RESETID_CAN2	41
+#define RESETID_PWR	42
+#define RESETID_DAC1	43
+#define RESETID_OPAMP	44
+#define RESETID_LPTIM1	45
+#define RESETID_LPUART1	46
+#define RESETID_I2C4	47
+#define RESETID_SWPMI1	48
+#define RESETID_LPTIM2	49
+#define RESETID_SYSCFG	50
+#define RESETID_SDMMC1	51
+#define RESETID_TIM1	52
+#define RESETID_SPI1	53
+#define RESETID_TIM8	54
+#define RESETID_USART1	55
+#define RESETID_TIM15	56
+#define RESETID_TIM16	57
+#define RESETID_TIM17	58
+#define RESETID_SAI1	59
+#define RESETID_SAI2	60
+#define RESETID_DFSDM1	61
+
+#endif

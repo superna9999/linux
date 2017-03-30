@@ -26,8 +26,10 @@
 #include <linux/of_device.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
+#include <linux/reset-controller.h>
 
 #include <dt-bindings/clock/stm32lx-clock.h>
+#include <dt-bindings/reset/stm32lx-reset.h>
 
 #define STM32L4_RCC_CR			0x00
 #define STM32L4_RCC_ICSCR		0x04
@@ -820,8 +822,131 @@ static RCC_PLL(pllsai1, STM32L4_RCC_CR, 26, 27,
 static RCC_PLL(pllsai2, STM32L4_RCC_CR, 28, 29,
 	       STM32L4_RCC_PLLSAI2CFGR, 8, 7,
 	       8, 86, pll, 0);
+/* Resets */
 
-/* Registry tables */
+struct rcc_reset_data {
+	unsigned long reg;
+	unsigned int shift;
+};
+
+struct rcc_reset_controller {
+	struct reset_controller_dev reset;
+	const struct rcc_reset_data *data;
+	void __iomem *base;
+};
+
+static int rcc_reset_assert(struct reset_controller_dev *rcdev,
+			    unsigned long id)
+{
+	struct rcc_reset_controller *reset =
+		container_of(rcdev, struct rcc_reset_controller, reset);
+	u32 val;
+
+	if (!reset->data)
+		return -EINVAL;
+
+	val = readl(reset->base + reset->data[id].reg);
+	val |= BIT(reset->data[id].shift);
+	writel(val, reset->base + reset->data[id].reg);
+
+	return 0;
+}
+
+static int rcc_reset_deassert(struct reset_controller_dev *rcdev,
+			      unsigned long id)
+{
+	struct rcc_reset_controller *reset =
+		container_of(rcdev, struct rcc_reset_controller, reset);
+	u32 val;
+
+	if (!reset->data)
+		return -EINVAL;
+
+	val = readl(reset->base + reset->data[id].reg);
+	val &= ~BIT(reset->data[id].shift);
+	writel(val, reset->base + reset->data[id].reg);
+
+	return 0;
+}
+
+static const struct reset_control_ops rcc_reset_ops = {
+	.assert = rcc_reset_assert,
+	.deassert = rcc_reset_deassert,
+};
+
+#define RCC_RESET(_id, _reg, _shift) 					\
+	[RESETID_##_id] = {						\
+		.reg = STM32L4_RCC_##_reg,				\
+		.shift = (_shift),					\
+	}
+
+static const struct rcc_reset_data rcc_resets_stm32l476[] = {
+	RCC_RESET(DMA1, AHB1RSTR, 0),
+	RCC_RESET(DMA2, AHB1RSTR, 1),
+	RCC_RESET(FLASH, AHB1RSTR, 8),
+	RCC_RESET(CRC, AHB1RSTR, 12),
+	RCC_RESET(TSC, AHB1RSTR, 16),
+	RCC_RESET(DMA2D, AHB1RSTR, 17),	//946
+	RCC_RESET(GPIOA, AHB2RSTR, 0),
+	RCC_RESET(GPIOB, AHB2RSTR, 1),
+	RCC_RESET(GPIOC, AHB2RSTR, 2),
+	RCC_RESET(GPIOD, AHB2RSTR, 3),
+	RCC_RESET(GPIOE, AHB2RSTR, 4),
+	RCC_RESET(GPIOF, AHB2RSTR, 5),
+	RCC_RESET(GPIOG, AHB2RSTR, 6),
+	RCC_RESET(GPIOH, AHB2RSTR, 7),
+	RCC_RESET(GPIOI, AHB2RSTR, 8), //946
+	RCC_RESET(OTGFS, AHB2RSTR, 12),
+	RCC_RESET(ADC, AHB2RSTR, 13),
+	RCC_RESET(DCMI, AHB2RSTR, 14), //946
+	RCC_RESET(AES, AHB2RSTR, 16),
+	RCC_RESET(HASH, AHB2RSTR, 17), //946
+	RCC_RESET(RNG, AHB2RSTR, 18),
+	RCC_RESET(FMC, AHB3RSTR, 0),
+	RCC_RESET(QSPI, AHB3RSTR, 8),
+	RCC_RESET(TIM2, APB1RSTR1, 0),
+	RCC_RESET(TIM3, APB1RSTR1, 1),
+	RCC_RESET(TIM4, APB1RSTR1, 2),
+	RCC_RESET(TIM5, APB1RSTR1, 3),
+	RCC_RESET(TIM6, APB1RSTR1, 4),
+	RCC_RESET(TIM7, APB1RSTR1, 5),
+	RCC_RESET(LCD, APB1RSTR1, 9),
+	RCC_RESET(SPI2, APB1RSTR1, 14),
+	RCC_RESET(SPI3, APB1RSTR1, 15),
+	RCC_RESET(USART2, APB1RSTR1, 17),
+	RCC_RESET(USART3, APB1RSTR1, 18),
+	RCC_RESET(USART4, APB1RSTR1, 19),
+	RCC_RESET(USART5, APB1RSTR1, 20),
+	RCC_RESET(I2C1, APB1RSTR1, 21),
+	RCC_RESET(I2C2, APB1RSTR1, 22),
+	RCC_RESET(I2C3, APB1RSTR1, 23),
+	RCC_RESET(CRS, APB1RSTR1, 24), //946
+	RCC_RESET(CAN1, APB1RSTR1, 25),
+	RCC_RESET(CAN2, APB1RSTR1, 26), //946
+	RCC_RESET(PWR, APB1RSTR1, 28),
+	RCC_RESET(DAC1, APB1RSTR1, 29),
+	RCC_RESET(OPAMP, APB1RSTR1, 30),
+	RCC_RESET(LPTIM1, APB1RSTR1, 31),
+	RCC_RESET(LPUART1, APB1RSTR2, 0),
+	RCC_RESET(I2C4, APB1RSTR2, 1), //946
+	RCC_RESET(SWPMI1, APB1RSTR2, 2),
+	RCC_RESET(LPTIM2, APB1RSTR2, 5),
+	RCC_RESET(SYSCFG, APB2RSTR, 0),
+	RCC_RESET(SDMMC1, APB2RSTR, 10),
+	RCC_RESET(TIM1, APB2RSTR, 11),
+	RCC_RESET(SPI1, APB2RSTR, 12),
+	RCC_RESET(TIM8, APB2RSTR, 13),
+	RCC_RESET(USART1, APB2RSTR, 14),
+	RCC_RESET(TIM15, APB2RSTR, 16),
+	RCC_RESET(TIM16, APB2RSTR, 17),
+	RCC_RESET(TIM17, APB2RSTR, 18),
+	RCC_RESET(SAI1, APB2RSTR, 21),
+	RCC_RESET(SAI2, APB2RSTR, 22),
+	RCC_RESET(DFSDM1, APB2RSTR, 24),
+};
+
+
+/* Clocks Registry & Bindings tables */
 
 static struct clk_hw_onecell_data stm32l476_hw_onecell_data = {
 	.hws = {
@@ -873,10 +998,10 @@ static struct clk_hw_onecell_data stm32l476_hw_onecell_data = {
 		[CLKID_WWDG]	= &wwdg.hw,
 		[CLKID_SPI2]	= &spi2.hw,
 		[CLKID_SPI3]	= &spi3.hw,
-		[CLKID_UART2]	= &uart2.hw,
-		[CLKID_UART3]	= &uart3.hw,
-		[CLKID_UART4]	= &uart4.hw,
-		[CLKID_UART5]	= &uart5.hw,
+		[CLKID_USART2]	= &uart2.hw,
+		[CLKID_USART3]	= &uart3.hw,
+		[CLKID_USART4]	= &uart4.hw,
+		[CLKID_USART5]	= &uart5.hw,
 		[CLKID_I2C1]	= &i2c1.hw,
 		[CLKID_I2C2]	= &i2c2.hw,
 		[CLKID_I2C3]	= &i2c3.hw,
@@ -895,7 +1020,7 @@ static struct clk_hw_onecell_data stm32l476_hw_onecell_data = {
 		[CLKID_TIM1]	= &tim1.hw,
 		[CLKID_SPI1]	= &spi1.hw,
 		[CLKID_TIM8]	= &tim8.hw,
-		[CLKID_UART1]	= &uart1.hw,
+		[CLKID_USART1]	= &uart1.hw,
 		[CLKID_TIM15]	= &tim15.hw,
 		[CLKID_TIM16]	= &tim16.hw,
 		[CLKID_TIM17]	= &tim17.hw,
@@ -911,11 +1036,11 @@ static struct clk_hw_onecell_data stm32l476_hw_onecell_data = {
 		[CLKID_LSCO_SEL]	= &lsco_mux.hw,
 		[CLKID_MCO_SEC]	= &mco_div_mux.hw,
 		[CLKID_SYSCLK]	= &sysclk.hw,
-		[CLKID_UART1_SEL]	= &uart1_mux.hw,
-		[CLKID_UART2_SEL]	= &uart2_mux.hw,
-		[CLKID_UART3_SEL]	= &uart3_mux.hw,
-		[CLKID_UART4_SEL]	= &uart4_mux.hw,
-		[CLKID_UART5_SEL]	= &uart5_mux.hw,
+		[CLKID_USART1_SEL]	= &uart1_mux.hw,
+		[CLKID_USART2_SEL]	= &uart2_mux.hw,
+		[CLKID_USART3_SEL]	= &uart3_mux.hw,
+		[CLKID_USART4_SEL]	= &uart4_mux.hw,
+		[CLKID_USART5_SEL]	= &uart5_mux.hw,
 		[CLKID_LPUART1_SEL]	= &lpuart1_mux.hw,
 		[CLKID_I2C1_SEL]	= &i2c1_mux.hw,
 		[CLKID_I2C2_SEL]	= &i2c2_mux.hw,
@@ -1002,10 +1127,10 @@ static struct clk_hw_onecell_data stm32l496_hw_onecell_data = {
 		[CLKID_WWDG]	= &wwdg.hw,
 		[CLKID_SPI2]	= &spi2.hw,
 		[CLKID_SPI3]	= &spi3.hw,
-		[CLKID_UART2]	= &uart2.hw,
-		[CLKID_UART3]	= &uart3.hw,
-		[CLKID_UART4]	= &uart4.hw,
-		[CLKID_UART5]	= &uart5.hw,
+		[CLKID_USART2]	= &uart2.hw,
+		[CLKID_USART3]	= &uart3.hw,
+		[CLKID_USART4]	= &uart4.hw,
+		[CLKID_USART5]	= &uart5.hw,
 		[CLKID_I2C1]	= &i2c1.hw,
 		[CLKID_I2C2]	= &i2c2.hw,
 		[CLKID_I2C3]	= &i2c3.hw,
@@ -1024,7 +1149,7 @@ static struct clk_hw_onecell_data stm32l496_hw_onecell_data = {
 		[CLKID_TIM1]	= &tim1.hw,
 		[CLKID_SPI1]	= &spi1.hw,
 		[CLKID_TIM8]	= &tim8.hw,
-		[CLKID_UART1]	= &uart1.hw,
+		[CLKID_USART1]	= &uart1.hw,
 		[CLKID_TIM15]	= &tim15.hw,
 		[CLKID_TIM16]	= &tim16.hw,
 		[CLKID_TIM17]	= &tim17.hw,
@@ -1041,11 +1166,11 @@ static struct clk_hw_onecell_data stm32l496_hw_onecell_data = {
 		[CLKID_LSCO_SEL]	= &lsco_mux.hw,
 		[CLKID_MCO_SEC]	= &mco_div_mux.hw,
 		[CLKID_SYSCLK]	= &sysclk.hw,
-		[CLKID_UART1_SEL]	= &uart1_mux.hw,
-		[CLKID_UART2_SEL]	= &uart2_mux.hw,
-		[CLKID_UART3_SEL]	= &uart3_mux.hw,
-		[CLKID_UART4_SEL]	= &uart4_mux.hw,
-		[CLKID_UART5_SEL]	= &uart5_mux.hw,
+		[CLKID_USART1_SEL]	= &uart1_mux.hw,
+		[CLKID_USART2_SEL]	= &uart2_mux.hw,
+		[CLKID_USART3_SEL]	= &uart3_mux.hw,
+		[CLKID_USART4_SEL]	= &uart4_mux.hw,
+		[CLKID_USART5_SEL]	= &uart5_mux.hw,
 		[CLKID_LPUART1_SEL]	= &lpuart1_mux.hw,
 		[CLKID_I2C1_SEL]	= &i2c1_mux.hw,
 		[CLKID_I2C2_SEL]	= &i2c2_mux.hw,
@@ -1298,6 +1423,8 @@ struct stm32l4_rcc_data {
 	struct clk_rcc_range *const *clk_rcc_ranges;
 	unsigned int clk_rcc_ranges_count;
 	struct clk_hw_onecell_data *hw_onecell_data;
+	const struct rcc_reset_data *rcc_resets;
+	unsigned int rcc_resets_count;
 };
 
 static const struct stm32l4_rcc_data stm32l476_rcc_data = {
@@ -1312,6 +1439,8 @@ static const struct stm32l4_rcc_data stm32l476_rcc_data = {
 	.clk_rcc_ranges = stm32l476_clk_rcc_ranges,
 	.clk_rcc_ranges_count = ARRAY_SIZE(stm32l476_clk_rcc_ranges),
 	.hw_onecell_data = &stm32l476_hw_onecell_data,
+	.rcc_resets = rcc_resets_stm32l476,
+	.rcc_resets_count = ARRAY_SIZE(rcc_resets_stm32l476),
 };
 
 static const struct stm32l4_rcc_data stm32l496_rcc_data = {
@@ -1337,7 +1466,8 @@ static const struct of_device_id stm32l4_rcc_match_table[] = {
 static int stm32l4_rcc_probe(struct platform_device *pdev)
 {
 	const struct stm32l4_rcc_data *rcc_data;
-	void __iomem *clk_base;
+	struct rcc_reset_controller *rstc;
+	void __iomem *rcc_io_base;
 	int ret, clkid, i;
 	struct device *dev = &pdev->dev;
 
@@ -1346,34 +1476,44 @@ static int stm32l4_rcc_probe(struct platform_device *pdev)
 		return -EINVAL;
 
 	/*  Generic clocks and PLLs */
-	clk_base = of_iomap(dev->of_node, 0);
-	if (!clk_base) {
+	rcc_io_base = of_iomap(dev->of_node, 0);
+	if (!rcc_io_base) {
 		pr_err("%s: Unable to map clk base\n", __func__);
 		return -ENXIO;
 	}
 
+	/* Reset Controller */
+	rstc->base = rcc_io_base;
+	rstc->data = rcc_data->rcc_resets;
+	rstc->reset.ops = &rcc_reset_ops;
+	rstc->reset.nr_resets = rcc_data->rcc_resets_count;
+	rstc->reset.of_node = dev->of_node;
+	ret = devm_reset_controller_register(dev, &rstc->reset);
+	if (ret)
+		goto iounmap;
+
 	/* Populate base address for gates */
 	for (i = 0; i < rcc_data->clk_gates_count; i++)
-		rcc_data->clk_gates[i]->reg = clk_base +
+		rcc_data->clk_gates[i]->reg = rcc_io_base +
 			(u32)rcc_data->clk_gates[i]->reg;
 
 	/* Populate base address for muxes */
 	for (i = 0; i < rcc_data->clk_muxes_count; i++)
-		rcc_data->clk_muxes[i]->reg = clk_base +
+		rcc_data->clk_muxes[i]->reg = rcc_io_base +
 			(u32)rcc_data->clk_muxes[i]->reg;
 
 	/* Populate base address for dividers */
 	for (i = 0; i < rcc_data->clk_dividers_count; i++)
-		rcc_data->clk_dividers[i]->reg = clk_base +
+		rcc_data->clk_dividers[i]->reg = rcc_io_base +
 			(u32)rcc_data->clk_dividers[i]->reg;
 
 	/* Populate base address for rcc_plls */
 	for (i = 0; i < rcc_data->clk_rcc_plls_count; i++)
-		rcc_data->clk_rcc_plls[i]->base = clk_base;
+		rcc_data->clk_rcc_plls[i]->base = rcc_io_base;
 
 	/* Populate base address for rcc_ranges */
 	for (i = 0; i < rcc_data->clk_rcc_ranges_count; i++)
-		rcc_data->clk_rcc_ranges[i]->base = clk_base;
+		rcc_data->clk_rcc_ranges[i]->base = rcc_io_base;
 
 	/*
 	 * register all clks
@@ -1392,7 +1532,7 @@ static int stm32l4_rcc_probe(struct platform_device *pdev)
 			rcc_data->hw_onecell_data);
 
 iounmap:
-	iounmap(clk_base);
+	iounmap(rcc_io_base);
 	return ret;
 }
 
