@@ -130,3 +130,17 @@
 	status = "okay";
 	vref-supply = <&vddio_ao18>;
 };
+
+&audio {
+	status = "okay";
+};
+
+&aiu_spdif_dma {
+	status = "okay";
+};
+
+&spdif_dai {
+	pinctrl-0 = <&spdif_out_h_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
