@@ -84,6 +84,7 @@ config SND_SOC_MESON_I2S
 config SND_SOC_MESON_SPDIF
 	tristate "Meson spdif interface"
 	depends on SND_SOC_MESON
+	select SND_PCM_IEC958
 	help
-	  Say Y or M if you want to add support for spdif dma driver for Amlogic
+	  Say Y or M if you want to add support for spdif driver for Amlogic
 	  Meson SoCs.
