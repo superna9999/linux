@@ -164,6 +164,57 @@
 		compatible = "linux,spdif-dit";
 		status = "okay";
 	};
+
+	soc {
+		sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "meson-gxbb-p20x";
+			simple-audio-card,aux-devs = <&amp>;
+			simple-audio-card,widgets =
+				"Line", "Analog Left Output",
+				"Line", "Analog Right Output";
+			simple-audio-card,routing =
+				"Analog Left Output", "OUTL",
+				"Analog Right Output", "OUTR",
+				"INL", "AOUTL",
+				"INR", "AOUTR";
+			status = "okay";
+
+			simple-audio-card,dai-link@0 {
+				/* RCA Output */
+				format = "i2s";
+				mclk-fs = <256>;
+				bitclock-master = <&i2s_dai>;
+				frame-master = <&i2s_dai>;
+
+				plat {
+					sound-dai = <&aiu_i2s_dma>;
+				};
+
+				cpu {
+					sound-dai = <&i2s_dai>;
+				};
+
+				codec {
+					sound-dai = <&i2s_codec>;
+				};
+			};
+
+			simple-audio-card,dai-link@1 {
+				plat {
+					sound-dai = <&aiu_spdif_dma>;
+				};
+
+				cpu {
+					sound-dai = <&spdif_dai>;
+				};
+
+				codec {
+					sound-dai = <&spdif_out>;
+				};
+			};
+		};
+	};
 };
 
 /* This UART is brought out to the DB9 connector */
