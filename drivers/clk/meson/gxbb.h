@@ -205,7 +205,7 @@
 #define CLKID_HIU_IFACE		  32
 #define CLKID_ASSIST_MISC	  33
 /* CLKID_SPI */
-#define CLKID_I2S_SPDIF		  35
+/* CLKID_I2S_SPDIF */
 /* CLKID_ETH */
 #define CLKID_DEMUX		  37
 /* CLKID_AIU_GLUE */
