@@ -602,6 +602,27 @@
 	};
 };
 
+&audio {
+	clocks = <&clkc CLKID_AIU>,
+		 <&clkc CLKID_AIU_GLUE>,
+		 <&clkc CLKID_I2S_SPDIF>;
+	clock-names = "aiu_top", "aiu_glue", "audin";
+	resets = <&reset RESET_AIU>,
+		 <&reset RESET_AUDIN>;
+	reset-names = "aiu", "audin";
+};
+
+&aiu_i2s_dma {
+	clocks = <&clkc CLKID_I2S_OUT>;
+	clock-names = "fast";
+};
+
+&aiu_spdif_dma {
+	clocks = <&clkc CLKID_IEC958>;
+	clock-names = "fast";
+
+};
+
 &i2c_A {
 	clocks = <&clkc CLKID_I2C>;
 };
@@ -616,6 +637,14 @@
 
 &i2c_C {
 	clocks = <&clkc CLKID_I2C>;
+};
+
+&i2s_dai {
+	clocks = <&clkc CLKID_I2S_OUT>,
+		 <&clkc CLKID_MIXER_IFACE>,
+		 <&clkc CLKID_AOCLK_GATE>,
+		 <&clkc CLKID_CTS_AMCLK>;
+	clock-names = "fast", "iface", "bclks", "mclk";
 };
 
 &saradc {
@@ -647,6 +676,15 @@
 		 <&xtal>,
 		 <&clkc CLKID_FCLK_DIV2>;
 	clock-names = "core", "clkin0", "clkin1";
+};
+
+&spdif_dai {
+	clocks = <&clkc CLKID_IEC958>,
+		 <&clkc CLKID_IEC958_GATE>,
+		 <&clkc CLKID_CTS_MCLK_I958>,
+		 <&clkc CLKID_CTS_AMCLK>,
+		 <&clkc CLKID_CTS_I958>;
+	clock-names = "fast", "iface", "mclk_i958", "mclk_i2s", "mclk";
 };
 
 &spifc {
