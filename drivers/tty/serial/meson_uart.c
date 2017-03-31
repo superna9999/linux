@@ -579,7 +579,11 @@ meson_serial_early_console_setup(struct earlycon_device *device, const char *opt
 	device->con->write = meson_serial_early_console_write;
 	return 0;
 }
+/* Legacy bindings, should be removed when no more used */
 OF_EARLYCON_DECLARE(meson, "amlogic,meson-uart",
+		    meson_serial_early_console_setup);
+/* Stable bindings */
+OF_EARLYCON_DECLARE(meson, "amlogic,meson-ao-uart",
 		    meson_serial_early_console_setup);
 
 #define MESON_SERIAL_CONSOLE	(&meson_serial_console)
@@ -595,11 +599,95 @@ static struct uart_driver meson_uart_driver = {
 	.cons		= MESON_SERIAL_CONSOLE,
 };
 
+/*
+ * This function gets clocks in the legacy non-stable DT bindings.
+ * This code will be remove once all the platforms switch to the
+ * new DT bindings.
+ */
+static int meson_uart_probe_clocks_legacy(struct platform_device *pdev,
+					  struct uart_port *port)
+{
+	struct clk *clk = NULL;
+	int ret;
+
+	clk = devm_clk_get(&pdev->dev, NULL);
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
+
+	ret = clk_prepare_enable(clk);
+	if (ret) {
+		dev_err(&pdev->dev, "couldn't enable clk\n");
+		return ret;
+	}
+
+	devm_add_action_or_reset(&pdev->dev,
+			(void(*)(void *))clk_disable_unprepare,
+			clk);
+
+	port->uartclk = clk_get_rate(clk);
+
+	return 0;
+}
+
+static int meson_uart_probe_clocks(struct platform_device *pdev,
+				   struct uart_port *port)
+{
+	struct clk *clk_xtal = NULL;
+	struct clk *clk_pclk = NULL;
+	struct clk *clk_baud = NULL;
+	int ret;
+
+	clk_pclk = devm_clk_get(&pdev->dev, "pclk");
+	if (IS_ERR(clk_pclk))
+		return PTR_ERR(clk_pclk);
+
+	clk_xtal = devm_clk_get(&pdev->dev, "xtal");
+	if (IS_ERR(clk_xtal))
+		return PTR_ERR(clk_xtal);
+
+	clk_baud = devm_clk_get(&pdev->dev, "baud");
+	if (IS_ERR(clk_xtal))
+		return PTR_ERR(clk_baud);
+
+	ret = clk_prepare_enable(clk_pclk);
+	if (ret) {
+		dev_err(&pdev->dev, "couldn't enable pclk\n");
+		return ret;
+	}
+
+	devm_add_action_or_reset(&pdev->dev,
+			(void(*)(void *))clk_disable_unprepare,
+			clk_pclk);
+
+	ret = clk_prepare_enable(clk_xtal);
+	if (ret) {
+		dev_err(&pdev->dev, "couldn't enable xtal\n");
+		return ret;
+	}
+
+	devm_add_action_or_reset(&pdev->dev,
+			(void(*)(void *))clk_disable_unprepare,
+			clk_xtal);
+
+	ret = clk_prepare_enable(clk_baud);
+	if (ret) {
+		dev_err(&pdev->dev, "couldn't enable baud clk\n");
+		return ret;
+	}
+
+	devm_add_action_or_reset(&pdev->dev,
+			(void(*)(void *))clk_disable_unprepare,
+			clk_baud);
+
+	port->uartclk = clk_get_rate(clk_baud);
+
+	return 0;
+}
+
 static int meson_uart_probe(struct platform_device *pdev)
 {
 	struct resource *res_mem, *res_irq;
 	struct uart_port *port;
-	struct clk *clk;
 	int ret = 0;
 
 	if (pdev->dev.of_node)
@@ -625,11 +713,15 @@ static int meson_uart_probe(struct platform_device *pdev)
 	if (!port)
 		return -ENOMEM;
 
-	clk = clk_get(&pdev->dev, NULL);
-	if (IS_ERR(clk))
-		return PTR_ERR(clk);
+	/* Use legacy way until all platforms switch to new bindings */
+	if (of_device_is_compatible(pdev->dev.of_node, "amlogic,meson-uart"))
+		ret = meson_uart_probe_clocks_legacy(pdev, port);
+	else
+		ret = meson_uart_probe_clocks(pdev, port);
 
-	port->uartclk = clk_get_rate(clk);
+	if (ret)
+		return ret;
+
 	port->iotype = UPIO_MEM;
 	port->mapbase = res_mem->start;
 	port->irq = res_irq->start;
@@ -668,9 +760,14 @@ static int meson_uart_remove(struct platform_device *pdev)
 	return 0;
 }
 
-
 static const struct of_device_id meson_uart_dt_match[] = {
+	/* Legacy bindings, should be removed when no more used */
 	{ .compatible = "amlogic,meson-uart" },
+	/* Stable bindings */
+	{ .compatible = "amlogic,meson6-uart" },
+	{ .compatible = "amlogic,meson8-uart" },
+	{ .compatible = "amlogic,meson8b-uart" },
+	{ .compatible = "amlogic,meson-gx-uart" },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, meson_uart_dt_match);
