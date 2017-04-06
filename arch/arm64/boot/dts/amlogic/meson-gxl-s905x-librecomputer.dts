@@ -1,0 +1,104 @@
+/*
+ * Copyright (c) 2017 BayLibre, SAS.
+ * Author: Neil Armstrong <narmstrong@baylibre.com>
+ *
+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/input/input.h>
+
+#include "meson-gxl-s905x-p212.dtsi"
+
+/ {
+	compatible = "noname,librecomputer", "amlogic,s905x", "amlogic,meson-gxl";
+	model = "Noname Libre Computer Board";
+
+	leds {
+		compatible = "gpio-leds";
+
+		system {
+			label = "librecomputer:system-status";
+			gpios = <&gpio GPIODV_24 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+			panic-indicator;
+		};
+	};
+};
+
+&ir {
+	linux,rc-map-name = "rc-geekbox";
+};
+
+/*
+ * Header 7J1 Pins Mapping :
+ * - 3, 5 : I2C AO
+ * - 7 : GPIOAO_9 (REMOTE OUT / SPDIF)
+ * - 8, 10, 16, 18 : UART A
+ * - 11 : GPIOAO_2
+ * - 13, 12 : PWM AO A/B
+ * - 15 : GPIOCLK_0
+ * - 19, 21, 23, 24 : SPICC
+ * - 27, 28 : I2C A
+ * - 29 : GPIOX_17
+ * - 31 : GPIOX_18
+ * - 32 : PWM E
+ * - 33 : SDIO PWREN
+ * - 22, 26, 35, 36, 37, 38, 40 : SDIO
+
+/* Header 7J1 Pins 3 (SDA), 5 (SCL) */
+&i2c_AO {
+	status = "okay";
+	pinctrl-0 = <&i2c_ao_pins>;
+	pinctrl-names = "default";
+};
+
+/* Header 7J1 Pins 27 (SDA), 28 (SCL) */
+&i2c_A {
+	status = "okay";
+	pinctrl-0 = <&i2c_a_pins>;
+	pinctrl-names = "default";
+};
+
+/* Header 7J1 Pins 32 (PWM E) */
+&pwm_ef {
+	status = "okay";
+	pinctrl-0 = <&pwm_e_pins>;
+	pinctrl-names = "default";
+	clocks = <&clkc CLKID_FCLK_DIV4>;
+	clock-names = "clkin0";
+};
+
+/* Header 7J1 Pins 13 (PWM_AO_A), 12 (PWM_AO_B) */
+&pwm_AO_ab {
+	status = "okay";
+	pinctrl-0 = <&pwm_ao_a_3_pins>, <&pwm_ao_b_6_pins>;
+	pinctrl-names = "default";
+	clocks = <&clkc CLKID_FCLK_DIV4>, <&clkc CLKID_FCLK_DIV4>;
+	clock-names = "clkin0", "clkin1";
+};
+
+/* Header 7J1 Pins 22;26;36;38 (D0-D3), 35 (IRQ), 37 (CMD), 40 (CLK) */
+&sd_emmc_a {
+	status = "okay";
+	pinctrl-0 = <&sdio_pins>;
+	pinctrl-names = "default";
+};
+
+/* Header 7J1 Pins 19 (MOSI), 21 (MISO), 23 (CLK), 24 (SS0) */
+&spicc {
+	status = "okay";
+	pinctrl-0 = <&spi_pins>;
+	pinctrl-names = "default";
+};
+
+/* Header 7J1 Pins 8 (TX), 10 (RX), 16 (CTS), 18 (RTS) */
+&uart_A {
+	status = "okay";
+};
+
+/* Header 2J1 Pins 2 (TX), 3 (RX) */
+&uart_AO {
+	status = "okay";
+};
