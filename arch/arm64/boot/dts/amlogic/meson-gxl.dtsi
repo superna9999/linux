@@ -267,6 +267,16 @@
 			};
 		};
 
+		spi_pins: spi {
+			mux {
+				groups = "spi_miso",
+				       "spi_mosi",
+				       "spi_ss0",
+				       "spi_sclk";
+				function = "spi";
+			};
+		};
+
 		sdcard_pins: sdcard {
 			mux {
 				groups = "sdcard_d0",
