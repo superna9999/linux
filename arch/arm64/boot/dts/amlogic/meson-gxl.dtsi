@@ -572,6 +572,11 @@
 	clocks = <&clkc CLKID_SPI>;
 };
 
+&spicc {
+	clocks = <&clkc CLKID_SPICC>;
+	resets = <&reset RESET_PERIPHS_SPICC>;
+};
+
 &vpu {
 	compatible = "amlogic,meson-gxl-vpu", "amlogic,meson-gx-vpu";
 };
