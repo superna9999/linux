@@ -20,3 +20,26 @@ Required properties:
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
+
+* SPICC (SPI Communications Controller)
+
+The Meson SPICC is generic SPI controller for general purpose Full-Duplex
+communications with DMA support and separate 16bytes RX/TX PIO FIFOs.
+
+Required properties:
+ - compatible: should be "amlogic,meson-gx-spicc"
+ - reg: physical base address and length of the controller registers
+ - clocks: phandle of the input clock for the baud rate generator
+ - #address-cells: should be 1
+ - #size-cells: should be 0
+
+Optional properties:
+ - resets: phandle of the internal reset line
+
+	spi@c1108d80 {
+		compatible = "amlogic,meson-gx-spicc";
+		reg = <0xc1108d80 0x80>;
+		clocks = <&clk81>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
