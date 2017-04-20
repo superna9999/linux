@@ -18,8 +18,10 @@
 #include <linux/spi/spi.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>
+#include <linux/reset.h>
 
 #define SPICC_MAX_FREQ	30000000
+#define SPICC_MAX_BURST	128
 
 /* Register Map */
 #define SPICC_RXDATA	0x00
@@ -85,14 +87,14 @@
 #define SPICC_TXCNT_MASK	GENMASK(4, 0)	/* TX Fifo Counter */
 #define SPICC_RXCNT_MASK	GENMASK(9, 5)	/* RX Fifo Counter */
 #define SPICC_SMSTATUS_MASK	GENMASK(12, 10)	/* State Machine Status */
-#define SPICC_LBC_RO		BIT(13)	/* Loop Back Control - Read-Only */
-#define SPICC_LBC_W1		BIT(14) /* Loop Back Control - Write-Only */
-#define SPICC_SWAP_RO		BIT(14) /* RX Fifo Data Swap - Read-Only */
-#define SPICC_SWAP_W1		BIT(15) /* RX Fifo Data Swap - Write-Only */
-#define SPICC_DLYCTL_RO_MASK	GENMASK(20, 15) /* Delay Control - Read-Only */
-#define SPICC_DLYCTL_W1_MASK	GENMASK(21, 16) /* Delay Control - Write-Only */
-#define SPICC_FIFORST_RO_MASK	GENMASK(22, 21) /* Fifo Softreset - Read-Only */
-#define SPICC_FIFORST_W1_MASK	GENMASK(23, 22) /* Fifo Softreset - Write-Only */
+#define SPICC_LBC_RO		BIT(13)	/* Loop Back Control Read-Only */
+#define SPICC_LBC_W1		BIT(14) /* Loop Back Control Write-Only */
+#define SPICC_SWAP_RO		BIT(14) /* RX Fifo Data Swap Read-Only */
+#define SPICC_SWAP_W1		BIT(15) /* RX Fifo Data Swap Write-Only */
+#define SPICC_DLYCTL_RO_MASK	GENMASK(20, 15) /* Delay Control Read-Only */
+#define SPICC_DLYCTL_W1_MASK	GENMASK(21, 16) /* Delay Control Write-Only */
+#define SPICC_FIFORST_RO_MASK	GENMASK(22, 21) /* Fifo Softreset Read-Only */
+#define SPICC_FIFORST_W1_MASK	GENMASK(23, 22) /* Fifo Softreset Write-Only */
 
 #define SPICC_DRADDR	0x20	/* Read Address of DMA */
 
@@ -105,20 +107,68 @@ struct meson_spicc_device {
 	struct spi_master 		*master;
 	struct platform_device		*pdev;
 	void __iomem			*base;
-	struct completion		transfert;
 	struct clk			*core;
+	struct spi_message		*message;
+	struct spi_transfer		*transfer;
+	struct scatterlist 		*tx_sgl;
+	struct scatterlist 		*rx_sgl;
+	u32 				tx_sgl_len;
+	u32 				rx_sgl_len;
+	u32				burst_len;
 };
+
+static void meson_spicc_transfer_dma(struct meson_spicc_device *spicc,
+				     struct spi_transfer *xfer);
 
 static irqreturn_t meson_spicc_irq(int irq, void *data)
 {
 	struct meson_spicc_device *spicc = (void *) data;
+	struct spi_transfer *xfer = spicc->transfer;
+
 	u32 stat = readl_relaxed(spicc->base + SPICC_STATREG);
 
 	if (stat & SPICC_TC) {
-		/* Ack the transfert complete */
+		/* Ack the transfer complete */
 		writel_relaxed(SPICC_TC, spicc->base + SPICC_STATREG);
 
-		complete(&spicc->transfert);
+		/* Update remaining lengths */
+		spicc->tx_sgl_len -= spicc->burst_len;
+		spicc->rx_sgl_len -= spicc->burst_len;
+
+		/* Update DMA addresses */
+		xfer->tx_dma += spicc->burst_len;
+		xfer->rx_dma += spicc->burst_len;
+		
+		/* Walk the TX SG list */
+		if (!spicc->tx_sgl_len) {
+			spicc->tx_sgl = sg_next(spicc->tx_sgl);
+			if (spicc->tx_sgl) {
+				xfer->tx_dma = sg_dma_address(spicc->tx_sgl);
+				spicc->tx_sgl_len = sg_dma_len(spicc->tx_sgl);
+			}
+		}
+		
+		/* Walk the RX SG list */
+		if (!spicc->rx_sgl_len) {
+			spicc->rx_sgl = sg_next(spicc->rx_sgl);
+			if (spicc->rx_sgl) {
+				xfer->rx_dma = sg_dma_address(spicc->rx_sgl);
+				spicc->rx_sgl_len = sg_dma_len(spicc->rx_sgl);
+			}
+		}
+
+		if (!spicc->rx_sgl_len || !spicc->tx_sgl_len) {
+			/* Disable DMA IRQ */
+			writel_relaxed(0, spicc->base + SPICC_INTREG);
+
+			/* Clean up pointers */
+			spicc->transfer = NULL;
+			spicc->tx_sgl = NULL;
+			spicc->rx_sgl = NULL;
+
+			spi_finalize_current_transfer(spicc->master);
+		} else
+			meson_spicc_transfer_dma(spicc, xfer);
 	} else
 		dev_err(&spicc->pdev->dev, "%s: Spurious Interrupt %x\n",
 			__func__, stat);
@@ -126,73 +176,154 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static unsigned int spicc_divs[] = {4, 8, 16, 32};
-
 static u32 meson_spicc_setup_speed(struct meson_spicc_device *spicc, u32 conf,
 				   u32 speed)
 {
 	unsigned long parent, value;
-	int i, n;
+	unsigned int i, div;
 
 	parent = clk_get_rate(spicc->core);
 
-	/* Iterate over the dividers */
-	for (i = 0 ; i < ARRAY_SIZE(spicc_divs) ; ++i) {
-		n = spicc_divs[i];
-		value = parent / n;
+	/* Find closest inferior/equal possible speed */
+	for (i = 0 ; i < 7 ; ++i) {
+		/* 2^(data_rate+2) */
+		value = parent >> (i + 2);
 
-		if (value >= speed)
+		if (value <= speed)
 			break;
 	}
 
-	dev_dbg(&spicc->pdev->dev, "parent %lu, speed %u, n %d\n", parent,
-		speed, n);
+	/* If provided speed it lower than max divider, use max divider */
+	if (i > 7) {
+		div = 7;
+		dev_warn_once(&spicc->pdev->dev, "unable to get close to speed %u\n",
+			      speed);
+	}
+	else
+		div = i;
+
+	dev_dbg(&spicc->pdev->dev, "parent %lu, speed %u -> %lu (%u)\n",
+		parent, speed, value, div);
 
 	conf &= ~SPICC_DATARATE_MASK;
-	conf |= FIELD_PREP(SPICC_DATARATE_MASK, i);
+	conf |= FIELD_PREP(SPICC_DATARATE_MASK, div);
 
 	return conf;
 }
 
-static void meson_spicc_setup(struct meson_spicc_device *spicc,
-			      struct spi_device *spi,
-			      struct spi_transfer *xfer)
+static void meson_spicc_setup_xfer(struct meson_spicc_device *spicc,
+				   struct spi_transfer *xfer)
 {
 	u32 conf, conf_orig;
+
+	/* Store current transfer */
+	spicc->transfer = xfer;
 	
 	/* Read original configuration */
 	conf = conf_orig = readl_relaxed(spicc->base + SPICC_CONREG);
 
-	/* Calculate closest divider */
+	/* Select closest divider */
 	conf = meson_spicc_setup_speed(spicc, conf, xfer->speed_hz);
 
 	/* Setup word width */
 	conf &= ~SPICC_BITLENGTH_MASK;
-	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, xfer->bits_per_word);
+	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, xfer->bits_per_word - 1);
 
-	/* Setup transfer size */
-	conf &= ~SPICC_BURSTLENGTH_MASK;
-	conf |= FIELD_PREP(SPICC_BURSTLENGTH_MASK, xfer->len);
+	/* Ignore if unchanged */
+	if (conf != conf_orig)
+		writel_relaxed(conf, spicc->base + SPICC_CONREG);
+}
 
-	/* Setup CS management */
-	conf &= ~SPICC_CS_MASK;
-	conf |= FIELD_PREP(SPICC_CS_MASK, spi->chip_select);
+static void meson_spicc_transfer_dma(struct meson_spicc_device *spicc,
+				     struct spi_transfer *xfer)
+{ 
+	u32 sg_len = min_t(u32, spicc->tx_sgl_len, spicc->rx_sgl_len);
+	bool is_last_burst = (spicc->burst_len < SPICC_MAX_BURST &&
+			      (sg_is_last(spicc->rx_sgl) || 
+			       sg_is_last(spicc->tx_sgl)));
+	bool is_last_xfer = list_is_last(&xfer->transfer_list,
+					 &spicc->message->transfers);
 
-	if (xfer->cs_change)
-		conf |= SPICC_SSCTL;
+	/* Disable CS at end of last burst only if last xfer xor cs_change */
+	if (is_last_burst && (xfer->cs_change ^ is_last_xfer))
+		writel_bits_relaxed(SPICC_SSCTL, 0,
+				    spicc->base + SPICC_CONREG);
 	else
-		conf &= ~SPICC_SSCTL;
+		writel_bits_relaxed(SPICC_SSCTL, SPICC_SSCTL,
+				    spicc->base + SPICC_CONREG);
+
+	/* Write buffer physical addresses */
+	writel(xfer->tx_dma, spicc->base + SPICC_DWADDR);
+	writel(xfer->rx_dma, spicc->base + SPICC_DRADDR);
+
+	/* Calculate burst len */
+	spicc->burst_len = min_t(u32, sg_len, SPICC_MAX_BURST);
+	writel_bits_relaxed(SPICC_BURSTLENGTH_MASK, spicc->burst_len,
+			    spicc->base + SPICC_CONREG);
+
+	/* Make sure physical addresses are written to registers */
+	wmb();
+
+	/* Start burst */
+	writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
+}
+
+static int meson_spicc_transfer_one(struct spi_master *master,
+				    struct spi_device *spi,
+				    struct spi_transfer *xfer)
+{
+	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
+
+	meson_spicc_setup_xfer(spicc, xfer);
+
+	/* Store SG list */
+	spicc->tx_sgl = xfer->tx_sg.sgl;
+	spicc->rx_sgl = xfer->rx_sg.sgl;
+
+	/* Map first SG to physical addresses */
+	xfer->tx_dma = sg_dma_address(spicc->tx_sgl);
+	xfer->rx_dma = sg_dma_address(spicc->rx_sgl);
+	spicc->tx_sgl_len = sg_dma_len(spicc->tx_sgl);
+	spicc->rx_sgl_len = sg_dma_len(spicc->rx_sgl);
+
+	/* Run DMA transfert */
+	meson_spicc_transfer_dma(spicc, xfer);
+
+	/* Enable interrupt */
+	writel_relaxed(SPICC_TC_EN, spicc->base + SPICC_INTREG);
+
+	return 1;
+}
+
+static int meson_spicc_prepare_message(struct spi_master *master,
+				       struct spi_message *message)
+{
+	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
+	struct spi_device *spi = message->spi;
+	u32 conf = 0;
+
+	/* Store current message */
+	spicc->message = message;
+	
+	/* Enable Master */
+	conf |= SPICC_ENABLE;
+	conf |= SPICC_MODE_MASTER;
+
+	/* Set SMC == 0 */
 
 	/* Setup transfer mode */
+	if (spi->mode & SPI_CPOL)
+		conf |= SPICC_POL;
+	else
+		conf &= ~SPICC_POL;
+
 	if (spi->mode & SPI_CPHA)
 		conf |= SPICC_PHA;
 	else
 		conf &= ~SPICC_PHA;
 
-	if (spi->mode & SPI_CPOL)
-		conf |= SPICC_POL;
-	else
-		conf &= ~SPICC_POL;
+	/* Setup CS management */
+	conf |= SPICC_SSCTL;
 
 	if (spi->mode & SPI_CS_HIGH)
 		conf |= SPICC_SSPOL;
@@ -204,65 +335,44 @@ static void meson_spicc_setup(struct meson_spicc_device *spicc,
 	else
 		conf |= FIELD_PREP(SPICC_DRCTL_MASK, SPICC_DRCTL_IGNORE);
 
-	/* Ignore if unchanged */
-	if (conf != conf_orig)
-		writel_relaxed(conf, spicc->base + SPICC_CONREG);
-}
+	/* Select CS */
+	conf |= FIELD_PREP(SPICC_CS_MASK, spi->chip_select);
 
-static int meson_spicc_transfer_one(struct spi_master *master,
-				    struct spi_device *spi,
-				    struct spi_transfer *xfer)
-{
-	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
+	/* Default Clock rate core/4 */
 
-	meson_spicc_setup(spicc, spi, xfer);
+	/* Default 8bit word */
+	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, 8 - 1); 
+	
+	writel_relaxed(conf, spicc->base + SPICC_CONREG);
 
-	/* Write physical addresses */
-	writel(xfer->tx_dma, spicc->base + SPICC_DWADDR);
-	writel(xfer->rx_dma, spicc->base + SPICC_DRADDR);
+	/* Setup no wait cycles by default */
+	writel_relaxed(0, spicc->base + SPICC_PERIODREG);
 
-	/* Make sure physical addresses are written to registers */
-	wmb();
-
-	/* Start burst */
-	writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
-
-	/* Enable interrupt */
-	writel_relaxed(SPICC_TC_EN, spicc->base + SPICC_INTREG);
-
-	wait_for_completion(&spicc->transfert);
-
-	/* Disable interrupts */
-	writel_relaxed(0, spicc->base + SPICC_INTREG);
+	/* Enable DMA */
+	writel_bits_relaxed(SPICC_DMA_ENABLE, SPICC_DMA_ENABLE,
+			    spicc->base + SPICC_DMAREG);
 
 	return 0;
 }
 
-static void meson_spicc_init(struct meson_spicc_device *spicc)
+static int meson_spicc_unprepare_transfer(struct spi_master *master)
 {
-	u32 conf = 0;
+	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
 
-	/* Set SMC == 0 */
-	/* Default POL/PHA == 0 */
-	/* TOFIX Default SSCTL == 0 */
-	/* Default SSPOL ==0 (Active Low) */
-	/* Default ignore RDY input */
-	/* Default select SS0 */
-	/* Default Clock rate core/4 */
+	writel_bits_relaxed(SPICC_DMA_ENABLE, 0,
+			    spicc->base + SPICC_DMAREG);
 
-	conf |= SPICC_ENABLE;
-	conf |= SPICC_MODE_MASTER;
-	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, 8); /* Default 8bit word */ 
-	
-	writel(conf, spicc->base + SPICC_CONREG);
+	writel_bits_relaxed(SPICC_ENABLE, 0, spicc->base + SPICC_CONREG);
 
-	/* Setup no wait cycles by default */
-	writel(0, spicc->base + SPICC_PERIODREG);
+	return 0;
 }
 
-static size_t meson_spicc_max_transfer_size(struct spi_device *spi)
+static bool meson_spicc_can_dma(struct spi_master *master,
+				struct spi_device *spi,
+				struct spi_transfer *xfer)
 {
-	return GENMASK(6, 0) + 1;
+	/* TOFIX probably we could use PIO for xfers less than FIFO size */
+	return true;
 }
 
 static int meson_spicc_probe(struct platform_device *pdev)
@@ -281,8 +391,6 @@ static int meson_spicc_probe(struct platform_device *pdev)
 
 	spicc->pdev = pdev;
 	platform_set_drvdata(pdev, spicc);
-
-	init_completion(&spicc->transfert);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	spicc->base = devm_ioremap_resource(&pdev->dev, res);
@@ -309,23 +417,26 @@ static int meson_spicc_probe(struct platform_device *pdev)
 	ret = clk_prepare_enable(spicc->core);
 	if (ret)
 		goto out_master;
-
 	rate = clk_get_rate(spicc->core);
+
+	device_reset_optional(&pdev->dev);
 
 	master->num_chipselect = 4;
 	master->dev.of_node = pdev->dev.of_node;
 	master->mode_bits = SPI_CPHA | SPI_CPOL | SPI_CS_HIGH;
 	master->bits_per_word_mask = SPI_BIT_MASK(32);
+	master->flags = (SPI_MASTER_MUST_RX | SPI_MASTER_MUST_TX);
+	master->min_speed_hz = rate >> 9;
+	master->can_dma = meson_spicc_can_dma;
+	master->prepare_message = meson_spicc_prepare_message;
+	master->unprepare_transfer_hardware = meson_spicc_unprepare_transfer;
 	master->transfer_one = meson_spicc_transfer_one;
-	master->min_speed_hz = rate >> 5;
-	master->max_transfer_size = meson_spicc_max_transfer_size;
 	
+	/* Setup max rate according to the Meson GX datasheet */
 	if ((rate >> 2) > SPICC_MAX_FREQ)
 		master->max_speed_hz = SPICC_MAX_FREQ;
 	else
 		master->max_speed_hz = rate >> 2;
-
-	meson_spicc_init(spicc);
 
 	ret = spi_register_master(master);
 	if (!ret)
