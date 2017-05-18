@@ -1809,6 +1809,51 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 EXPORT_SYMBOL_GPL(clk_set_rate);
 
 /**
+ * clk_set_rate_protect - specify a new rate and protect it
+ * @clk: the clk whose rate is being changed
+ * @rate: the new rate for clk
+ *
+ * This is a combination of clk_set_rate and clk_rate_protect within
+ * a critical section
+ *
+ * This can be used initially to ensure that at least 1 consumers is
+ * statisfied when several protecting consummers are competing for the
+ * same clock provider.
+ *
+ * The protection is not applied if setting the rate failed.
+ *
+ * Returns 0 on success, -EERROR otherwise.
+ */
+int clk_set_rate_protect(struct clk *clk, unsigned long rate)
+{
+	int ret;
+
+	if (!clk)
+		return 0;
+
+	/* prevent racing with updates to the clock topology */
+	clk_prepare_lock();
+
+	/*
+	 * The temporary protection removal is not here, on purpose
+	 * This function is meant to be used in instead of clk_rate_protect,
+	 * so before the consumer code path protect the clock provider
+	 */
+
+	ret = clk_core_set_rate_nolock(clk->core, rate);
+
+	if (!ret) {
+		clk_core_rate_protect(clk->core);
+		clk->protect_count++;
+	}
+
+	clk_prepare_unlock();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(clk_set_rate_protect);
+
+/**
  * clk_set_rate_range - set a rate range for a clock source
  * @clk: clock source
  * @min: desired minimum clock rate in Hz, inclusive
