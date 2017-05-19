@@ -657,6 +657,7 @@
 
 &spicc {
 	clocks = <&clkc CLKID_SPICC>;
+	clock-names = "core";	
 	resets = <&reset RESET_PERIPHS_SPICC>;
 };
 

@@ -15,6 +15,10 @@
 	compatible = "noname,librecomputer", "amlogic,s905x", "amlogic,meson-gxl";
 	model = "Noname Libre Computer Board";
 
+	aliases {
+		spi0 = &spicc;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -91,6 +95,12 @@
 	status = "okay";
 	pinctrl-0 = <&spi_pins>;
 	pinctrl-names = "default";
+
+	spidev@0 {
+		compatible = "spidev";
+		reg = <0>;
+		spi-max-frequency = <30000000>;
+	};
 };
 
 /* Header 7J1 Pins 8 (TX), 10 (RX), 16 (CTS), 18 (RTS) */

@@ -313,8 +313,9 @@
 			};
 
 			spicc: spi@8d80 {
-				compatible = "amlogic,meson-gx-spicc";
+				compatible = "amlogic,meson-spicc";
 				reg = <0x0 0x08d80 0x0 0x80>;
+				interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";

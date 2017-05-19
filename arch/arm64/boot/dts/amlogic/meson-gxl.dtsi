@@ -584,7 +584,9 @@
 
 &spicc {
 	clocks = <&clkc CLKID_SPICC>;
+	clock-names = "core";
 	resets = <&reset RESET_PERIPHS_SPICC>;
+	num-cs = <1>;
 };
 
 &vpu {
