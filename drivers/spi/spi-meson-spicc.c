@@ -23,7 +23,7 @@
 /*
  * The Meson SPICC controller could support DMA based transfers, but is not
  * implemented by the vendor code, and while having the registers documentation
- * has never worked on the GXL Hardware.
+ * it has never worked on the GXL Hardware.
  * The PIO mode is the only mode implemented, and due to badly designed HW :
  * - all transfers are cutted in 16 words burst because the FIFO hangs on
  *   TX underflow, and there is no TX "Half-Empty" interrupt, so we go by
@@ -120,7 +120,7 @@
 #define SPICC_FIFO_HALF 10
 
 struct meson_spicc_device {
-	struct spi_master 		*master;
+	struct spi_master		*master;
 	struct platform_device		*pdev;
 	void __iomem			*base;
 	struct clk			*core;
@@ -128,9 +128,12 @@ struct meson_spicc_device {
 	struct spi_transfer		*xfer;
 	u8				*tx_buf;
 	u8				*rx_buf;
+	unsigned int			bytes_per_word;
 	unsigned long			tx_remain;
+	unsigned long			txb_remain;
 	unsigned long			rx_remain;
-	unsigned long			burst_remain;
+	unsigned long			rxb_remain;
+	unsigned long			xfer_remain;
 	bool				is_burst_end;
 	bool				is_last_burst;
 };
@@ -149,35 +152,42 @@ static inline bool meson_spicc_rxready(struct meson_spicc_device *spicc)
 
 static inline u32 meson_spicc_pull_data(struct meson_spicc_device *spicc)
 {
-	unsigned int bytes = ((spicc->xfer->bits_per_word - 1) >> 3) + 1;
+	unsigned int bytes = spicc->bytes_per_word;
+	unsigned int byte_shift = 0;
 	u32 data = 0;
+	u8 byte;
 
 	while (bytes--) {
-		data <<= 8;
-		data |= *spicc->tx_buf++;
-		spicc->tx_remain--;
+		byte = *spicc->tx_buf++;
+		data |= (byte & 0xff) << byte_shift;
+		byte_shift += 8;
 	}
 
+	spicc->tx_remain--;
 	return data;
 }
 
 static inline void meson_spicc_push_data(struct meson_spicc_device *spicc,
 					 u32 data)
 {
-	unsigned int bytes = ((spicc->xfer->bits_per_word - 1) >> 3) + 1;
+	unsigned int bytes = spicc->bytes_per_word;
+	unsigned int byte_shift = 0;
+	u8 byte;
 
 	while (bytes--) {
-		*spicc->rx_buf++ = data & 0xFF;
-		data >>= 8;
-		spicc->rx_remain--;
+		byte = (data >> byte_shift) & 0xff;
+		*spicc->rx_buf++ = byte;
+		byte_shift += 8;
 	}
+
+	spicc->rx_remain--;
 }
 
 static inline void meson_spicc_rx(struct meson_spicc_device *spicc)
 {
 	/* Empty RX FIFO */
-	while(spicc->rx_remain &&
-	      meson_spicc_rxready(spicc))
+	while (spicc->rx_remain &&
+	       meson_spicc_rxready(spicc))
 		meson_spicc_push_data(spicc,
 				readl_relaxed(spicc->base + SPICC_RXDATA));
 }
@@ -185,8 +195,8 @@ static inline void meson_spicc_rx(struct meson_spicc_device *spicc)
 static inline void meson_spicc_tx(struct meson_spicc_device *spicc)
 {
 	/* Fill Up TX FIFO */
-	while(spicc->tx_remain &&
-	      !meson_spicc_txfull(spicc))
+	while (spicc->tx_remain &&
+	       !meson_spicc_txfull(spicc))
 		writel_relaxed(meson_spicc_pull_data(spicc),
 			       spicc->base + SPICC_TXDATA);
 }
@@ -208,9 +218,9 @@ static inline void meson_spicc_setup_burst(struct meson_spicc_device *spicc,
 	/* Setup Xfer variables */
 	spicc->tx_remain = burst_len;
 	spicc->rx_remain = burst_len;
-	spicc->burst_remain -= burst_len;
+	spicc->xfer_remain -= burst_len * spicc->bytes_per_word;
 	spicc->is_burst_end = false;
-	if (burst_len < SPICC_BURST_MAX || !spicc->burst_remain)
+	if (burst_len < SPICC_BURST_MAX || !spicc->xfer_remain)
 		spicc->is_last_burst = true;
 	else
 		spicc->is_last_burst = false;
@@ -230,10 +240,7 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 	struct meson_spicc_device *spicc = (void *) data;
 	u32 ctrl = readl_relaxed(spicc->base + SPICC_INTREG);
 	u32 stat = readl_relaxed(spicc->base + SPICC_STATREG) & ctrl;
-	unsigned int burst_len = min_t(unsigned int, 
-				       spicc->burst_remain,
-				       SPICC_BURST_MAX);
-	
+
 	ctrl &= ~(SPICC_RH_EN | SPICC_RR_EN);
 
 	/* Empty RX FIFO */
@@ -252,6 +259,8 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 
 	/* Check transfer complete */
 	if ((stat & SPICC_TC) && spicc->is_burst_end) {
+		unsigned int burst_len;
+
 		/* Clear TC bit */
 		writel_relaxed(SPICC_TC, spicc->base + SPICC_STATREG);
 
@@ -266,6 +275,21 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 
 			return IRQ_HANDLED;
 		}
+
+		/* Optimize burst word size */
+		if (spicc->xfer_remain >= SPICC_BURST_MAX * 4)
+			spicc->bytes_per_word = 4;
+		else if (spicc->xfer_remain >= SPICC_BURST_MAX * 3)
+			spicc->bytes_per_word = 3;
+		else if (spicc->xfer_remain >= SPICC_BURST_MAX * 2)
+			spicc->bytes_per_word = 2;
+		else
+			spicc->bytes_per_word =
+				DIV_ROUND_UP(spicc->xfer->bits_per_word, 8);
+
+		burst_len = min_t(unsigned int,
+				  spicc->xfer_remain / spicc->bytes_per_word,
+				  SPICC_BURST_MAX);
 
 		/* Setup burst */
 		meson_spicc_setup_burst(spicc, burst_len);
@@ -306,8 +330,7 @@ static u32 meson_spicc_setup_speed(struct meson_spicc_device *spicc, u32 conf,
 		div = 7;
 		dev_warn_once(&spicc->pdev->dev, "unable to get close to speed %u\n",
 			      speed);
-	}
-	else
+	} else
 		div = i;
 
 	dev_dbg(&spicc->pdev->dev, "parent %lu, speed %u -> %lu (%u)\n",
@@ -326,7 +349,7 @@ static void meson_spicc_setup_xfer(struct meson_spicc_device *spicc,
 
 	/* Store current transfer */
 	spicc->xfer = xfer;
-	
+
 	/* Read original configuration */
 	conf = conf_orig = readl_relaxed(spicc->base + SPICC_CONREG);
 
@@ -335,7 +358,8 @@ static void meson_spicc_setup_xfer(struct meson_spicc_device *spicc,
 
 	/* Setup word width */
 	conf &= ~SPICC_BITLENGTH_MASK;
-	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, xfer->bits_per_word - 1);
+	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK,
+			   (spicc->bytes_per_word << 3) - 1);
 
 	/* Ignore if unchanged */
 	if (conf != conf_orig)
@@ -347,18 +371,31 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 				    struct spi_transfer *xfer)
 {
 	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
-	unsigned int burst_len = min_t(unsigned int, xfer->len,
-				       SPICC_BURST_MAX);
+	unsigned int burst_len;
 	u32 irq = 0;
-
-	/* Setup transfer parameters */
-	meson_spicc_setup_xfer(spicc, xfer);
 
 	/* Setup transfer parameters */
 	spicc->tx_buf = (u8 *)xfer->tx_buf;
 	spicc->rx_buf = (u8 *)xfer->rx_buf;
+	spicc->xfer_remain = xfer->len;
 
-	spicc->burst_remain = xfer->len;
+	/* Optimize burst word size */
+	if (spicc->xfer_remain >= SPICC_BURST_MAX * 4)
+		spicc->bytes_per_word = 4;
+	else if (spicc->xfer_remain >= SPICC_BURST_MAX * 3)
+		spicc->bytes_per_word = 3;
+	else if (spicc->xfer_remain >= SPICC_BURST_MAX * 2)
+		spicc->bytes_per_word = 2;
+	else
+		spicc->bytes_per_word =
+			DIV_ROUND_UP(spicc->xfer->bits_per_word, 8);
+
+	/* Setup transfer parameters */
+	meson_spicc_setup_xfer(spicc, xfer);
+
+	burst_len = min_t(unsigned int,
+			  spicc->xfer_remain / spicc->bytes_per_word,
+			  SPICC_BURST_MAX);
 
 	meson_spicc_setup_burst(spicc, burst_len);
 
@@ -382,7 +419,7 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 
 	/* Store current message */
 	spicc->message = message;
-	
+
 	/* Enable Master */
 	conf |= SPICC_ENABLE;
 	conf |= SPICC_MODE_MASTER;
@@ -418,7 +455,7 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 	/* Default Clock rate core/4 */
 
 	/* Default 8bit word */
-	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, 8 - 1); 
+	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, 8 - 1);
 
 	writel_relaxed(conf, spicc->base + SPICC_CONREG);
 
@@ -501,13 +538,16 @@ static int meson_spicc_probe(struct platform_device *pdev)
 	master->num_chipselect = 4;
 	master->dev.of_node = pdev->dev.of_node;
 	master->mode_bits = SPI_CPHA | SPI_CPOL | SPI_CS_HIGH;
-	master->bits_per_word_mask = SPI_BIT_MASK(32);
+	master->bits_per_word_mask = SPI_BPW_MASK(32) |
+				     SPI_BPW_MASK(24) |
+				     SPI_BPW_MASK(16) |
+				     SPI_BPW_MASK(8);
 	master->flags = (SPI_MASTER_MUST_RX | SPI_MASTER_MUST_TX);
 	master->min_speed_hz = rate >> 9;
 	master->prepare_message = meson_spicc_prepare_message;
 	master->unprepare_transfer_hardware = meson_spicc_unprepare_transfer;
 	master->transfer_one = meson_spicc_transfer_one;
-	
+
 	/* Setup max rate according to the Meson GX datasheet */
 	if ((rate >> 2) > SPICC_MAX_FREQ)
 		master->max_speed_hz = SPICC_MAX_FREQ;
@@ -517,7 +557,7 @@ static int meson_spicc_probe(struct platform_device *pdev)
 	ret = spi_register_master(master);
 	if (!ret)
 		return 0;
-		
+
 	dev_err(&pdev->dev, "spi master registration failed\n");
 
 out_master:
@@ -557,4 +597,4 @@ module_platform_driver(meson_spicc_driver);
 
 MODULE_DESCRIPTION("Meson SPI Communication Controller driver");
 MODULE_AUTHOR("Neil Armstrong <narmstrong@baylibre.com>");
-MODULE_LICENSE("GPLv2");
+MODULE_LICENSE("GPL");
