@@ -120,9 +120,8 @@ struct meson_spicc_device {
 	unsigned long			tx_remain;
 	unsigned long			rx_remain;
 	unsigned long			burst_remain;
-	bool				is_last_xfer;
 	bool				is_burst_end;
-	bool				is_tx_end;
+	bool				is_last_burst;
 };
 
 static inline bool meson_spicc_txfull(struct meson_spicc_device *spicc)
@@ -163,20 +162,22 @@ static inline void meson_spicc_push_data(struct meson_spicc_device *spicc,
 	}
 }
 
-static inline void meson_spicc_rx_tx(struct meson_spicc_device *spicc)
+static inline void meson_spicc_rx(struct meson_spicc_device *spicc)
 {
-	/* Fill Up TX FIFO */
-	while(!spicc->is_tx_end &&
-	      spicc->tx_remain &&
-	      !meson_spicc_txfull(spicc))
-		writel_relaxed(meson_spicc_pull_data(spicc),
-			       spicc->base + SPICC_TXDATA);
-
 	/* Empty RX FIFO */
 	while(spicc->rx_remain &&
 	      meson_spicc_rxready(spicc))
 		meson_spicc_push_data(spicc,
 				readl_relaxed(spicc->base + SPICC_RXDATA));
+}
+
+static inline void meson_spicc_tx(struct meson_spicc_device *spicc)
+{
+	/* Fill Up TX FIFO */
+	while(spicc->tx_remain &&
+	      !meson_spicc_txfull(spicc))
+		writel_relaxed(meson_spicc_pull_data(spicc),
+			       spicc->base + SPICC_TXDATA);
 }
 
 static irqreturn_t meson_spicc_irq(int irq, void *data)
@@ -187,14 +188,48 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 	unsigned int burst_len = min_t(unsigned int, 
 				       spicc->burst_remain,
 				       SPICC_BURST_MAX);
+	
+	ctrl &= ~(SPICC_TE_EN | SPICC_RH_EN | SPICC_RR_EN);
 
 	/* Empty and Fill FIFOs */
-	meson_spicc_rx_tx(spicc);
+	meson_spicc_rx(spicc);
 
-	/* Check burst transfert */
-	if ((stat & SPICC_TC) && burst_len) {
+	/* Setup RX interrupt trigger */
+	if (spicc->rx_remain > SPICC_FIFO_HALF)
+		ctrl |= SPICC_RH_EN;
+	else if (spicc->rx_remain)
+		ctrl |= SPICC_RR_EN;
+
+	/* Enable TE interrupt since we transferred everything */
+	if (!spicc->tx_remain && !spicc->rx_remain) {
+		ctrl |= SPICC_TC_EN;
+		spicc->is_burst_end = true;
+	}
+
+	/* Reload IRQ status */
+	stat = readl_relaxed(spicc->base + SPICC_STATREG) & ctrl;
+
+	/* Check transfer complete */
+	if ((stat & SPICC_TC) && spicc->is_burst_end) {
 		/* Clear TC bit */
 		writel_relaxed(SPICC_TC, spicc->base + SPICC_STATREG);
+
+		if (spicc->is_last_burst) {
+			/* Disable all IRQs */
+			writel(0, spicc->base + SPICC_INTREG);
+
+			spi_finalize_current_transfer(spicc->master);
+
+			return IRQ_HANDLED;
+		}
+
+		spicc->tx_remain = burst_len;
+		/* Since there is no TX Half Empty irq, stick on FIFO Empty */
+		spicc->rx_remain = burst_len;
+		spicc->burst_remain -= burst_len;
+		spicc->is_burst_end = false;
+		if (burst_len < SPICC_BURST_MAX || !spicc->burst_remain)
+			spicc->is_last_burst = true;
 
 		/* Setup burst length */
 		writel_bits_relaxed(SPICC_BURSTLENGTH_MASK,
@@ -202,48 +237,22 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 					       burst_len),
 				    spicc->base + SPICC_CONREG);
 
-		/* Disable CS at last burst only if last xfer^cs_change * /
-		if (burst_len < SPICC_BURST_MAX &&
-		    spicc->xfer->cs_change ^ spicc->is_last_xfer)
-			writel_bits_relaxed(SPICC_SSCTL, 0,
-					    spicc->base + SPICC_CONREG);*/
+		/* Fill TX FIFO and start transfer */
+		meson_spicc_tx(spicc);
+
+		/* Setup interrupts */
+		ctrl &= ~SPICC_TC_EN;
+		if (spicc->rx_remain > SPICC_FIFO_HALF)
+			ctrl |= SPICC_RH_EN;
+		else
+			ctrl |= SPICC_RR_EN;
 
 		/* Restart burst */
 		writel_bits_relaxed(SPICC_XCH, SPICC_XCH,
 				    spicc->base + SPICC_CONREG);
-
-		spicc->burst_remain -= burst_len;
-	} else if (stat & SPICC_TC) {
-		/* Clear TC bit */
-		writel_relaxed(SPICC_TC, spicc->base + SPICC_STATREG);
-
-		spicc->is_burst_end = true;
-
-		ctrl &= ~SPICC_TC_EN;
 	}
 
-	/* Check TX End : we have pushed all bytes and TX FIFO is now empty */
-	if (!spicc->tx_remain) {
-		spicc->is_tx_end = true;
-
-		ctrl &= ~SPICC_TE_EN;
-	}
-
-	/* Check end of transfert */
-	if (spicc->is_burst_end && spicc->is_tx_end && !spicc->rx_remain) {
-		spi_finalize_current_transfer(spicc->master);
-
-		return IRQ_HANDLED;
-	}
-
-	/* Setup RX interrupt trigger */
-	ctrl &= ~(SPICC_RH_EN | SPICC_RR_EN);
-	if (spicc->tx_remain && spicc->rx_remain > SPICC_FIFO_HALF)
-		ctrl |= SPICC_RH_EN;
-	else
-		ctrl |= SPICC_RR_EN;
-
-	/* Reconfigure interrupt */
+	/* Reconfigure interrupts */
 	writel(ctrl, spicc->base + SPICC_INTREG);
 
 	return IRQ_HANDLED;
@@ -316,10 +325,6 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 				       SPICC_BURST_MAX);
 	u32 irq = 0;
 
-	/* Determine if it's the last transfer */
-	spicc->is_last_xfer = list_is_last(&xfer->transfer_list,
-					 &spicc->message->transfers);
-
 	/* Setup transfer parameters */
 	meson_spicc_setup_xfer(spicc, xfer);
 
@@ -327,51 +332,33 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 	spicc->tx_buf = (u8 *)xfer->tx_buf;
 	spicc->rx_buf = (u8 *)xfer->rx_buf;
 
+	spicc->burst_remain = xfer->len - burst_len;
+	spicc->tx_remain = burst_len;
+	spicc->rx_remain = burst_len;
+	spicc->is_burst_end = false;
+	if (burst_len < SPICC_BURST_MAX || !spicc->burst_remain)
+		spicc->is_last_burst = true;
+	else
+		spicc->is_last_burst = false;
+
 	/* Setup burst length */
 	writel_bits_relaxed(SPICC_BURSTLENGTH_MASK,
-				    FIELD_PREP(SPICC_BURSTLENGTH_MASK,
-					       burst_len),
-				    spicc->base + SPICC_CONREG);
-
-	spicc->burst_remain = xfer->len - burst_len;
-
-	/* Disable CS at end of last burst only if last xfer xor cs_change * /
-	if (burst_len < SPICC_BURST_MAX &&
-	    xfer->cs_change ^ spicc->is_last_xfer) */
-		writel_bits_relaxed(SPICC_SSCTL, 0,
-				    spicc->base + SPICC_CONREG);
-	/*else
-		writel_bits_relaxed(SPICC_SSCTL, SPICC_SSCTL,
-				    spicc->base + SPICC_CONREG);*/
-
-	if (spicc->tx_buf) {
-		spicc->tx_remain = xfer->len;
-		/* Since there is no TX Half Empty irq, stick on FIFO Empty */
-		irq |= SPICC_TE_EN;
-	}
-	else
-		spicc->tx_remain = 0;
-
-	if (spicc->rx_buf) {
-		spicc->rx_remain = xfer->len;
-		if (spicc->rx_remain > SPICC_FIFO_HALF)
-			irq |= SPICC_RH_EN;
-		else
-			irq |= SPICC_RR_EN;
-	}
-	else
-		spicc->rx_remain = 0;
-
-	spicc->is_burst_end = false;
-	spicc->is_tx_end = false;
+			    FIELD_PREP(SPICC_BURSTLENGTH_MASK,
+				       burst_len),
+			    spicc->base + SPICC_CONREG);
 
 	/* Fill TX FIFO and start transfer */
-	meson_spicc_rx_tx(spicc);
+	meson_spicc_tx(spicc);
+
+	if (spicc->rx_remain > SPICC_FIFO_HALF)
+		irq |= SPICC_RH_EN;
+	else
+		irq |= SPICC_RR_EN;
 
 	writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
 
 	/* Enable interrupts */
-	writel_relaxed(irq | SPICC_TC_EN, spicc->base + SPICC_INTREG);
+	writel_relaxed(irq, spicc->base + SPICC_INTREG);
 
 	return 1;
 }
@@ -401,8 +388,7 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 	else
 		conf &= ~SPICC_PHA;
 
-	/* Setup CS management */
-	conf |= SPICC_SSCTL;
+	/* SSCTL = 0 */
 
 	if (spi->mode & SPI_CS_HIGH)
 		conf |= SPICC_SSPOL;
@@ -436,6 +422,10 @@ static int meson_spicc_unprepare_transfer(struct spi_master *master)
 {
 	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
 
+	/* Disable all IRQs */
+	writel(0, spicc->base + SPICC_INTREG);
+
+	/* Disable controller */
 	writel_bits_relaxed(SPICC_ENABLE, 0, spicc->base + SPICC_CONREG);
 
 	device_reset_optional(&spicc->pdev->dev);
