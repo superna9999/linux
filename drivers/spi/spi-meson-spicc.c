@@ -20,6 +20,19 @@
 #include <linux/interrupt.h>
 #include <linux/reset.h>
 
+/*
+ * The Meson SPICC controller could support DMA based transfers, but is not
+ * implemented by the vendor code, and while having the registers documentation
+ * has never worked on the GXL Hardware.
+ * The PIO mode is the only mode implemented, and due to badly designed HW :
+ * - all transfers are cutted in 16 words burst because the FIFO hangs on
+ *   TX underflow, and there is no TX "Half-Empty" interrupt, so we go by
+ *   FIFO max size chunk only
+ * - CS management is dumb, and goes UP between every burst, so is really a
+ *   "Data Valid" signal than a Chip Select, GPIO link should be used instead
+ *   to have a CS go down over the full transfer
+ */
+
 #define SPICC_MAX_FREQ	30000000
 #define SPICC_MAX_BURST	128
 
@@ -103,9 +116,7 @@
 #define writel_bits_relaxed(mask, val, addr) \
 	writel_relaxed((readl_relaxed(addr) & ~(mask)) | (val), addr)
 
-//#define SPICC_BURST_MAX	GENMASK(6, 0)
 #define SPICC_BURST_MAX	16
-
 #define SPICC_FIFO_HALF 10
 
 struct meson_spicc_device {
@@ -180,6 +191,40 @@ static inline void meson_spicc_tx(struct meson_spicc_device *spicc)
 			       spicc->base + SPICC_TXDATA);
 }
 
+static inline u32 meson_spicc_setup_rx_irq(struct meson_spicc_device *spicc,
+					   u32 irq_ctrl)
+{
+	if (spicc->rx_remain > SPICC_FIFO_HALF)
+		irq_ctrl |= SPICC_RH_EN;
+	else
+		irq_ctrl |= SPICC_RR_EN;
+
+	return irq_ctrl;
+}
+
+static inline void meson_spicc_setup_burst(struct meson_spicc_device *spicc,
+					   unsigned int burst_len)
+{
+	/* Setup Xfer variables */
+	spicc->tx_remain = burst_len;
+	spicc->rx_remain = burst_len;
+	spicc->burst_remain -= burst_len;
+	spicc->is_burst_end = false;
+	if (burst_len < SPICC_BURST_MAX || !spicc->burst_remain)
+		spicc->is_last_burst = true;
+	else
+		spicc->is_last_burst = false;
+
+	/* Setup burst length */
+	writel_bits_relaxed(SPICC_BURSTLENGTH_MASK,
+			FIELD_PREP(SPICC_BURSTLENGTH_MASK,
+				burst_len),
+			spicc->base + SPICC_CONREG);
+
+	/* Fill TX FIFO */
+	meson_spicc_tx(spicc);
+}
+
 static irqreturn_t meson_spicc_irq(int irq, void *data)
 {
 	struct meson_spicc_device *spicc = (void *) data;
@@ -189,30 +234,29 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 				       spicc->burst_remain,
 				       SPICC_BURST_MAX);
 	
-	ctrl &= ~(SPICC_TE_EN | SPICC_RH_EN | SPICC_RR_EN);
+	ctrl &= ~(SPICC_RH_EN | SPICC_RR_EN);
 
-	/* Empty and Fill FIFOs */
+	/* Empty RX FIFO */
 	meson_spicc_rx(spicc);
 
-	/* Setup RX interrupt trigger */
-	if (spicc->rx_remain > SPICC_FIFO_HALF)
-		ctrl |= SPICC_RH_EN;
-	else if (spicc->rx_remain)
-		ctrl |= SPICC_RR_EN;
-
-	/* Enable TE interrupt since we transferred everything */
+	/* Enable TC interrupt since we transferred everything */
 	if (!spicc->tx_remain && !spicc->rx_remain) {
-		ctrl |= SPICC_TC_EN;
 		spicc->is_burst_end = true;
-	}
 
-	/* Reload IRQ status */
-	stat = readl_relaxed(spicc->base + SPICC_STATREG) & ctrl;
+		/* Enable TC interrupt */
+		ctrl |= SPICC_TC_EN;
+
+		/* Reload IRQ status */
+		stat = readl_relaxed(spicc->base + SPICC_STATREG) & ctrl;
+	}
 
 	/* Check transfer complete */
 	if ((stat & SPICC_TC) && spicc->is_burst_end) {
 		/* Clear TC bit */
 		writel_relaxed(SPICC_TC, spicc->base + SPICC_STATREG);
+
+		/* Disable TC interrupt */
+		ctrl &= ~SPICC_TC_EN;
 
 		if (spicc->is_last_burst) {
 			/* Disable all IRQs */
@@ -223,34 +267,16 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 			return IRQ_HANDLED;
 		}
 
-		spicc->tx_remain = burst_len;
-		/* Since there is no TX Half Empty irq, stick on FIFO Empty */
-		spicc->rx_remain = burst_len;
-		spicc->burst_remain -= burst_len;
-		spicc->is_burst_end = false;
-		if (burst_len < SPICC_BURST_MAX || !spicc->burst_remain)
-			spicc->is_last_burst = true;
-
-		/* Setup burst length */
-		writel_bits_relaxed(SPICC_BURSTLENGTH_MASK,
-				    FIELD_PREP(SPICC_BURSTLENGTH_MASK,
-					       burst_len),
-				    spicc->base + SPICC_CONREG);
-
-		/* Fill TX FIFO and start transfer */
-		meson_spicc_tx(spicc);
-
-		/* Setup interrupts */
-		ctrl &= ~SPICC_TC_EN;
-		if (spicc->rx_remain > SPICC_FIFO_HALF)
-			ctrl |= SPICC_RH_EN;
-		else
-			ctrl |= SPICC_RR_EN;
+		/* Setup burst */
+		meson_spicc_setup_burst(spicc, burst_len);
 
 		/* Restart burst */
 		writel_bits_relaxed(SPICC_XCH, SPICC_XCH,
 				    spicc->base + SPICC_CONREG);
 	}
+
+	/* Setup RX interrupt trigger */
+	ctrl = meson_spicc_setup_rx_irq(spicc, ctrl);
 
 	/* Reconfigure interrupts */
 	writel(ctrl, spicc->base + SPICC_INTREG);
@@ -332,29 +358,13 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 	spicc->tx_buf = (u8 *)xfer->tx_buf;
 	spicc->rx_buf = (u8 *)xfer->rx_buf;
 
-	spicc->burst_remain = xfer->len - burst_len;
-	spicc->tx_remain = burst_len;
-	spicc->rx_remain = burst_len;
-	spicc->is_burst_end = false;
-	if (burst_len < SPICC_BURST_MAX || !spicc->burst_remain)
-		spicc->is_last_burst = true;
-	else
-		spicc->is_last_burst = false;
+	spicc->burst_remain = xfer->len;
 
-	/* Setup burst length */
-	writel_bits_relaxed(SPICC_BURSTLENGTH_MASK,
-			    FIELD_PREP(SPICC_BURSTLENGTH_MASK,
-				       burst_len),
-			    spicc->base + SPICC_CONREG);
+	meson_spicc_setup_burst(spicc, burst_len);
 
-	/* Fill TX FIFO and start transfer */
-	meson_spicc_tx(spicc);
+	irq = meson_spicc_setup_rx_irq(spicc, irq);
 
-	if (spicc->rx_remain > SPICC_FIFO_HALF)
-		irq |= SPICC_RH_EN;
-	else
-		irq |= SPICC_RR_EN;
-
+	/* Start burst */
 	writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
 
 	/* Enable interrupts */
@@ -376,6 +386,8 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 	/* Enable Master */
 	conf |= SPICC_ENABLE;
 	conf |= SPICC_MODE_MASTER;
+
+	/* SMC = 0 */
 
 	/* Setup transfer mode */
 	if (spi->mode & SPI_CPOL)
@@ -431,13 +443,6 @@ static int meson_spicc_unprepare_transfer(struct spi_master *master)
 	device_reset_optional(&spicc->pdev->dev);
 
 	return 0;
-}
-
-static bool meson_spicc_can_dma(struct spi_master *master,
-				struct spi_device *spi,
-				struct spi_transfer *xfer)
-{
-	return false;
 }
 
 static int meson_spicc_probe(struct platform_device *pdev)
@@ -499,7 +504,6 @@ static int meson_spicc_probe(struct platform_device *pdev)
 	master->bits_per_word_mask = SPI_BIT_MASK(32);
 	master->flags = (SPI_MASTER_MUST_RX | SPI_MASTER_MUST_TX);
 	master->min_speed_hz = rate >> 9;
-	master->can_dma = meson_spicc_can_dma;
 	master->prepare_message = meson_spicc_prepare_message;
 	master->unprepare_transfer_hardware = meson_spicc_unprepare_transfer;
 	master->transfer_one = meson_spicc_transfer_one;
