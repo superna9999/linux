@@ -217,6 +217,8 @@ int cec_s_log_addrs(struct cec_adapter *adap, struct cec_log_addrs *log_addrs,
 		    bool block);
 void cec_s_phys_addr(struct cec_adapter *adap, u16 phys_addr,
 		     bool block);
+void cec_s_phys_addr_from_edid(struct cec_adapter *adap,
+			       const struct edid *edid);
 int cec_transmit_msg(struct cec_adapter *adap, struct cec_msg *msg,
 		     bool block);
 
@@ -323,6 +325,11 @@ static inline void cec_delete_adapter(struct cec_adapter *adap)
 
 static inline void cec_s_phys_addr(struct cec_adapter *adap, u16 phys_addr,
 				   bool block)
+{
+}
+
+static inline void cec_s_phys_addr_from_edid(struct cec_adapter *adap,
+					     const struct edid *edid)
 {
 }
 
