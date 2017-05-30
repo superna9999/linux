@@ -57,6 +57,7 @@
 #include <linux/platform_device.h>
 #include <linux/reset-controller.h>
 #include <linux/init.h>
+#include <linux/delay.h>
 #include <dt-bindings/clock/gxbb-aoclkc.h>
 #include <dt-bindings/reset/gxbb-aoclkc.h>
 
@@ -107,7 +108,7 @@ GXBB_AO_GATE(ir_blaster, 6);
 #define AO_RTC_ALT_CLK_CNTL0	0x54
 #define AO_RTC_ALT_CLK_CNTL1	0x58
 #define AO_CRT_CLK_CNTL1	0x28
-#define AO_RTI_PWR_CNTL_REG0	0x
+#define AO_RTI_PWR_CNTL_REG0	0x0
 
 struct clk_cec_32k {
 	struct clk_hw hw;
@@ -118,10 +119,14 @@ struct clk_cec_32k {
 
 #define to_clk_cec_32k(_hw) container_of(_hw, struct clk_cec_32k, hw)
 
-unsigned long clk_cec_32k_recalc_rate(struct clk_hw *hw, unsigned long parent_rate,
-				  unsigned int val,
-				  const struct clk_div_table *table,
-				  unsigned long flags)
+static unsigned long clk_cec_32k_recalc_rate(struct clk_hw *hw,
+					     unsigned long parent_rate)
+{
+	return 32768;
+}
+
+static long clk_cec_32k_round_rate(struct clk_hw *hw, unsigned long rate,
+				   unsigned long *prate)
 {
 	return 32768;
 }
@@ -162,10 +167,10 @@ static int clk_cec_32k_enable(struct clk_hw *hw)
 	reg |= BIT(27);	/* select cts_rtc_oscin_clk */
 	writel(reg, cec_32k->base + AO_CRT_CLK_CNTL1);
 
-	reg = readl(cec_32k->base + AO_RTI_PWR_CNTL_REG0);
-	reg &= ~GENMASK(12, 10);
-	reg |= FIELD_PREP(GENMASK(12, 10), 4);	/* XTAL generate 32k */
-	writel(reg, cec_32k->base + AO_RTI_PWR_CNTL_REG0);
+	reg = readl(cec_32k->base_rti + AO_RTI_PWR_CNTL_REG0);
+	reg &= ~(7 << 10);
+	reg |= (4 << 10);	/* XTAL generate 32k */
+	writel(reg, cec_32k->base_rti + AO_RTI_PWR_CNTL_REG0);
 
 	return 0;
 }
@@ -194,6 +199,7 @@ static int clk_cec_32k_is_enabled(struct clk_hw *hw)
 
 const struct clk_ops clk_cec_32k_ops = {
 	.recalc_rate = clk_cec_32k_recalc_rate,
+	.round_rate = clk_cec_32k_round_rate,
 	.set_rate = clk_cec_32k_set_rate,
 	.enable = clk_cec_32k_enable,
 	.disable = clk_cec_32k_disable,
@@ -204,7 +210,7 @@ static struct clk_cec_32k cec_32k_ao = {
 	.lock = &gxbb_aoclk_lock,
 	.hw.init = &(struct clk_init_data) {
 		.name = "cec_32k_ao",
-		.ops = &clk_gate_ops,
+		.ops = &clk_cec_32k_ops,
 		.parent_names = (const char *[]){ "xtal" },
 		.num_parents = 1,
 		.flags = CLK_IGNORE_UNUSED,
@@ -239,13 +245,14 @@ static struct clk_hw_onecell_data gxbb_aoclk_onecell_data = {
 		[CLKID_AO_IR_BLASTER] = &ir_blaster_ao.hw,
 		[CLKID_AO_CEC_32K] = &cec_32k_ao.hw,
 	},
-	.num = ARRAY_SIZE(gxbb_aoclk_gate) + 1,
+	.num = 7,
 };
 
 static int gxbb_aoclkc_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	void __iomem *base;
+	void __iomem *base_rti;
 	int ret, clkid;
 	struct device *dev = &pdev->dev;
 	struct gxbb_aoclk_reset_controller *rstc;
@@ -274,14 +281,10 @@ static int gxbb_aoclkc_probe(struct platform_device *pdev)
 	rstc->reset.of_node = dev->of_node;
 	ret = devm_reset_controller_register(dev, &rstc->reset);
 
-	/* Specific clocks */
-	cec_32k_ao.base = base;
-	cec_32k_ao.base_rti = base_rti;
-
 	/*
 	 * Populate base address and register all clks
 	 */
-	for (clkid = 0; clkid < gxbb_aoclk_onecell_data.num; clkid++) {
+	for (clkid = 0; clkid < ARRAY_SIZE(gxbb_aoclk_gate); clkid++) {
 		gxbb_aoclk_gate[clkid]->reg = base;
 
 		ret = devm_clk_hw_register(dev,
@@ -289,6 +292,13 @@ static int gxbb_aoclkc_probe(struct platform_device *pdev)
 		if (ret)
 			return ret;
 	}
+
+	/* Specific clocks */
+	cec_32k_ao.base = base;
+	cec_32k_ao.base_rti = base_rti;
+	ret = devm_clk_hw_register(dev, &cec_32k_ao.hw);
+	if (ret)
+		return ret;
 
 	return of_clk_add_hw_provider(dev->of_node, of_clk_hw_onecell_get,
 			&gxbb_aoclk_onecell_data);
