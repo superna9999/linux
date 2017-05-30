@@ -86,6 +86,13 @@
 	};
 };
 
+&cec_AO {
+	status = "okay";
+	pinctrl-0 = <&ao_cec_pins>;
+	pinctrl-names = "default";
+	hdmi-phandle = <&hdmi_tx>;
+};
+
 /* P230 has exclusive choice between internal or external PHY */
 &ethmac {
 	pinctrl-0 = <&eth_pins>;
