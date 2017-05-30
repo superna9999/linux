@@ -360,9 +360,17 @@
 
 			clkc_AO: clock-controller@040 {
 				compatible = "amlogic,gx-aoclkc", "amlogic,gxbb-aoclkc";
-				reg = <0x0 0x00040 0x0 0x4>;
+				reg = <0x0 0x00040 0x0 0x4>,
+				      <0x0 0x00010 0x0 0x4>;
+				reg-names = "aoclk", "rti";
 				#clock-cells = <1>;
 				#reset-cells = <1>;
+			};
+
+			cec_AO: cec@100 {
+				compatible = "amlogic,meson-gx-ao-cec";
+				reg = <0x0 0x00100 0x0 0x14>;
+				interrupts = <>;
 			};
 
 			uart_AO: serial@4c0 {
