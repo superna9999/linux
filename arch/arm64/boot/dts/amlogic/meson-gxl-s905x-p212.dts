@@ -75,7 +75,7 @@
 	status = "okay";
 	pinctrl-0 = <&ao_cec_pins>;
 	pinctrl-names = "default";
-	hdmi-controller = <&htmi_tx>;
+	hdmi-controller = <&hdmi_tx>;
 };
 
 &cvbs_vdac_port {
