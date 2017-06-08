@@ -111,6 +111,17 @@
 			};
 		};
 	};
+
+	hdmi-connector {
+		compatible = "hdmi-connector";
+		type = "a";
+
+		port {
+			hdmi_connector_in: endpoint {
+				remote-endpoint = <&hdmi_tx_tmds_out>;
+			};
+		};
+	};
 };
 
 &cec_AO {
@@ -144,6 +155,19 @@
 		compatible = "ethernet-phy-id001c.c916", "ethernet-phy-ieee802.3-c22";
 		reg = <0>;
 		max-speed = <1000>;
+	};
+};
+
+
+&hdmi_tx {
+	status = "okay";
+	pinctrl-0 = <&hdmi_hpd_pins>, <&hdmi_i2c_pins>;
+	pinctrl-names = "default";
+};
+
+&hdmi_tx_tmds_port {
+	hdmi_tx_tmds_out: endpoint {
+		remote-endpoint = <&hdmi_connector_in>;
 	};
 };
 
