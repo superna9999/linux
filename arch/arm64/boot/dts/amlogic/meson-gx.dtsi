@@ -358,11 +358,20 @@
 			#size-cells = <2>;
 			ranges = <0x0 0x0 0x0 0xc8100000 0x0 0x100000>;
 
+			pwr_AO: power-control@00c {
+				compatible = "amlogic,gx-pwr-ctrl", "syscon";
+				reg = <0x0 0x0000c 0x0 0x8>;
+			};
+
 			clkc_AO: clock-controller@040 {
 				compatible = "amlogic,gx-aoclkc", "amlogic,gxbb-aoclkc";
-				reg = <0x0 0x00040 0x0 0x4>;
+				reg = <0x0 0x00040 0x0 0x4>,
+				      <0x0 0x00068 0x0 0x4>,
+				      <0x0 0x00094 0x0 0x8>;
+				reg-names = "aoclk", "aocrt", "aortc";
 				#clock-cells = <1>;
 				#reset-cells = <1>;
+				amlogic,pwr-ctrl = <&pwr_AO>;
 			};
 
 			uart_AO: serial@4c0 {
