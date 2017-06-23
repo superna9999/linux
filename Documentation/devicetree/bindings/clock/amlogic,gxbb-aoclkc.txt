@@ -7,7 +7,10 @@ Required Properties:
 
 - compatible: should be "amlogic,gxbb-aoclkc"
 - reg: physical base address of the clock controller and length of memory
-       mapped region.
+       mapped region for each registers listed in reg-names.
+- reg-names: should contain the following register names :
+	"aoclk", "aocrt" and "aortc".
+- amlogic,pwr-ctrl: A phandle to the AO Power Control node.
 
 - #clock-cells: should be 1.
 
@@ -27,9 +30,13 @@ Example: AO Clock controller node:
 
 	clkc_AO: clock-controller@040 {
 		compatible = "amlogic,gxbb-aoclkc";
-		reg = <0x0 0x040 0x0 0x4>;
+		reg = <0x0 0x00040 0x0 0x4>,
+		      <0x0 0x00068 0x0 0x4>,
+		      <0x0 0x00094 0x0 0x8>;
+		reg-names = "aoclk", "aocrt", "aortc";
 		#clock-cells = <1>;
 		#reset-cells = <1>;
+		amlogic,pwr-ctrl = <&pwr_AO>;
 	};
 
 Example: UART controller node that consumes the clock and reset generated
