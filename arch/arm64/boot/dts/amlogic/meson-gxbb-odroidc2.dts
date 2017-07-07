@@ -146,6 +146,33 @@
 			};
 		};
 	};
+
+	soc {
+		sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "meson-gxbb-odroidc2";
+			status = "okay";
+
+			simple-audio-card,dai-link@0 {
+				format = "i2s";
+				mclk-fs = <256>;
+				bitclock-master = <&i2s_dai>;
+				frame-master = <&i2s_dai>;
+
+				plat {
+					sound-dai = <&aiu_i2s_dma>;
+				};
+
+				cpu {
+					sound-dai = <&i2s_dai>;
+				};
+
+				codec {
+					sound-dai = <&hdmi_tx>;
+				};
+			};
+		};
+	};
 };
 
 &scpi_clocks {
@@ -331,4 +358,19 @@
 	hdmi_tx_tmds_out: endpoint {
 		remote-endpoint = <&hdmi_connector_in>;
 	};
+};
+
+&audio {
+	status = "okay";
+};
+
+&aiu_i2s_dma {
+	status = "okay";
+};
+
+&i2s_dai {
+	pinctrl-0 = <&i2s_am_clk_pins>, <&i2s_out_ao_clk_pins>,
+		    <&i2s_out_lr_clk_pins>, <&i2s_out_ch01_ao_pins>;
+	pinctrl-names = "default";
+	status = "okay";
 };
