@@ -215,3 +215,7 @@
 		remote-endpoint = <&hdmi_connector_in>;
 	};
 };
+
+&usb0 {
+	status = "okay";
+};
