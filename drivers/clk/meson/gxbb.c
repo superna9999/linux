@@ -528,6 +528,11 @@ static struct meson_clk_mpll gxbb_mpll0 = {
 		.shift   = 14,
 		.width	 = 1,
 	},
+	.ssen = {
+		.reg_off = HHI_MPLL_CNTL,
+		.shift   = 25,
+		.width	 = 1,
+	},
 	.lock = &clk_lock,
 	.hw.init = &(struct clk_init_data){
 		.name = "mpll0",
@@ -845,13 +850,14 @@ static struct meson_clk_audio_divider gxbb_cts_amclk_div = {
 		.shift   = 0,
 		.width   = 8,
 	},
+	.flags = CLK_DIVIDER_ROUND_CLOSEST,
 	.lock = &clk_lock,
 	.hw.init = &(struct clk_init_data){
 		.name = "cts_amclk_div",
 		.ops = &meson_clk_audio_divider_ops,
 		.parent_names = (const char *[]){ "cts_amclk_sel" },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_DIVIDER_ROUND_CLOSEST,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -875,7 +881,7 @@ static struct clk_mux gxbb_cts_mclk_i958_sel = {
 	/* Default parent unknown (register reset value: 0) */
 	.table = (u32[]){ 1, 2, 3 },
 	.lock = &clk_lock,
-		.hw.init = &(struct clk_init_data){
+	.hw.init = &(struct clk_init_data) {
 		.name = "cts_mclk_i958_sel",
 		.ops = &clk_mux_ops,
 		.parent_names = (const char *[]){ "mpll0", "mpll1", "mpll2" },
@@ -889,12 +895,13 @@ static struct clk_divider gxbb_cts_mclk_i958_div = {
 	.shift = 16,
 	.width = 8,
 	.lock = &clk_lock,
-	.hw.init = &(struct clk_init_data){
+	.flags = CLK_DIVIDER_ROUND_CLOSEST,
+	.hw.init = &(struct clk_init_data) {
 		.name = "cts_mclk_i958_div",
 		.ops = &clk_divider_ops,
 		.parent_names = (const char *[]){ "cts_mclk_i958_sel" },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_DIVIDER_ROUND_CLOSEST,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -1183,6 +1190,7 @@ static struct clk_hw_onecell_data gxbb_hw_onecell_data = {
 		[CLKID_32K_CLK]		    = &gxbb_32k_clk.hw,
 		[CLKID_32K_CLK_SEL]	    = &gxbb_32k_clk_sel.hw,
 		[CLKID_32K_CLK_DIV]	    = &gxbb_32k_clk_div.hw,
+		[NR_CLKS]		    = NULL,
 	},
 	.num = NR_CLKS,
 };
@@ -1305,6 +1313,7 @@ static struct clk_hw_onecell_data gxl_hw_onecell_data = {
 		[CLKID_32K_CLK]		    = &gxbb_32k_clk.hw,
 		[CLKID_32K_CLK_SEL]	    = &gxbb_32k_clk_sel.hw,
 		[CLKID_32K_CLK_DIV]	    = &gxbb_32k_clk_div.hw,
+		[NR_CLKS]		    = NULL,
 	},
 	.num = NR_CLKS,
 };
