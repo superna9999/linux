@@ -155,6 +155,31 @@
 		clock-names = "ext_clock";
 	};
 
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "meson-gx-preview";
+		status = "okay";
+
+		simple-audio-card,dai-link@0 {
+			/* HDMI Output */
+			format = "i2s";
+			mclk-fs = <256>;
+			bitclock-master =  <&i2s_dai>;
+			frame-master = <&i2s_dai>;
+			plat {
+				sound-dai = <&aiu_i2s_dma>;
+			};
+
+			cpu {
+				sound-dai = <&i2s_dai>;
+			};
+
+			codec {
+				sound-dai = <&hdmi_tx>;
+			};
+		};
+	};
+
 	cvbs-connector {
 		compatible = "composite-video-connector";
 
@@ -188,6 +213,19 @@
 	pinctrl-0 = <&ao_cec_pins>;
 	pinctrl-names = "default";
 	hdmi-phandle = <&hdmi_tx>;
+};
+
+
+&audio {
+	status = "okay";
+};
+
+&aiu_i2s_dma {
+	status = "okay";
+};
+
+&i2s_dai {
+	status = "okay";
 };
 
 &ethmac {
