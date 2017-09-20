@@ -88,6 +88,39 @@
 		clock-names = "ext_clock";
 	};
 
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "meson-gx-audio";
+
+		assigned-clocks = <&clkc CLKID_MPLL2>,
+				  <&clkc CLKID_MPLL0>,
+				  <&clkc CLKID_MPLL1>;
+		assigned-clock-parents = <0>, <0>, <0>;
+		assigned-clock-rates = <294912000>,
+				       <270950400>,
+				       <393216000>;
+
+		simple-audio-card,dai-link@0 {
+			/* HDMI Output */
+			format = "i2s";
+			mclk-fs = <256>;
+			bitclock-master = <&i2s_dai>;
+			frame-master = <&i2s_dai>;
+
+			plat {
+				sound-dai = <&aiu_i2s_dma>;
+			};
+
+			cpu {
+				sound-dai = <&i2s_dai>;
+			};
+
+			codec {
+				sound-dai = <&hdmi_tx>;
+			};
+		};
+	};
+
 	vcc1v8: regulator-vcc1v8 {
 		compatible = "regulator-fixed";
 		regulator-name = "VCC1.8V";
@@ -129,6 +162,14 @@
 			};
 		};
 	};
+};
+
+&audio {
+	status = "okay";
+};
+
+&aiu_i2s_dma {
+	status = "okay";
 };
 
 &cec_AO {
@@ -183,6 +224,10 @@
 	hdmi_tx_tmds_out: endpoint {
 		remote-endpoint = <&hdmi_connector_in>;
 	};
+};
+
+&i2s_dai {
+	status = "okay";
 };
 
 &ir {
