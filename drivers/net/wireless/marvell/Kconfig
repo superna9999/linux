@@ -24,4 +24,13 @@ config MWL8K
 	  To compile this driver as a module, choose M here: the module
 	  will be called mwl8k.  If unsure, say N.
 
+config LRDMWL
+	tristate "Laird stuff"
+	depends on MAC80211
+	depends on CFG80211
+	select WIRELESS_EXT
+	select WEXT_SPY
+	select LIB80211
+	select FW_LOADER
+
 endif # WLAN_VENDOR_MARVELL
