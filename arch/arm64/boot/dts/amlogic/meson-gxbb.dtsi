@@ -777,4 +777,7 @@
 		 <&reset RESET_VDI6>,
 		 <&reset RESET_VENCL>,
 		 <&reset RESET_VID_LOCK>;
+	power-domains = <&pwrc_AO PWR_AO_VPU_HDMI>,
+			<&pwrc_AO PWR_AO_VPU_HDMI_ISO>;
+	power-domain-names = "vpu-power", "vpu-iso";
 };

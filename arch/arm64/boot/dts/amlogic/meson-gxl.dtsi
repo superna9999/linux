@@ -46,6 +46,7 @@
 #include <dt-bindings/clock/gxbb-aoclkc.h>
 #include <dt-bindings/gpio/meson-gxl-gpio.h>
 #include <dt-bindings/reset/amlogic,meson-gxbb-reset.h>
+#include <dt-bindings/power/amlogic,meson-gx-aopwrc.h>
 
 / {
 	compatible = "amlogic,meson-gxl";
@@ -719,4 +720,7 @@
 		 <&reset RESET_VDI6>,
 		 <&reset RESET_VENCL>,
 		 <&reset RESET_VID_LOCK>;
+	power-domains = <&pwrc_AO PWR_AO_VPU_HDMI>,
+			<&pwrc_AO PWR_AO_VPU_HDMI_ISO>;
+	power-domain-names = "vpu-power", "vpu-iso";
 };
