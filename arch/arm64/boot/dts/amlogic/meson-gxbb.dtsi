@@ -46,6 +46,7 @@
 #include <dt-bindings/clock/gxbb-clkc.h>
 #include <dt-bindings/clock/gxbb-aoclkc.h>
 #include <dt-bindings/reset/gxbb-aoclkc.h>
+#include <dt-bindings/power/amlogic,meson-gx-aopwrc.h>
 
 / {
 	compatible = "amlogic,meson-gxbb";
