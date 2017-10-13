@@ -46,7 +46,6 @@
 #include <dt-bindings/clock/gxbb-clkc.h>
 #include <dt-bindings/clock/gxbb-aoclkc.h>
 #include <dt-bindings/reset/gxbb-aoclkc.h>
-#include <dt-bindings/power/amlogic,meson-gx-aopwrc.h>
 
 / {
 	compatible = "amlogic,meson-gxbb";
@@ -689,6 +688,23 @@
 	};
 };
 
+&pwrc_vpu {
+	resets = <&reset RESET_VIU>,
+		 <&reset RESET_VENC>,
+		 <&reset RESET_VCBUS>,
+		 <&reset RESET_HDMITX_CAPB3>,
+		 <&reset RESET_BT656>,
+		 <&reset RESET_HDMI_SYSTEM_RESET>,
+		 <&reset RESET_DVIN_RESET>,
+		 <&reset RESET_RDMA>,
+		 <&reset RESET_VENCI>,
+		 <&reset RESET_VENCP>,
+		 <&reset RESET_VDAC>,
+		 <&reset RESET_VDI6>,
+		 <&reset RESET_VENCL>,
+		 <&reset RESET_VID_LOCK>;
+};
+
 &saradc {
 	compatible = "amlogic,meson-gxbb-saradc", "amlogic,meson-saradc";
 	clocks = <&xtal>,
@@ -778,7 +794,5 @@
 		 <&reset RESET_VDI6>,
 		 <&reset RESET_VENCL>,
 		 <&reset RESET_VID_LOCK>;
-	power-domains = <&pwrc_AO PWR_AO_VPU_HDMI>,
-			<&pwrc_AO PWR_AO_VPU_HDMI_ISO>;
-	power-domain-names = "vpu-power", "vpu-iso";
+	power-domains = <&pwrc_vpu>;
 };
