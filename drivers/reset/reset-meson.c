@@ -62,6 +62,7 @@
 #include <linux/reset-controller.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include <linux/of_device.h>
 
 #define REG_COUNT	8
 #define BITS_PER_REG	32
@@ -143,7 +144,7 @@ static const struct of_device_id meson_reset_dt_ids[] = {
 
 static int meson_reset_probe(struct platform_device *pdev)
 {
-	struct reset_control_ops *ops;
+	const struct reset_control_ops *ops;
 	struct meson_reset *data;
 	struct resource *res;
 
