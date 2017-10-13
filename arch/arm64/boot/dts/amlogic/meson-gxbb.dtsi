@@ -757,4 +757,10 @@
 
 &vpu {
 	compatible = "amlogic,meson-gxbb-vpu", "amlogic,meson-gx-vpu";
+	assigned-clocks = <&clkc CLKID_VPU0_SEL>,
+			  <&clkc CLKID_VPU>; /* Glitch free mux */
+	assigned-clock-parents = <&clkc CLKID_FCLK_DIV3>,
+				 <&clkc CLKID_VPU0_SEL>;
+	assigned-clock-rates = <0>, /* Do Nothing */
+			       <666666666>;
 };
