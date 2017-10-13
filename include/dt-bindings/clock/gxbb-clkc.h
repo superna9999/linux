@@ -113,5 +113,8 @@
 #define CLKID_SD_EMMC_A_CLK0	119
 #define CLKID_SD_EMMC_B_CLK0	122
 #define CLKID_SD_EMMC_C_CLK0	125
+#define CLKID_VPU0_SEL		128
+#define CLKID_VPU1_SEL		129
+#define CLKID_VPU		130
 
 #endif /* __GXBB_CLKC_H */
