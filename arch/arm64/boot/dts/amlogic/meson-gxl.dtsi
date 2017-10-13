@@ -705,4 +705,18 @@
 				 <&clkc CLKID_VPU0_SEL>;
 	assigned-clock-rates = <0>, /* Do Nothing */
 			       <666666666>;
+	resets = <&reset RESET_VIU>,
+		 <&reset RESET_VENC>,
+		 <&reset RESET_VCBUS>,
+		 <&reset RESET_HDMITX_CAPB3>,
+		 <&reset RESET_BT656>,
+		 <&reset RESET_HDMI_SYSTEM_RESET>,
+		 <&reset RESET_DVIN_RESET>,
+		 <&reset RESET_RDMA>,
+		 <&reset RESET_VENCI>,
+		 <&reset RESET_VENCP>,
+		 <&reset RESET_VDAC>,
+		 <&reset RESET_VDI6>,
+		 <&reset RESET_VENCL>,
+		 <&reset RESET_VID_LOCK>;
 };
