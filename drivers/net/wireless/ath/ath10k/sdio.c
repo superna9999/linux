@@ -38,9 +38,9 @@
 #define ATH10K_SDIO_VSG_BUF_SIZE	(32 * 1024)
 
 static int ath10k_sdio_read(struct ath10k *ar, u32 addr, void *buf,
-			    u32 len, bool incr);
+			    size_t len, bool incr);
 static int ath10k_sdio_write(struct ath10k *ar, u32 addr, const void *buf,
-			     u32 len, bool incr);
+			     size_t len, bool incr);
 
 /* inlined helper functions */
 
