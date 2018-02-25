@@ -1502,7 +1502,6 @@ static struct sk_buff *ath10k_wmi_tlv_op_gen_init(struct ath10k *ar)
 	cmd->num_host_mem_chunks = __cpu_to_le32(ar->wmi.num_mem_chunks);
 
 	cfg->num_vdevs = __cpu_to_le32(TARGET_TLV_NUM_VDEVS);
-
 	cfg->num_peers = __cpu_to_le32(ar->hw_params.num_peers);
 	cfg->ast_skid_limit = __cpu_to_le32(ar->hw_params.ast_skid_limit);
 	cfg->num_wds_entries = __cpu_to_le32(ar->hw_params.num_wds_entries);
@@ -1516,7 +1515,7 @@ static struct sk_buff *ath10k_wmi_tlv_op_gen_init(struct ath10k *ar)
 	}
 
 	cfg->num_peer_keys = __cpu_to_le32(2);
-	cfg->num_tids = __cpu_to_le32(TARGET_TLV_NUM_TIDS);
+	cfg->num_tids = __cpu_to_le32(ar->hw_params.num_peers * 2);
 	cfg->tx_chain_mask = __cpu_to_le32(0x7);
 	cfg->rx_chain_mask = __cpu_to_le32(0x7);
 	cfg->rx_timeout_pri[0] = __cpu_to_le32(0x64);
