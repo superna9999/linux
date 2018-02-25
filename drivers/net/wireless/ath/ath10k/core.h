@@ -857,6 +857,7 @@ struct ath10k_per_peer_tx_stats {
 
 struct ath10k_bus_params {
 	u32 chip_id;
+	bool is_high_latency;
 };
 
 struct ath10k {
@@ -869,6 +870,7 @@ struct ath10k {
 	enum ath10k_hw_rev hw_rev;
 	u16 dev_id;
 	u32 chip_id;
+	bool is_high_latency;
 	u32 target_version;
 	u8 fw_version_major;
 	u32 fw_version_minor;

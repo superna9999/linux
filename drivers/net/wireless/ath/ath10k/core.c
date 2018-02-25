@@ -2647,6 +2647,7 @@ int ath10k_core_register(struct ath10k *ar,
 			 const struct ath10k_bus_params *bus_params)
 {
 	ar->chip_id = bus_params->chip_id;
+	ar->is_high_latency = bus_params->is_high_latency;
 	queue_work(ar->workqueue, &ar->register_work);
 
 	return 0;
