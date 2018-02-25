@@ -30,15 +30,16 @@ enum ath10k_bus {
 
 #define ATH10K_FW_DIR			"ath10k"
 
-#define QCA988X_2_0_DEVICE_ID_UBNT   (0x11ac)
-#define QCA988X_2_0_DEVICE_ID   (0x003c)
-#define QCA6164_2_1_DEVICE_ID   (0x0041)
-#define QCA6174_2_1_DEVICE_ID   (0x003e)
-#define QCA99X0_2_0_DEVICE_ID   (0x0040)
-#define QCA9888_2_0_DEVICE_ID	(0x0056)
-#define QCA9984_1_0_DEVICE_ID	(0x0046)
-#define QCA9377_1_0_DEVICE_ID   (0x0042)
-#define QCA9887_1_0_DEVICE_ID   (0x0050)
+#define QCA988X_2_0_DEVICE_ID_UBNT	(0x11ac)
+#define QCA988X_2_0_DEVICE_ID		(0x003c)
+#define QCA6164_2_1_DEVICE_ID		(0x0041)
+#define QCA6174_2_1_DEVICE_ID		(0x003e)
+#define QCA99X0_2_0_DEVICE_ID		(0x0040)
+#define QCA9888_2_0_DEVICE_ID		(0x0056)
+#define QCA9984_1_0_DEVICE_ID		(0x0046)
+#define QCA9377_1_0_DEVICE_ID		(0x0042)
+#define QCA9887_1_0_DEVICE_ID		(0x0050)
+#define SPARKLAN_WPEQ_160N_DEVICE_ID	(0x9378)
 
 /* QCA988X 1.0 definitions (unsupported) */
 #define QCA988X_HW_1_0_CHIP_ID_REV	0x0
