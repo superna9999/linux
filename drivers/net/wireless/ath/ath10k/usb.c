@@ -1084,6 +1084,7 @@ static int ath10k_usb_pm_resume(struct usb_interface *interface)
 /* table of devices that work with this driver */
 static struct usb_device_id ath10k_usb_ids[] = {
 	{USB_DEVICE(0x13b1, 0x0042)}, /* Linksys WUSB6100M */
+	{USB_DEVICE(0x0cf3, 0x9378)}, /* SparkLAN WPEQ-160ACN */
 	{ /* Terminating entry */ },
 };
 
