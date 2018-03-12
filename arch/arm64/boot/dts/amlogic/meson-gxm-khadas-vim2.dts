@@ -462,3 +462,7 @@
 	status = "okay";
 	vref-supply = <&vddio_ao18>;
 };
+
+&usb0 {
+	status = "okay";
+};
