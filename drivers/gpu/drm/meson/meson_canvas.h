@@ -23,6 +23,9 @@
 #define __MESON_CANVAS_H
 
 #define MESON_CANVAS_ID_OSD1	0x4e
+#define MESON_CANVAS_ID_VD1_0	0x10
+#define MESON_CANVAS_ID_VD1_1	0x11
+#define MESON_CANVAS_ID_VD1_2	0x12
 
 /* Canvas configuration. */
 #define MESON_CANVAS_WRAP_NONE	0x00
@@ -37,6 +40,6 @@ void meson_canvas_setup(struct meson_drm *priv,
 			uint32_t canvas_index, uint32_t addr,
 			uint32_t stride, uint32_t height,
 			unsigned int wrap,
-			unsigned int blkmode);
+			unsigned int blkmode, bool endian_switch);
 
 #endif /* __MESON_CANVAS_H */
