@@ -41,6 +41,7 @@
 
 #include "meson_drv.h"
 #include "meson_plane.h"
+#include "meson_overlay.h"
 #include "meson_crtc.h"
 #include "meson_venc_cvbs.h"
 
@@ -269,6 +270,10 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 	}
 
 	ret = meson_plane_create(priv);
+	if (ret)
+		goto free_drm;
+
+	ret = meson_overlay_create(priv);
 	if (ret)
 		goto free_drm;
 
