@@ -101,7 +101,18 @@ static void meson_crtc_atomic_enable(struct drm_crtc *crtc,
 	writel_bits_relaxed(VPP_POSTBLEND_ENABLE, VPP_POSTBLEND_ENABLE,
 			    priv->io_base + _REG(VPP_MISC));
 
+	/* Enable VPP Preblend */
+	writel(crtc_state->mode.hdisplay,
+	       priv->io_base + _REG(VPP_PREBLEND_H_SIZE));
+
+	writel_bits_relaxed(VPP_PREBLEND_ENABLE, VPP_PREBLEND_ENABLE,
+			    priv->io_base + _REG(VPP_MISC));
+
+	writel(crtc_state->mode.hdisplay,
+	       priv->io_base + _REG(VPP_LINE_IN_LENGTH));
+
 	priv->viu.osd1_enabled = true;
+	priv->viu.vd1_enabled = true;
 }
 
 static void meson_crtc_atomic_disable(struct drm_crtc *crtc,
@@ -110,11 +121,20 @@ static void meson_crtc_atomic_disable(struct drm_crtc *crtc,
 	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
 	struct meson_drm *priv = meson_crtc->priv;
 
+	DRM_DEBUG_DRIVER("\n");
+
 	priv->viu.osd1_enabled = false;
 	priv->viu.osd1_commit = false;
 
+	priv->viu.vd1_enabled = false;
+	priv->viu.vd1_commit = false;
+
 	/* Disable VPP Postblend */
 	writel_bits_relaxed(VPP_POSTBLEND_ENABLE, 0,
+			    priv->io_base + _REG(VPP_MISC));
+
+	/* Disable VPP Preblend */
+	writel_bits_relaxed(VPP_PREBLEND_ENABLE, 0,
 			    priv->io_base + _REG(VPP_MISC));
 
 	if (crtc->state->event && !crtc->state->active) {
@@ -149,6 +169,7 @@ static void meson_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct meson_drm *priv = meson_crtc->priv;
 
 	priv->viu.osd1_commit = true;
+	priv->viu.vd1_commit = true;
 }
 
 static const struct drm_crtc_helper_funcs meson_crtc_helper_funcs = {
@@ -203,6 +224,74 @@ void meson_crtc_irq(struct meson_drm *priv)
 				    priv->io_base + _REG(VPP_MISC));
 
 		priv->viu.osd1_commit = false;
+	}
+	
+	/* Update the VD1 registers */
+	if (priv->viu.vd1_enabled && priv->viu.vd1_commit) {
+
+		DRM_DEBUG_DRIVER("VD1 update\n");
+
+		writel_relaxed(priv->viu.vd1_if0_gen_reg,
+				priv->io_base + _REG(VD1_IF0_GEN_REG));
+		writel_relaxed(priv->viu.vd1_if0_gen_reg2,
+				priv->io_base + _REG(VD1_IF0_GEN_REG2));
+		writel_relaxed(priv->viu.viu_vd1_fmt_ctrl,
+				priv->io_base + _REG(VIU_VD1_FMT_CTRL));
+		writel_relaxed(priv->viu.viu_vd1_fmt_w,
+				priv->io_base + _REG(VIU_VD1_FMT_W));
+		writel_relaxed(priv->viu.vd1_if0_canvas0,
+				priv->io_base + _REG(VD1_IF0_CANVAS0));
+		writel_relaxed(priv->viu.vd1_if0_luma_x0,
+				priv->io_base + _REG(VD1_IF0_LUMA_X0));
+		writel_relaxed(priv->viu.vd1_if0_luma_y0,
+				priv->io_base + _REG(VD1_IF0_LUMA_Y0));
+		writel_relaxed(priv->viu.vd1_if0_chroma_x0,
+				priv->io_base + _REG(VD1_IF0_CHROMA_X0));
+		writel_relaxed(priv->viu.vd1_if0_chroma_y0,
+				priv->io_base + _REG(VD1_IF0_CHROMA_Y0));
+		writel_relaxed(priv->viu.vd1_if0_repeat_loop,
+				priv->io_base + _REG(VD1_IF0_RPT_LOOP));
+		writel_relaxed(priv->viu.vd1_if0_luma0_rpt_pat,
+				priv->io_base + _REG(VD1_IF0_LUMA0_RPT_PAT));
+		writel_relaxed(priv->viu.vd1_if0_chroma0_rpt_pat,
+				priv->io_base + _REG(VD1_IF0_CHROMA0_RPT_PAT));
+		writel_relaxed(priv->viu.vd1_range_map_y,
+				priv->io_base + _REG(VD1_IF0_RANGE_MAP_Y));
+		writel_relaxed(priv->viu.vd1_range_map_cb,
+				priv->io_base + _REG(VD1_IF0_RANGE_MAP_CB));
+		writel_relaxed(priv->viu.vd1_range_map_cr,
+				priv->io_base + _REG(VD1_IF0_RANGE_MAP_CR));
+		/*
+		writel_relaxed(priv->viu.,
+				priv->io_base + _REG());
+				*/
+
+		/* TODO Scaler */
+
+		switch (priv->viu.vd1_planes) {
+		case 3:
+			meson_canvas_setup(priv, MESON_CANVAS_ID_VD1_2,
+				   priv->viu.vd1_addr2, priv->viu.vd1_stride2,
+				   priv->viu.vd1_height2, MESON_CANVAS_WRAP_NONE,
+				   MESON_CANVAS_BLKMODE_LINEAR);
+		case 2:
+			meson_canvas_setup(priv, MESON_CANVAS_ID_VD1_1,
+				   priv->viu.vd1_addr1, priv->viu.vd1_stride1,
+				   priv->viu.vd1_height1, MESON_CANVAS_WRAP_NONE,
+				   MESON_CANVAS_BLKMODE_LINEAR);
+		case 1:
+			meson_canvas_setup(priv, MESON_CANVAS_ID_VD1_0,
+				   priv->viu.vd1_addr0, priv->viu.vd1_stride0,
+				   priv->viu.vd1_height0, MESON_CANVAS_WRAP_NONE,
+				   MESON_CANVAS_BLKMODE_LINEAR);
+		};
+
+		/* TODO zorder */
+		/* Enable VD1 */
+		writel_bits_relaxed(VPP_VD1_PREBLEND, VPP_VD1_PREBLEND,
+				    priv->io_base + _REG(VPP_MISC));
+
+		priv->viu.vd1_commit = false;
 	}
 
 	drm_crtc_handle_vblank(priv->crtc);

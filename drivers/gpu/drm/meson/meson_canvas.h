@@ -23,6 +23,9 @@
 #define __MESON_CANVAS_H
 
 #define MESON_CANVAS_ID_OSD1	0x4e
+#define MESON_CANVAS_ID_VD1_0	0x60
+#define MESON_CANVAS_ID_VD1_1	0x61
+#define MESON_CANVAS_ID_VD1_2	0x62
 
 /* Canvas configuration. */
 #define MESON_CANVAS_WRAP_NONE	0x00
