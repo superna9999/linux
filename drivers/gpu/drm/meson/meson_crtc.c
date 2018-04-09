@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
+#include <linux/bitfield.h>
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
@@ -98,18 +99,25 @@ static void meson_crtc_atomic_enable(struct drm_crtc *crtc,
 	writel(crtc_state->mode.hdisplay,
 	       priv->io_base + _REG(VPP_POSTBLEND_H_SIZE));
 
+	/* VD1 Preblend vertical start/end */
+	if (crtc_state->mode.hdisplay > 1080)
+		writel(FIELD_PREP(GENMASK(11, 0),
+				  crtc_state->mode.hdisplay - 1),
+		       priv->io_base + _REG(VPP_PREBLEND_VD1_V_START_END));
+	else
+		writel(FIELD_PREP(GENMASK(11, 0), 1080 - 1),
+		       priv->io_base + _REG(VPP_PREBLEND_VD1_V_START_END));
+
+	/* VD1 Preblend horizontal start/end */
+	writel(FIELD_PREP(GENMASK(11, 0), 4096 - 1),
+	       priv->io_base + _REG(VPP_PREBLEND_VD1_H_START_END));
+
 	writel_bits_relaxed(VPP_POSTBLEND_ENABLE, VPP_POSTBLEND_ENABLE,
 			    priv->io_base + _REG(VPP_MISC));
 
-	/* Enable VPP Preblend */
-	writel(crtc_state->mode.hdisplay,
-	       priv->io_base + _REG(VPP_PREBLEND_H_SIZE));
-
+	/*
 	writel_bits_relaxed(VPP_PREBLEND_ENABLE, VPP_PREBLEND_ENABLE,
-			    priv->io_base + _REG(VPP_MISC));
-
-	writel(crtc_state->mode.hdisplay,
-	       priv->io_base + _REG(VPP_LINE_IN_LENGTH));
+			    priv->io_base + _REG(VPP_MISC)); */
 
 	priv->viu.osd1_enabled = true;
 	priv->viu.vd1_enabled = true;
@@ -133,9 +141,9 @@ static void meson_crtc_atomic_disable(struct drm_crtc *crtc,
 	writel_bits_relaxed(VPP_POSTBLEND_ENABLE, 0,
 			    priv->io_base + _REG(VPP_MISC));
 
-	/* Disable VPP Preblend */
+	/* Disable VPP Preblend * /
 	writel_bits_relaxed(VPP_PREBLEND_ENABLE, 0,
-			    priv->io_base + _REG(VPP_MISC));
+			    priv->io_base + _REG(VPP_MISC)); */
 
 	if (crtc->state->event && !crtc->state->active) {
 		spin_lock_irq(&crtc->dev->event_lock);
@@ -229,7 +237,7 @@ void meson_crtc_irq(struct meson_drm *priv)
 	/* Update the VD1 registers */
 	if (priv->viu.vd1_enabled && priv->viu.vd1_commit) {
 
-		DRM_DEBUG_DRIVER("VD1 update\n");
+		DRM_INFO("VD1 update\n");
 
 		writel_relaxed(priv->viu.vd1_if0_gen_reg,
 				priv->io_base + _REG(VD1_IF0_GEN_REG));
@@ -261,12 +269,48 @@ void meson_crtc_irq(struct meson_drm *priv)
 				priv->io_base + _REG(VD1_IF0_RANGE_MAP_CB));
 		writel_relaxed(priv->viu.vd1_range_map_cr,
 				priv->io_base + _REG(VD1_IF0_RANGE_MAP_CR));
+		writel_relaxed(priv->viu.vpp_pic_in_height,
+				priv->io_base + _REG(VPP_PIC_IN_HEIGHT));
+		writel_relaxed(priv->viu.vpp_postblend_vd1_h_start_end,
+				priv->io_base + _REG(VPP_POSTBLEND_VD1_H_START_END));
+		writel_relaxed(priv->viu.vpp_postblend_vd1_v_start_end,
+				priv->io_base + _REG(VPP_POSTBLEND_VD1_V_START_END));
+		writel_relaxed(priv->viu.vpp_hsc_region12_startp,
+				priv->io_base + _REG(VPP_HSC_REGION12_STARTP));
+		writel_relaxed(priv->viu.vpp_hsc_region34_startp,
+				priv->io_base + _REG(VPP_HSC_REGION34_STARTP));
+		writel_relaxed(priv->viu.vpp_hsc_region4_endp,
+				priv->io_base + _REG(VPP_HSC_REGION4_ENDP));
+		writel_relaxed(priv->viu.vpp_hsc_start_phase_step,
+				priv->io_base + _REG(VPP_HSC_START_PHASE_STEP));
+		writel_relaxed(priv->viu.vpp_hsc_region1_phase_slope,
+				priv->io_base + _REG(VPP_HSC_REGION1_PHASE_SLOPE));
+		writel_relaxed(priv->viu.vpp_hsc_region3_phase_slope,
+				priv->io_base + _REG(VPP_HSC_REGION3_PHASE_SLOPE));
+		writel_relaxed(priv->viu.vpp_line_in_length,
+				priv->io_base + _REG(VPP_LINE_IN_LENGTH));
+		writel_relaxed(priv->viu.vpp_preblend_h_size,
+				priv->io_base + _REG(VPP_PREBLEND_H_SIZE));
+		writel_relaxed(priv->viu.vpp_vsc_region12_startp,
+				priv->io_base + _REG(VPP_VSC_REGION12_STARTP));
+		writel_relaxed(priv->viu.vpp_vsc_region34_startp,
+				priv->io_base + _REG(VPP_VSC_REGION34_STARTP));
+		writel_relaxed(priv->viu.vpp_vsc_region4_endp,
+				priv->io_base + _REG(VPP_VSC_REGION4_ENDP));
+		writel_relaxed(priv->viu.vpp_vsc_start_phase_step,
+				priv->io_base + _REG(VPP_VSC_START_PHASE_STEP));
+		writel_relaxed(priv->viu.vpp_vsc_ini_phase,
+				priv->io_base + _REG(VPP_VSC_INI_PHASE));
+		writel_relaxed(priv->viu.vpp_vsc_phase_ctrl,
+				priv->io_base + _REG(VPP_VSC_PHASE_CTRL));
+		writel_relaxed(priv->viu.vpp_hsc_phase_ctrl,
+				priv->io_base + _REG(VPP_HSC_PHASE_CTRL));
+		writel_relaxed(0x78404,
+				priv->io_base + _REG(VPP_SC_MISC));
 		/*
 		writel_relaxed(priv->viu.,
 				priv->io_base + _REG());
 				*/
-
-		/* TODO Scaler */
 
 		switch (priv->viu.vd1_planes) {
 		case 3:
@@ -288,7 +332,8 @@ void meson_crtc_irq(struct meson_drm *priv)
 
 		/* TODO zorder */
 		/* Enable VD1 */
-		writel_bits_relaxed(VPP_VD1_PREBLEND, VPP_VD1_PREBLEND,
+		writel_bits_relaxed(VPP_VD1_PREBLEND | VPP_VD1_POSTBLEND,
+				    VPP_VD1_PREBLEND | VPP_VD1_POSTBLEND,
 				    priv->io_base + _REG(VPP_MISC));
 
 		priv->viu.vd1_commit = false;
