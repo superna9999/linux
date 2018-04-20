@@ -60,9 +60,9 @@ Required properties:
 - reg: base address and size of he following memory-mapped regions :
 	- vpu
 	- hhi
-	- dmc
 - reg-names: should contain the names of the previous memory regions
 - interrupts: should contain the VENC Vsync interrupt number
+- amlogic,canvas: should point to a meson canvas provider node
 
 Optional properties:
 - power-domains: Optional phandle to associated power domain as described in
@@ -98,12 +98,13 @@ tv-connector {
 vpu: vpu@d0100000 {
 	compatible = "amlogic,meson-gxbb-vpu";
 	reg = <0x0 0xd0100000 0x0 0x100000>,
-	      <0x0 0xc883c000 0x0 0x1000>,
-	      <0x0 0xc8838000 0x0 0x1000>;
-	reg-names = "vpu", "hhi", "dmc";
+	      <0x0 0xc883c000 0x0 0x1000>;
+	reg-names = "vpu", "hhi";
 	interrupts = <GIC_SPI 3 IRQ_TYPE_EDGE_RISING>;
 	#address-cells = <1>;
 	#size-cells = <0>;
+
+	amlogic,canvas = <&canvas>;
 
 	/* CVBS VDAC output port */
 	port@0 {

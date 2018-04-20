@@ -22,14 +22,17 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/of.h>
+#include <linux/soc/amlogic/meson-canvas.h>
 #include <drm/drmP.h>
 
 struct meson_drm {
 	struct device *dev;
 	void __iomem *io_base;
 	struct regmap *hhi;
-	struct regmap *dmc;
 	int vsync_irq;
+
+	struct meson_canvas *canvas;
+	u8 canvas_id_osd1;
 
 	struct drm_device *drm;
 	struct drm_crtc *crtc;
