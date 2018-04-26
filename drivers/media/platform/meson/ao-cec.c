@@ -460,7 +460,10 @@ rx_out:
 	writel_relaxed(CEC_INTR_RX, ao_cec->base + CEC_INTR_CLR_REG);
 
 	/* Ack RX message */
-	meson_ao_cec_write(ao_cec, CEC_RX_MSG_CMD, RX_ACK_CURRENT, &ret);
+	meson_ao_cec_write(ao_cec, CEC_RX_MSG_CMD, 
+			   (ao_cec->adap->monitor_all_cnt ? RX_ACK_NEXT :
+			    				    RX_ACK_CURRENT),
+			   &ret);
 	meson_ao_cec_write(ao_cec, CEC_RX_MSG_CMD, RX_NO_OP, &ret);
 
 	/* Clear RX buffer */
@@ -510,6 +513,12 @@ static int meson_ao_cec_set_log_addr(struct cec_adapter *adap, u8 logical_addr)
 			   LOGICAL_ADDR_VALID, &ret);
 
 	return ret;
+}
+
+static int meson_ao_cec_monitor_all_enable(struct cec_adapter *adap,
+					   bool enable)
+{
+	return meson_ao_cec_set_log_addr(adap, CEC_LOG_ADDR_INVALID);
 }
 
 static int meson_ao_cec_transmit(struct cec_adapter *adap, u8 attempts,
@@ -594,6 +603,7 @@ static int meson_ao_cec_adap_enable(struct cec_adapter *adap, bool enable)
 
 static const struct cec_adap_ops meson_ao_cec_ops = {
 	.adap_enable = meson_ao_cec_adap_enable,
+	.adap_monitor_all_enable = meson_ao_cec_monitor_all_enable,
 	.adap_log_addr = meson_ao_cec_set_log_addr,
 	.adap_transmit = meson_ao_cec_transmit,
 };
@@ -631,7 +641,8 @@ static int meson_ao_cec_probe(struct platform_device *pdev)
 					    CEC_CAP_LOG_ADDRS |
 					    CEC_CAP_TRANSMIT |
 					    CEC_CAP_RC |
-					    CEC_CAP_PASSTHROUGH,
+					    CEC_CAP_PASSTHROUGH |
+					    CEC_CAP_MONITOR_ALL,
 					    1); /* Use 1 for now */
 	if (IS_ERR(ao_cec->adap)) {
 		ret = PTR_ERR(ao_cec->adap);
