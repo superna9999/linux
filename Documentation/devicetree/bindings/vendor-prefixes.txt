@@ -137,6 +137,7 @@ gef	GE Fanuc Intelligent Platforms Embedded Systems, Inc.
 GEFanuc	GE Fanuc Intelligent Platforms Embedded Systems, Inc.
 geniatech	Geniatech, Inc.
 giantplus	Giantplus Technology Co., Ltd.
+gigadevice	GigaDevice Semiconductor Beijing, Inc.
 globalscale	Globalscale Technologies, Inc.
 gmt	Global Mixed-mode Technology, Inc.
 goodix	Shenzhen Huiding Technology Co., Ltd.
