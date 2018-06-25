@@ -33,6 +33,10 @@ Boards with the Amlogic Meson GXBaby SoC shall have the following properties:
   Required root node property:
     compatible: "amlogic,meson-gxbb";
 
+Boards with the Amlogic Meson GXL S805X SoC shall have the following properties:
+  Required root node property:
+    compatible: "amlogic,s805x", "amlogic,meson-gxl";
+
 Boards with the Amlogic Meson GXL S905X SoC shall have the following properties:
   Required root node property:
     compatible: "amlogic,s905x", "amlogic,meson-gxl";
@@ -70,6 +74,8 @@ Board compatible values (alphabetically, grouped by SoC):
   - "tronsmart,vega-s95-telos", "tronsmart,vega-s95" (Meson gxbb)
   - "wetek,hub" (Meson gxbb)
   - "wetek,play2" (Meson gxbb)
+
+  - "libretech,ac" (Meson gxl s805x)
 
   - "amlogic,p212" (Meson gxl s905x)
   - "hwacom,amazetv" (Meson gxl s905x)
