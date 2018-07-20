@@ -949,6 +949,58 @@ static const char * const gxbb_mali_parent_names[] = {
 	"mali_0", "mali_1"
 };
 
+static int gxbb_mali_rate_change(struct notifier_block *nb,
+				 unsigned long flags, void *data)
+{
+	struct clk_notifier_data *cnd = data;
+	struct clk_hw *hw = __clk_get_hw(cnd->clk);
+	struct clk_regmap_div_data *mali_0_div_data = gxbb_mali_0_div.data;
+	struct clk_regmap_div_data *mali_1_div_data = gxbb_mali_1_div.data;
+	unsigned int val;
+
+	switch (flags) {
+	case PRE_RATE_CHANGE:
+		/* Replicate mali_0_sel to mali_1_sel */
+		clk_regmap_mux_ops.set_parent(&gxbb_mali_1_sel.hw,
+			clk_regmap_mux_ops.get_parent(&gxbb_mali_0_sel.hw));
+
+		/* Replicate mali_0_div to mali_1_div */
+		regmap_read(gxbb_mali_0_div.map, mali_0_div_data->offset, &val);
+		val >>= mali_0_div_data->shift;
+		val &= clk_div_mask(mali_0_div_data->width);
+
+		regmap_update_bits(gxbb_mali_1_div.map, mali_1_div_data->offset,
+				   clk_div_mask(mali_1_div_data->width) <<
+						mali_1_div_data->shift, val);
+
+		/* Replicate mali_0 to mali_1 */
+		if (clk_regmap_gate_ops.is_enabled(&gxbb_mali_0.hw))
+			clk_regmap_gate_ops.enable(&gxbb_mali_1.hw);
+		else
+			clk_regmap_gate_ops.disable(&gxbb_mali_1.hw);
+
+		/* Reparent from mali_0 to mali_1 */
+		clk_hw_reparent(hw, &gxbb_mali_1.hw);
+		break;
+
+	case ABORT_RATE_CHANGE:
+	case POST_RATE_CHANGE:
+		/* Reparent from mali_1 to mali_0 */
+		clk_hw_reparent(hw, &gxbb_mali_0.hw);
+
+		/* Disable mali_1 */
+		clk_regmap_gate_ops.disable(&gxbb_mali_1.hw);
+
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block gxbb_mali_notifier = {
+	.notifier_call = gxbb_mali_rate_change,
+};
+
 static struct clk_regmap gxbb_mali = {
 	.data = &(struct clk_regmap_mux_data){
 		.offset = HHI_MALI_CLK_CNTL,
@@ -2329,6 +2381,13 @@ static int gxbb_clkc_probe(struct platform_device *pdev)
 			dev_err(dev, "Clock registration failed\n");
 			return ret;
 		}
+	}
+
+	/* Register notifiers */
+	ret = clk_notifier_register(gxbb_mali.hw.clk, &gxbb_mali_notifier);
+	if (ret) {
+		dev_err(dev, "failed to register clock notifier for mali clock\n");
+		return ret;
 	}
 
 	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
