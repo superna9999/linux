@@ -16,6 +16,7 @@ struct cec_gpio {
 
 	struct gpio_desc	*cec_gpio;
 	int			cec_irq;
+	int			cec_irq_edge; /* If dual edge not supported */
 	bool			cec_is_low;
 	bool			cec_have_irq;
 
@@ -92,10 +93,23 @@ static bool cec_gpio_enable_irq(struct cec_adapter *adap)
 	if (cec->cec_have_irq)
 		return true;
 
-	if (request_irq(cec->cec_irq, cec_gpio_irq_handler,
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
-			adap->name, cec))
+	if (cec->cec_irq_edge) {
+		if (request_irq(cec->cec_irq, cec_gpio_irq_handler,
+				IRQF_TRIGGER_RISING, adap->name, cec))
+			return false;
+
+		if (request_irq(cec->cec_irq_edge, cec_gpio_irq_handler,
+				IRQF_TRIGGER_FALLING, adap->name, cec)) {
+
+			free_irq(cec->cec_irq, cec);
+
+			return false;
+		}
+	} else if (request_irq(cec->cec_irq, cec_gpio_irq_handler,
+			       IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+			       adap->name, cec))
 		return false;
+
 	cec->cec_have_irq = true;
 	return true;
 }
@@ -104,8 +118,11 @@ static void cec_gpio_disable_irq(struct cec_adapter *adap)
 {
 	struct cec_gpio *cec = cec_get_drvdata(adap);
 
-	if (cec->cec_have_irq)
+	if (cec->cec_have_irq) {
 		free_irq(cec->cec_irq, cec);
+		if (cec->cec_irq_edge)
+			free_irq(cec->cec_irq_edge, cec);
+	}
 	cec->cec_have_irq = false;
 }
 
@@ -161,7 +178,23 @@ static int cec_gpio_probe(struct platform_device *pdev)
 	cec->cec_gpio = devm_gpiod_get(dev, "cec", GPIOD_OUT_HIGH_OPEN_DRAIN);
 	if (IS_ERR(cec->cec_gpio))
 		return PTR_ERR(cec->cec_gpio);
+
 	cec->cec_irq = gpiod_to_irq(cec->cec_gpio);
+	if (cec->cec_irq == -ENXIO) {
+		unsigned int irq_count = platform_irq_count(pdev);
+
+		if (irq_count > 0) {
+			cec->cec_irq = platform_get_irq(pdev, 0);
+			if (cec->cec_irq < 0)
+				return cec->cec_irq;
+		}
+		if (irq_count > 1) {
+			/* Platform needs an IRQ line per edge */
+			cec->cec_irq_edge = platform_get_irq(pdev, 1);
+			if (cec->cec_irq_edge < 0)
+				return cec->cec_irq_edge;
+		}
+	}
 
 	cec->hpd_gpio = devm_gpiod_get_optional(dev, "hpd", GPIOD_IN);
 	if (IS_ERR(cec->hpd_gpio))
