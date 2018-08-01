@@ -26,6 +26,7 @@
 #include <linux/platform_device.h>
 #include <linux/component.h>
 #include <linux/of_graph.h>
+#include <linux/of_platform.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
@@ -47,7 +48,6 @@
 #include "meson_vpp.h"
 #include "meson_viu.h"
 #include "meson_venc.h"
-#include "meson_canvas.h"
 #include "meson_registers.h"
 
 #define DRIVER_NAME "meson"
@@ -165,6 +165,8 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 	struct meson_drm *priv;
 	struct drm_device *drm;
 	struct resource *res;
+	struct device_node *canvas;
+	struct platform_device *canvas_pdev;
 	void __iomem *regs;
 	int ret;
 
@@ -211,30 +213,34 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 	priv->hhi = devm_regmap_init_mmio(dev, regs,
 					  &meson_regmap_config);
 	if (IS_ERR(priv->hhi)) {
-		dev_err(&pdev->dev, "Couldn't create the HHI regmap\n");
+		dev_err(dev, "Couldn't create the HHI regmap\n");
 		ret = PTR_ERR(priv->hhi);
 		goto free_drm;
 	}
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dmc");
-	if (!res) {
-		ret = -EINVAL;
-		goto free_drm;
-	}
-	/* Simply ioremap since it may be a shared register zone */
-	regs = devm_ioremap(dev, res->start, resource_size(res));
-	if (!regs) {
-		ret = -EADDRNOTAVAIL;
+	canvas = of_parse_phandle(dev->of_node, "amlogic,canvas", 0);
+	if (!canvas) {
+		ret = -ENODEV;
 		goto free_drm;
 	}
 
-	priv->dmc = devm_regmap_init_mmio(dev, regs,
-					  &meson_regmap_config);
-	if (IS_ERR(priv->dmc)) {
-		dev_err(&pdev->dev, "Couldn't create the DMC regmap\n");
-		ret = PTR_ERR(priv->dmc);
+	canvas_pdev = of_find_device_by_node(canvas);
+	if (!canvas_pdev) {
+		dev_err(dev, "Unable to find canvas pdev\n");
+		ret = -ENODEV;
 		goto free_drm;
 	}
+
+	priv->canvas_ops = dev_get_platdata(&canvas_pdev->dev);
+	if (!priv->canvas_ops) {
+		dev_err(dev, "canvas pdata structure NULL\n");
+		ret = -EINVAL;
+		goto free_drm;
+	}
+
+	ret = priv->canvas_ops->alloc(&priv->canvas_id_osd1);
+	if (ret)
+		goto free_drm;
 
 	priv->vsync_irq = platform_get_irq(pdev, 0);
 
@@ -315,6 +321,7 @@ static void meson_drv_unbind(struct device *dev)
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct meson_drm *priv = drm->dev_private;
 
+	priv->canvas_ops->free(priv->canvas_id_osd1);
 	drm_dev_unregister(drm);
 	drm_kms_helper_poll_fini(drm);
 	drm_fbdev_cma_fini(priv->fbdev);

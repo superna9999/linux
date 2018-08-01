@@ -36,7 +36,6 @@
 #include "meson_plane.h"
 #include "meson_vpp.h"
 #include "meson_viu.h"
-#include "meson_canvas.h"
 #include "meson_registers.h"
 
 struct meson_plane {
@@ -105,7 +104,7 @@ static void meson_plane_atomic_update(struct drm_plane *plane,
 				   OSD_BLK0_ENABLE;
 
 	/* Set up BLK0 to point to the right canvas */
-	priv->viu.osd1_blk0_cfg[0] = ((MESON_CANVAS_ID_OSD1 << OSD_CANVAS_SEL) |
+	priv->viu.osd1_blk0_cfg[0] = ((priv->canvas_id_osd1 << OSD_CANVAS_SEL) |
 				      OSD_ENDIANNESS_LE);
 
 	/* On GXBB, Use the old non-HDR RGB2YUV converter */
