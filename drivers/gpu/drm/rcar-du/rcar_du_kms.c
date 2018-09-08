@@ -216,13 +216,6 @@ rcar_du_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 	return drm_gem_fb_create(dev, file_priv, mode_cmd);
 }
 
-static void rcar_du_output_poll_changed(struct drm_device *dev)
-{
-	struct rcar_du_device *rcdu = dev->dev_private;
-
-	drm_fbdev_cma_hotplug_event(rcdu->fbdev);
-}
-
 /* -----------------------------------------------------------------------------
  * Atomic Check and Update
  */
@@ -269,7 +262,6 @@ static const struct drm_mode_config_helper_funcs rcar_du_mode_config_helper = {
 
 static const struct drm_mode_config_funcs rcar_du_mode_config_funcs = {
 	.fb_create = rcar_du_fb_create,
-	.output_poll_changed = rcar_du_output_poll_changed,
 	.atomic_check = rcar_du_atomic_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };
@@ -504,7 +496,6 @@ int rcar_du_modeset_init(struct rcar_du_device *rcdu)
 
 	struct drm_device *dev = rcdu->ddev;
 	struct drm_encoder *encoder;
-	struct drm_fbdev_cma *fbdev;
 	unsigned int num_encoders;
 	unsigned int num_groups;
 	unsigned int swindex;
@@ -620,18 +611,6 @@ int rcar_du_modeset_init(struct rcar_du_device *rcdu)
 	drm_mode_config_reset(dev);
 
 	drm_kms_helper_poll_init(dev);
-
-	if (dev->mode_config.num_connector) {
-		fbdev = drm_fbdev_cma_init(dev, 32,
-					   dev->mode_config.num_connector);
-		if (IS_ERR(fbdev))
-			return PTR_ERR(fbdev);
-
-		rcdu->fbdev = fbdev;
-	} else {
-		dev_info(rcdu->dev,
-			 "no connector found, disabling fbdev emulation\n");
-	}
 
 	return 0;
 }
