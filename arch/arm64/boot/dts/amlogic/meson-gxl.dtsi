@@ -343,6 +343,21 @@
 					"spi_mosi",
 					"spi_sclk";
 				function = "spi";
+				bias-disable;
+			};
+		};
+
+		spi_clk_pup_pins: spi-clk-pup-pins {
+			cfg-pull-up {
+				pins = "GPIOX_11";
+				bias-pull-up;
+			};
+		};
+
+		spi_clk_pdn_pins: spi-clk-pdn-pins {
+			cfg-pull-down {
+				pins = "GPIOX_11";
+				bias-pull-down;
 			};
 		};
 
