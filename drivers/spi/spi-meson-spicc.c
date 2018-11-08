@@ -20,6 +20,7 @@
 #include <linux/interrupt.h>
 #include <linux/reset.h>
 #include <linux/gpio.h>
+#include <linux/pinctrl/consumer.h>
 
 /*
  * The Meson SPICC controller could support DMA based transfers, but is not
@@ -127,6 +128,8 @@ struct meson_spicc_device {
 	struct clk			*core;
 	struct spi_message		*message;
 	struct spi_transfer		*xfer;
+	bool				first_xfer;
+	bool				last_xfer;
 	u8				*tx_buf;
 	u8				*rx_buf;
 	unsigned int			bytes_per_word;
@@ -137,6 +140,10 @@ struct meson_spicc_device {
 	unsigned long			xfer_remain;
 	bool				is_burst_end;
 	bool				is_last_burst;
+	struct pinctrl			*pinctrl;
+	struct pinctrl_state		*pins_default;
+	struct pinctrl_state		*pins_clk_pup;
+	struct pinctrl_state		*pins_clk_pdn;
 };
 
 static inline bool meson_spicc_txfull(struct meson_spicc_device *spicc)
@@ -239,6 +246,7 @@ static inline void meson_spicc_setup_burst(struct meson_spicc_device *spicc,
 static irqreturn_t meson_spicc_irq(int irq, void *data)
 {
 	struct meson_spicc_device *spicc = (void *) data;
+	struct spi_device *spi = spicc->message->spi;
 	u32 ctrl = readl_relaxed(spicc->base + SPICC_INTREG);
 	u32 stat = readl_relaxed(spicc->base + SPICC_STATREG) & ctrl;
 
@@ -271,6 +279,21 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 		if (spicc->is_last_burst) {
 			/* Disable all IRQs */
 			writel(0, spicc->base + SPICC_INTREG);
+
+			if ((spicc->xfer->cs_change && !spicc->last_xfer) ||
+			    (!spicc->xfer->cs_change && spicc->last_xfer)) {
+				/* Enable pull on the clk line for the idle */
+				if ((spi->mode & SPI_CPOL) &&
+				    spicc->pins_clk_pup)
+					pinctrl_select_state(spicc->pinctrl,
+							spicc->pins_clk_pup);
+				else if (!(spi->mode & SPI_CPOL) &&
+					 spicc->pins_clk_pdn)
+					pinctrl_select_state(spicc->pinctrl,
+							spicc->pins_clk_pdn);
+				spicc->first_xfer = true;
+			} else
+				spicc->first_xfer = false;
 
 			spi_finalize_current_transfer(spicc->master);
 
@@ -363,11 +386,23 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 
 	/* Store current transfer */
 	spicc->xfer = xfer;
+	spicc->last_xfer = list_is_last(&xfer->transfer_list,
+					&master->cur_msg->transfers);
 
 	/* Setup transfer parameters */
 	spicc->tx_buf = (u8 *)xfer->tx_buf;
 	spicc->rx_buf = (u8 *)xfer->rx_buf;
 	spicc->xfer_remain = xfer->len;
+
+	/* Invert CPHA & CPOL in subsequent transfers */
+	if (!spicc->first_xfer)
+		writel_bits_relaxed(SPICC_PHA,
+				    spi->mode & SPI_CPHA ? 0 : SPICC_PHA,
+				    spicc->base + SPICC_CONREG);
+	else
+		writel_bits_relaxed(SPICC_PHA,
+				    spi->mode & SPI_CPHA ? SPICC_PHA : 0,
+				    spicc->base + SPICC_CONREG);
 
 	/* Pre-calculate word size */
 	spicc->bytes_per_word =
@@ -383,6 +418,12 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 	meson_spicc_setup_burst(spicc, burst_len);
 
 	irq = meson_spicc_setup_rx_irq(spicc, irq);
+
+	/* Enable pull for the active state between transfers */
+	if ((spi->mode & SPI_CPOL) && spicc->pins_clk_pdn)
+		pinctrl_select_state(spicc->pinctrl, spicc->pins_clk_pdn);
+	else if (!(spi->mode & SPI_CPOL) && spicc->pins_clk_pup)
+		pinctrl_select_state(spicc->pinctrl, spicc->pins_clk_pup);
 
 	/* Start burst */
 	writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
@@ -402,6 +443,7 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 
 	/* Store current message */
 	spicc->message = message;
+	spicc->first_xfer = true;
 
 	/* Enable Master */
 	conf |= SPICC_ENABLE;
@@ -447,12 +489,22 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 
 	writel_bits_relaxed(BIT(24), BIT(24), spicc->base + SPICC_TESTREG);
 
+	/* Enable pull on the clk line for the idle state before CS changes */
+	if ((spi->mode & SPI_CPOL) && spicc->pins_clk_pup)
+		pinctrl_select_state(spicc->pinctrl, spicc->pins_clk_pup);
+	else if (!(spi->mode & SPI_CPOL) && spicc->pins_clk_pdn)
+		pinctrl_select_state(spicc->pinctrl, spicc->pins_clk_pdn);
+
 	return 0;
 }
 
 static int meson_spicc_unprepare_transfer(struct spi_master *master)
 {
 	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
+
+	/* Return to default pinctrl state after transfers */
+	if (spicc->pins_default)
+		pinctrl_select_state(spicc->pinctrl, spicc->pins_default);
 
 	/* Disable all IRQs */
 	writel(0, spicc->base + SPICC_INTREG);
@@ -534,6 +586,31 @@ static int meson_spicc_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "irq request failed\n");
 		goto out_master;
+	}
+
+	spicc->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(spicc->pinctrl)) {
+		ret = PTR_ERR(spicc->pinctrl);
+		goto out_master;
+	}
+
+	spicc->pins_default = pinctrl_lookup_state(spicc->pinctrl,
+						   PINCTRL_STATE_DEFAULT);
+	if (IS_ERR(spicc->pins_default)) {
+		ret = PTR_ERR(spicc->pins_default);
+		goto out_master;
+	}
+
+	spicc->pins_clk_pup = pinctrl_lookup_state(spicc->pinctrl,
+						   "clk-pull-up");
+	if (IS_ERR(spicc->pins_clk_pup)) {
+		spicc->pins_clk_pup = NULL;
+	}
+
+	spicc->pins_clk_pdn = pinctrl_lookup_state(spicc->pinctrl,
+						   "clk-pull-down");
+	if (IS_ERR(spicc->pins_clk_pdn)) {
+		spicc->pins_clk_pdn = NULL;
 	}
 
 	spicc->core = devm_clk_get(&pdev->dev, "core");
