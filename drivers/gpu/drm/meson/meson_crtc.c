@@ -200,6 +200,7 @@ void meson_crtc_irq(struct meson_drm *priv)
 
 	/* Update the OSD registers */
 	if (priv->viu.osd1_enabled && priv->viu.osd1_commit) {
+
 		writel_relaxed(priv->viu.osd1_ctrl_stat,
 				priv->io_base + _REG(VIU_OSD1_CTRL_STAT));
 		writel_relaxed(priv->viu.osd1_blk0_cfg[0],
