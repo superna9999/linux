@@ -200,6 +200,12 @@ void meson_crtc_irq(struct meson_drm *priv)
 
 	/* Update the OSD registers */
 	if (priv->viu.osd1_enabled && priv->viu.osd1_commit) {
+
+		/* Reset OSD1 at updates on GXL+ SoCs */
+		if (meson_vpu_is_compatible(priv, "amlogic,meson-gxm-vpu") ||
+		    meson_vpu_is_compatible(priv, "amlogic,meson-gxl-vpu"))
+			meson_viu_reset(priv);
+
 		writel_relaxed(priv->viu.osd1_ctrl_stat,
 				priv->io_base + _REG(VIU_OSD1_CTRL_STAT));
 		writel_relaxed(priv->viu.osd1_blk0_cfg[0],
