@@ -5,6 +5,7 @@
  */
 
 #include "meson-gxl.dtsi"
+#include "meson-gxm-mali.dtsi"
 
 / {
 	compatible = "amlogic,meson-gxm";
