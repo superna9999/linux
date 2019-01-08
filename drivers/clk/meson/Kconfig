@@ -111,3 +111,16 @@ config COMMON_CLK_G12A
 	help
 	  Support for the clock controller on Amlogic S905D2, S905X2 and S905Y2
 	  devices, aka g12a. Say Y if you want peripherals to work.
+
+config COMMON_CLK_MMC_MESON
+	tristate "Meson MMC Sub Clock Controller Driver"
+	depends on ARCH_MESON
+	select COMMON_CLK_MESON_REGMAP
+	select COMMON_CLK_MESON_PHASE
+	select COMMON_CLK_MESON_PHASE_DELAY
+	select COMMON_CLK_MESON_SCLK_DIV
+	select MFD_SYSCON
+	help
+	  Support for the MMC sub clock controller on Amlogic Meson Platform,
+	  which include S905 (GXBB, GXL), A113D/X (AXG) devices.
+	  Say Y if you want this clock enabled.
