@@ -10,11 +10,14 @@
 #include <linux/clk-provider.h>
 #include "parm.h"
 
+#define MESON_SCLK_ONE_BASED	BIT(0)
+
 struct meson_sclk_div_data {
 	struct parm div;
 	struct parm hi;
 	unsigned int cached_div;
 	struct clk_duty cached_duty;
+	unsigned int flags;
 };
 
 extern const struct clk_ops meson_sclk_div_ops;

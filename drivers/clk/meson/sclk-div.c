@@ -4,16 +4,17 @@
  * Author: Jerome Brunet <jbrunet@baylibre.com>
  *
  * Sample clock generator divider:
- * This HW divider gates with value 0 but is otherwise a zero based divider:
+ * This HW divider gates with value 0 
  *
  * val >= 1
- * divider = val + 1
+ * divider = val + 1 if ONE_BASED is not set, otherwise divider = val.
  *
  * The duty cycle may also be set for the LR clock variant. The duty cycle
  * ratio is:
  *
  * hi = [0 - val]
- * duty_cycle = (1 + hi) / (1 + val)
+ * duty_cycle = (1 + hi) / (1 + val) if ONE_BASED is not set, otherwise:
+ * duty_cycle = hi / (1 + val)
  */
 
 #include <linux/clk-provider.h>
@@ -22,28 +23,44 @@
 #include "clk-regmap.h"
 #include "sclk-div.h"
 
+static inline int sclk_get_reg(int val, unsigned char flag)
+{
+	if ((flag & MESON_SCLK_ONE_BASED) || !val)
+		return val;
+	else
+		return val - 1;
+}
+
+static inline int sclk_get_divider(int reg, unsigned char flag)
+{
+	if (flag & MESON_SCLK_ONE_BASED)
+		return reg;
+	else
+		return reg + 1;
+}
+
 static inline struct meson_sclk_div_data *
 meson_sclk_div_data(struct clk_regmap *clk)
 {
 	return (struct meson_sclk_div_data *)clk->data;
 }
 
-static int sclk_div_maxval(struct meson_sclk_div_data *sclk)
-{
-	return (1 << sclk->div.width) - 1;
-}
-
 static int sclk_div_maxdiv(struct meson_sclk_div_data *sclk)
 {
-	return sclk_div_maxval(sclk) + 1;
+	unsigned int reg = clk_div_mask(sclk->div.width);
+
+	return sclk_get_divider(reg, sclk->flags);
 }
 
 static int sclk_div_getdiv(struct clk_hw *hw, unsigned long rate,
 			   unsigned long prate, int maxdiv)
 {
 	int div = DIV_ROUND_CLOSEST_ULL((u64)prate, rate);
+	struct clk_regmap *clk = to_clk_regmap(hw);
+	struct meson_sclk_div_data *sclk = meson_sclk_div_data(clk);
+	int mindiv = sclk_get_divider(1, sclk->flags);
 
-	return clamp(div, 2, maxdiv);
+	return clamp(div, mindiv, maxdiv);
 }
 
 static int sclk_div_bestdiv(struct clk_hw *hw, unsigned long rate,
@@ -51,7 +68,7 @@ static int sclk_div_bestdiv(struct clk_hw *hw, unsigned long rate,
 			    struct meson_sclk_div_data *sclk)
 {
 	struct clk_hw *parent = clk_hw_get_parent(hw);
-	int bestdiv = 0, i;
+	int bestdiv = 0, i, mindiv;
 	unsigned long maxdiv, now, parent_now;
 	unsigned long best = 0, best_parent = 0;
 
@@ -68,8 +85,9 @@ static int sclk_div_bestdiv(struct clk_hw *hw, unsigned long rate,
 	 * unsigned long in rate * i below
 	 */
 	maxdiv = min(ULONG_MAX / rate, maxdiv);
+	mindiv = sclk_get_divider(1, sclk->flags);
 
-	for (i = 2; i <= maxdiv; i++) {
+	for (i = mindiv; i <= maxdiv; i++) {
 		/*
 		 * It's the most ideal case if the requested rate can be
 		 * divided from parent clock without needing to change
@@ -115,10 +133,7 @@ static void sclk_apply_ratio(struct clk_regmap *clk,
 					    sclk->cached_duty.num,
 					    sclk->cached_duty.den);
 
-	if (hi)
-		hi -= 1;
-
-	meson_parm_write(clk->map, &sclk->hi, hi);
+	meson_parm_write(clk->map, &sclk->hi, sclk_get_reg(hi, sclk->flags));
 }
 
 static int sclk_div_set_duty_cycle(struct clk_hw *hw,
@@ -149,7 +164,7 @@ static int sclk_div_get_duty_cycle(struct clk_hw *hw,
 	}
 
 	hi = meson_parm_read(clk->map, &sclk->hi);
-	duty->num = hi + 1;
+	duty->num = sclk_get_divider(hi, sclk->flags);
 	duty->den = sclk->cached_div;
 	return 0;
 }
@@ -157,10 +172,13 @@ static int sclk_div_get_duty_cycle(struct clk_hw *hw,
 static void sclk_apply_divider(struct clk_regmap *clk,
 			       struct meson_sclk_div_data *sclk)
 {
+	unsigned int div;
+
 	if (MESON_PARM_APPLICABLE(&sclk->hi))
 		sclk_apply_ratio(clk, sclk);
 
-	meson_parm_write(clk->map, &sclk->div, sclk->cached_div - 1);
+	div = sclk_get_reg(sclk->cached_div, sclk->flags);
+	meson_parm_write(clk->map, &sclk->div, div);
 }
 
 static int sclk_div_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -228,7 +246,7 @@ static int sclk_div_init(struct clk_hw *hw)
 	if (!val)
 		sclk->cached_div = sclk_div_maxdiv(sclk);
 	else
-		sclk->cached_div = val + 1;
+		sclk->cached_div = sclk_get_divider(val, sclk->flags);
 
 	sclk_div_get_duty_cycle(hw, &sclk->cached_duty);
 
