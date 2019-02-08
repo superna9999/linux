@@ -40,3 +40,112 @@ Example device nodes:
 				phy-names = "usb2-phy", "usb3-phy";
 			};
 		};
+
+Amlogic Meson G12A DWC3 USB SoC Controller Glue
+
+The Amlogic G12A embeds a DWC3 USB IP Core configured for USB2 and USB3
+in host-only mode, and a DWC2 IP Core configured for USB2 peripheral mode
+only.
+
+A glue connects the DWC3 core to USB2 PHYs and optionnaly to an USB3 PHY.
+
+One of the USB2 PHY can be re-routed in peripheral mode to a DWC2 USB IP.
+
+The DWC3 Glue controls the PHY routing and power, an interrupt line is
+connected to the Glue to serve as OTG ID change detection.
+
+Required properties:
+- compatible:	Should be "amlogic,meson-g12a-usb-ctrl"
+- clocks:	a handle for the "USB" clock
+- clock-names:	must be "usb"
+- resets:	a handle for the shared "USB" reset line
+- reset-names:	must be "usb"
+- reg:		The base address and length of the registers
+- interrupts:	the interrupt specifier for the OTG detection
+
+Required child nodes:
+
+USB Ports are described as child 'port' nodes grouped under a 'ports' node,
+with #address-cells, #size-cells specified.
+
+Each 'port' sub-node identifies a possible USB Port served by an USB PHY
+identified by the 'phy' property as decribed in ../phy/phy-bindings.txt
+
+Each 'port' is identified by a reg property to number the port.
+
+The following table lists for each supported model the port number
+corresponding to each PHY serving a physical USB Port.
+
+ Family	   Port 0     Port 1    Port 2    Port 3    Port 4
+---------------------------------------------------------------
+ G12A	   USBHOST_A  USBOTG_B  Reserved  Reserved  USB3_0
+
+A child node must exist to represent the core DWC3 IP block. The name of
+the node is not important. The content of the node is defined in dwc3.txt.
+
+A child node must exist to represent the core DWC2 IP block. The name of
+the node is not important. The content of the node is defined in dwc2.txt.
+
+PHY documentation is provided in the following places:
+- Documentation/devicetree/bindings/phy/meson-g12a-usb2-phy.txt
+- Documentation/devicetree/bindings/phy/meson-g12a-usb3-pcie-phy.txt
+
+
+Example device nodes:
+	usb: usb@ffe09000 {
+			compatible = "amlogic,meson-g12a-usb-ctrl";
+			reg = <0x0 0xffe09000 0x0 0xa0>;
+			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			clocks = <&clkc CLKID_USB>;
+			clock-names = "usb";
+			resets = <&reset RESET_USB>;
+			reset-names = "usb";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/* USB2 Port 0 */
+				usb20: port@0 {
+					reg = <0>;
+					phys = <&usb2_phy0>;
+				};
+
+				/* USB2 Port 1 */
+				usb21: port@1 {
+					reg = <1>;
+					phys = <&usb2_phy1>;
+				};
+
+				/* USB3 Port 0 */
+				usb3: port@4 {
+					reg = <4>;
+					phys = <&usb3_pcie_phy PHY_TYPE_USB3>;
+				};
+			};
+
+			dwc2: usb@ff400000 {
+				compatible = "amlogic,meson-g12a-usb", "snps,dwc2";
+				reg = <0x0 0xff400000 0x0 0x40000>;
+				interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clkc CLKID_USB1_DDR_BRIDGE>;
+				clock-names = "ddr";
+				dr_mode = "peripheral";
+				g-rx-fifo-size = <192>;
+				g-np-tx-fifo-size = <128>;
+				g-tx-fifo-size = <128 128 16 16 16>;
+			};
+
+			dwc3: dwc3@ff500000 {
+				compatible = "snps,dwc3";
+				reg = <0x0 0xff500000 0x0 0x100000>;
+				interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+				dr_mode = "host";
+				snps,dis_u2_susphy_quirk;
+				snps,quirk-frame-length-adjustment;
+			};
+	};
