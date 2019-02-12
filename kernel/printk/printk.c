@@ -419,10 +419,6 @@ static u32 log_first_idx;
 static u64 log_next_seq;
 static u32 log_next_idx;
 
-/* the next printk record to write to the console */
-static u64 console_seq;
-static u32 console_idx;
-
 /* the next printk record to read after the last 'clear' command */
 static u64 clear_seq;
 static u32 clear_idx;
@@ -1678,8 +1674,12 @@ static void call_console_drivers(u64 seq, const char *ext_text, size_t ext_len,
 		if (!(con->flags & CON_ENABLED))
 			continue;
 		if (!con->wrote_history) {
-			printk_write_history(con, seq);
-			continue;
+			if (con->flags & CON_PRINTBUFFER) {
+				printk_write_history(con, seq);
+				continue;
+			}
+			con->wrote_history = 1;
+			con->printk_seq = seq - 1;
 		}
 		if (!con->write)
 			continue;
@@ -1909,8 +1909,6 @@ EXPORT_SYMBOL(printk);
 
 static u64 syslog_seq;
 static u32 syslog_idx;
-static u64 console_seq;
-static u32 console_idx;
 static u64 log_first_seq;
 static u32 log_first_idx;
 static u64 log_next_seq;
@@ -2234,15 +2232,6 @@ void console_flush_on_panic(enum con_flush_mode mode)
 	 */
 	console_trylock();
 	console_may_schedule = 0;
-
-	if (mode == CONSOLE_REPLAY_ALL) {
-		unsigned long flags;
-
-		logbuf_lock_irqsave(flags);
-		console_seq = log_first_seq;
-		console_idx = log_first_idx;
-		logbuf_unlock_irqrestore(flags);
-	}
 	console_unlock();
 }
 
@@ -2321,7 +2310,6 @@ early_param("keep_bootcon", keep_bootcon_setup);
 void register_console(struct console *newcon)
 {
 	int i;
-	unsigned long flags;
 	struct console *bcon = NULL;
 	struct console_cmdline *c;
 	static bool has_preferred;
@@ -2437,16 +2425,6 @@ void register_console(struct console *newcon)
 	if (newcon->flags & CON_EXTENDED)
 		nr_ext_console_drivers++;
 
-	if (newcon->flags & CON_PRINTBUFFER) {
-		/*
-		 * console_unlock(); will print out the buffered messages
-		 * for us.
-		 */
-		logbuf_lock_irqsave(flags);
-		console_seq = syslog_seq;
-		console_idx = syslog_idx;
-		logbuf_unlock_irqrestore(flags);
-	}
 	console_unlock();
 	console_sysfs_notify();
 
