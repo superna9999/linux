@@ -3,7 +3,7 @@
 config DRM_PANFROST
 	tristate "Panfrost (DRM support for ARM Mali Midgard/Bifrost GPUs)"
 	depends on DRM
-	depends on ARCH_ROCKCHIP
+	depends on ARCH_ROCKCHIP || ARCH_MESON
 	depends on MMU
 	select DRM_SCHED
 	select IOMMU_SUPPORT
