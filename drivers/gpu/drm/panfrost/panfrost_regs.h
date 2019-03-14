@@ -55,6 +55,10 @@
 #define GPU_FAULT_ADDRESS_LO		0x40
 #define GPU_FAULT_ADDRESS_HI		0x44
 
+#define GPU_PWR_KEY			0x50	/* (WO) Power manager key register */
+#define GPU_PWR_OVERRIDE0		0x54	/* (RW) Power manager override settings */
+#define GPU_PWR_OVERRIDE1		0x58	/* (RW) Power manager override settings */
+
 #define GPU_PERFCNT_BASE_LO		0x60
 #define GPU_PERFCNT_BASE_HI		0x64
 #define GPU_PERFCNT_CFG			0x68
