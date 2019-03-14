@@ -46,6 +46,9 @@
 #define   GPU_CMD_SOFT_RESET		0x01
 #define GPU_STATUS			0x34
 #define GPU_LATEST_FLUSH_ID		0x38
+#define GPU_PWR_KEY			0x050	/* (WO) Power manager key register */
+#define GPU_PWR_OVERRIDE0		0x054	/* (RW) Power manager override settings */
+#define GPU_PWR_OVERRIDE1		0x058	/* (RW) Power manager override settings */
 
 #define GPU_THREAD_MAX_THREADS		0x0A0	/* (RO) Maximum number of threads per core */
 #define GPU_THREAD_MAX_WORKGROUP_SIZE	0x0A4	/* (RO) Maximum workgroup size */
