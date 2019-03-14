@@ -3,6 +3,7 @@
 /* Copyright 2019 Linaro, Ltd, Rob Herring <robh@kernel.org> */
 
 #include <linux/clk.h>
+#include <linux/reset.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 
@@ -10,6 +11,28 @@
 #include "panfrost_gpu.h"
 #include "panfrost_job.h"
 #include "panfrost_mmu.h"
+
+static int panfrost_reset_init(struct panfrost_device *pfdev)
+{
+	int err;
+
+	pfdev->rstc = devm_reset_control_array_get(pfdev->dev, false, true);
+	if (IS_ERR(pfdev->rstc)) {
+		dev_err(pfdev->dev, "get reset failed %ld\n", PTR_ERR(pfdev->clock));
+		return PTR_ERR(pfdev->rstc);
+	}
+
+	err = reset_control_deassert(pfdev->rstc);
+	if (err)
+		return err;
+
+	return 0;
+}
+
+static void panfrost_reset_fini(struct panfrost_device *pfdev)
+{
+	reset_control_assert(pfdev->rstc);
+}
 
 static int panfrost_clk_init(struct panfrost_device *pfdev)
 {
@@ -87,31 +110,39 @@ int panfrost_device_init(struct panfrost_device *pfdev)
 		goto err_out0;
 	}
 
+	err = panfrost_reset_init(pfdev);
+	if (err) {
+		dev_err(pfdev->dev, "reset init failed %d\n", err);
+		goto err_out1;
+	}
+
 	res = platform_get_resource(pfdev->pdev, IORESOURCE_MEM, 0);
 	pfdev->iomem = devm_ioremap_resource(pfdev->dev, res);
 	if (IS_ERR(pfdev->iomem)) {
 		dev_err(pfdev->dev, "failed to ioremap iomem\n");
 		err = PTR_ERR(pfdev->iomem);
-		goto err_out1;
+		goto err_out2;
 	}
 
 	err = panfrost_gpu_init(pfdev);
 	if (err)
-		goto err_out1;
+		goto err_out2;
 
 	err = panfrost_mmu_init(pfdev);
 	if (err)
-		goto err_out2;
+		goto err_out3;
 
 	err = panfrost_job_init(pfdev);
 	if (err)
-		goto err_out3;
+		goto err_out4;
 
 	return 0;
-err_out3:
+err_out4:
 	panfrost_mmu_fini(pfdev);
-err_out2:
+err_out3:
 	panfrost_gpu_fini(pfdev);
+err_out2:
+	panfrost_reset_fini(pfdev);
 err_out1:
 	panfrost_regulator_fini(pfdev);
 err_out0:

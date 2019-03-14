@@ -58,6 +58,7 @@ struct panfrost_device {
 	void __iomem *iomem;
 	struct clk *clock;
 	struct regulator *regulator;
+	struct reset_control *rstc;
 
 	struct panfrost_features features;
 
