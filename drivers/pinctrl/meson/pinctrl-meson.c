@@ -377,6 +377,7 @@ static int meson_pinconf_get(struct pinctrl_dev *pcdev, unsigned int pin,
 		ret = meson_pinconf_get_drive_strength(pc, pin, &arg);
 		if (ret)
 			return ret;
+		break;
 	default:
 		return -ENOTSUPP;
 	}
