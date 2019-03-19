@@ -442,22 +442,20 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
 	for (i = 0 ; i < PHY_COUNT ; ++i) {
 		ret = phy_init(priv->phys[i]);
 		if (ret)
-			goto err_phys_power;
+			return ret;
 	}
 
 	/* Set PHY Power */
 	for (i = 0 ; i < PHY_COUNT ; ++i) {
 		ret = phy_power_on(priv->phys[i]);
 		if (ret)
-			goto err_phys_put;
+			goto err_phys_exit;
 	}
 
 	ret = of_platform_populate(np, NULL, NULL, dev);
 	if (ret) {
 		clk_disable_unprepare(priv->clk);
-		clk_put(priv->clk);
-
-		goto err_phys_exit;
+		goto err_phys_power;
 	}
 
 	/* Setup OTG mode corresponding to the ID pin */
@@ -488,17 +486,13 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_phys_exit:
-	for (i = 0 ; i < PHY_COUNT ; ++i)
-		phy_exit(priv->phys[i]);
-
 err_phys_power:
 	for (i = 0 ; i < PHY_COUNT ; ++i)
 		phy_power_off(priv->phys[i]);
 
-err_phys_put:
+err_phys_exit:
 	for (i = 0 ; i < PHY_COUNT ; ++i)
-		phy_put(priv->phys[i]);
+		phy_exit(priv->phys[i]);
 
 	return ret;
 }
@@ -516,7 +510,6 @@ static int dwc3_meson_g12a_remove(struct platform_device *pdev)
 	for (i = 0 ; i < PHY_COUNT ; ++i) {
 		phy_power_off(priv->phys[i]);
 		phy_exit(priv->phys[i]);
-		phy_put(priv->phys[i]);
 	}
 
 	pm_runtime_disable(dev);
@@ -547,8 +540,10 @@ static int __maybe_unused dwc3_meson_g12a_suspend(struct device *dev)
 	struct dwc3_meson_g12a *priv = dev_get_drvdata(dev);
 	int i;
 
-	for (i = 0 ; i < PHY_COUNT ; ++i)
+	for (i = 0 ; i < PHY_COUNT ; ++i) {
+		phy_power_off(priv->phys[i]);
 		phy_exit(priv->phys[i]);
+	}
 
 	reset_control_assert(priv->reset);
 
@@ -571,13 +566,20 @@ static int __maybe_unused dwc3_meson_g12a_resume(struct device *dev)
 			return ret;
 	}
 
+	/* Set PHY Power */
+	for (i = 0 ; i < PHY_COUNT ; ++i) {
+		ret = phy_power_on(priv->phys[i]);
+		if (ret)
+			return ret;
+	}
+
 	return 0;
 }
 
 static const struct dev_pm_ops dwc3_meson_g12a_dev_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(dwc3_meson_g12a_suspend, dwc3_meson_g12a_resume)
 	SET_RUNTIME_PM_OPS(dwc3_meson_g12a_runtime_suspend,
-			dwc3_meson_g12a_runtime_resume, NULL)
+			   dwc3_meson_g12a_runtime_resume, NULL)
 };
 
 static const struct of_device_id dwc3_meson_g12a_match[] = {
