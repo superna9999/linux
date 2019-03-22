@@ -178,10 +178,13 @@ struct sun8i_dw_hdmi_quirks {
 	enum drm_mode_status (*mode_valid)(struct drm_connector *connector,
 					   const struct drm_display_mode *mode);
 	unsigned int set_rate : 1;
+	unsigned int has_hdcp_clk : 1;
 };
 
 struct sun8i_dw_hdmi {
 	struct clk			*clk_tmds;
+	struct clk			*clk_hdcp;
+	struct clk			*clk_hdcp_bus;
 	struct device			*dev;
 	struct dw_hdmi			*hdmi;
 	struct drm_encoder		encoder;
@@ -190,6 +193,7 @@ struct sun8i_dw_hdmi {
 	struct regulator		*regulator;
 	const struct sun8i_dw_hdmi_quirks *quirks;
 	struct reset_control		*rst_ctrl;
+	struct reset_control		*rst_hdcp;
 };
 
 static inline struct sun8i_dw_hdmi *

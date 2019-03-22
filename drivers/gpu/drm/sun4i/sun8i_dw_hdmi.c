@@ -140,11 +140,33 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 		return PTR_ERR(hdmi->clk_tmds);
 	}
 
+	if (hdmi->quirks->has_hdcp_clk) {
+		hdmi->clk_hdcp = devm_clk_get(dev, "hdcp");
+		if (IS_ERR(hdmi->clk_hdcp)) {
+			dev_err(dev, "Couldn't get the hdcp clock\n");
+			return PTR_ERR(hdmi->clk_hdcp);
+		}
+
+		hdmi->clk_hdcp_bus = devm_clk_get(dev, "hdcp-bus");
+		if (IS_ERR(hdmi->clk_hdcp_bus)) {
+			dev_err(dev, "Couldn't get the hdcp bus clock\n");
+			return PTR_ERR(hdmi->clk_hdcp_bus);
+		}
+
+		hdmi->rst_hdcp = devm_reset_control_get(dev, "hdcp");
+		if (IS_ERR(hdmi->rst_hdcp)) {
+			dev_err(dev, "Could not get hdcp reset control\n");
+			return PTR_ERR(hdmi->rst_hdcp);
+		}
+	}
+
 	hdmi->regulator = devm_regulator_get(dev, "hvcc");
 	if (IS_ERR(hdmi->regulator)) {
 		dev_err(dev, "Couldn't get regulator\n");
 		return PTR_ERR(hdmi->regulator);
 	}
+
+	clk_set_rate(hdmi->clk_tmds, 594000000);
 
 	ret = regulator_enable(hdmi->regulator);
 	if (ret) {
@@ -158,10 +180,34 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 		goto err_disable_regulator;
 	}
 
+	ret = reset_control_deassert(hdmi->rst_hdcp);
+	if (ret) {
+		dev_err(dev, "Could not deassert hdcp reset control\n");
+		goto err_assert_ctrl_reset;
+	}
+
+	ret = clk_prepare_enable(hdmi->clk_hdcp_bus);
+	if (ret) {
+		dev_err(dev, "Could not enable tmds clock\n");
+		goto err_assert_hdcp_reset;
+	}
+
+	ret = clk_set_rate(hdmi->clk_hdcp, 594000000);
+	if (ret) {
+		dev_err(dev, "Could not set hdcp rate\n");
+		goto err_assert_hdcp_reset;
+	}
+
+	ret = clk_prepare_enable(hdmi->clk_hdcp);
+	if (ret) {
+		dev_err(dev, "Could not enable hdcp clock\n");
+		goto err_disable_clk_hdcp_bus;
+	}
+
 	ret = clk_prepare_enable(hdmi->clk_tmds);
 	if (ret) {
 		dev_err(dev, "Could not enable tmds clock\n");
-		goto err_assert_ctrl_reset;
+		goto err_disable_clk_hdcp;
 	}
 
 	phy_node = of_parse_phandle(dev->of_node, "phys", 0);
@@ -206,6 +252,12 @@ cleanup_encoder:
 	sun8i_hdmi_phy_remove(hdmi);
 err_disable_clk_tmds:
 	clk_disable_unprepare(hdmi->clk_tmds);
+err_disable_clk_hdcp:
+	clk_disable_unprepare(hdmi->clk_hdcp);
+err_disable_clk_hdcp_bus:
+	clk_disable_unprepare(hdmi->clk_hdcp_bus);
+err_assert_hdcp_reset:
+	reset_control_assert(hdmi->rst_hdcp);
 err_assert_ctrl_reset:
 	reset_control_assert(hdmi->rst_ctrl);
 err_disable_regulator:
@@ -222,6 +274,9 @@ static void sun8i_dw_hdmi_unbind(struct device *dev, struct device *master,
 	dw_hdmi_unbind(hdmi->hdmi);
 	sun8i_hdmi_phy_remove(hdmi);
 	clk_disable_unprepare(hdmi->clk_tmds);
+	clk_disable_unprepare(hdmi->clk_hdcp);
+	clk_disable_unprepare(hdmi->clk_hdcp_bus);
+	reset_control_assert(hdmi->rst_hdcp);
 	reset_control_assert(hdmi->rst_ctrl);
 	regulator_disable(hdmi->regulator);
 }
@@ -250,6 +305,7 @@ static const struct sun8i_dw_hdmi_quirks sun8i_a83t_quirks = {
 
 static const struct sun8i_dw_hdmi_quirks sun50i_h6_quirks = {
 	.mode_valid = sun8i_dw_hdmi_mode_valid_h6,
+	.has_hdcp_clk = true,
 };
 
 static const struct of_device_id sun8i_dw_hdmi_dt_ids[] = {

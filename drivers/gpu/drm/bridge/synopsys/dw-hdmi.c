@@ -1059,6 +1059,8 @@ static bool dw_hdmi_support_scdc(struct dw_hdmi *hdmi)
 	    display->max_tmds_clock <= 340000)
 		return false;
 
+	pr_info("%s:%d\n", __func__, __LINE__);
+
 	return true;
 }
 
@@ -1078,6 +1080,7 @@ static bool dw_hdmi_support_scdc(struct dw_hdmi *hdmi)
 void dw_hdmi_set_high_tmds_clock_ratio(struct dw_hdmi *hdmi)
 {
 	unsigned long mtmdsclock = hdmi->hdmi_data.video_mode.mtmdsclock;
+	pr_info("%s:%d mtmdsclock %lu\n", __func__, __LINE__, mtmdsclock);
 
 	/* Control for TMDS Bit Period/TMDS Clock-Period Ratio */
 	if (dw_hdmi_support_scdc(hdmi)) {
@@ -1597,7 +1600,7 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 
 	vmode->mtmdsclock = vmode->mpixelclock = mode->clock * 1000;
 
-	dev_dbg(hdmi->dev, "final pixclk = %d\n", vmode->mpixelclock);
+	dev_info(hdmi->dev, "final pixclk = %d\n", vmode->mpixelclock);
 
 	if (hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format))
 		vmode->mtmdsclock /= 2;
@@ -1673,8 +1676,10 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 
 	/* Scrambling Control */
 	if (dw_hdmi_support_scdc(hdmi)) {
+		pr_info("%s:%d\n", __func__, __LINE__);
 		if (vmode->mtmdsclock > HDMI14_MAX_TMDSCLK ||
 		    hdmi_info->scdc.scrambling.low_rates) {
+			pr_info("%s:%d\n", __func__, __LINE__);
 			/*
 			 * HDMI2.0 Specifies the following procedure:
 			 * After the Source Device has determined that
@@ -1703,6 +1708,7 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 				    HDMI_MC_SWRSTZ);
 			hdmi_writeb(hdmi, 1, HDMI_FC_SCRAMBLER_CTRL);
 		} else {
+			pr_info("%s:%d\n", __func__, __LINE__);
 			hdmi_writeb(hdmi, 0, HDMI_FC_SCRAMBLER_CTRL);
 			hdmi_writeb(hdmi, (u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ,
 				    HDMI_MC_SWRSTZ);
