@@ -103,6 +103,8 @@ struct hdmi_vmode {
 };
 
 struct hdmi_data_info {
+	unsigned int bridge_in_bus_format;
+	unsigned int bridge_in_encoding;
 	unsigned int enc_in_bus_format;
 	unsigned int enc_out_bus_format;
 	unsigned int enc_in_encoding;
@@ -1838,8 +1840,51 @@ static void hdmi_disable_overflow_interrupts(struct dw_hdmi *hdmi)
 		    HDMI_IH_MUTE_FC_STAT2);
 }
 
+/*
+ * The DW-HDMI CSC can only interpolate and decimate from 4:2:2 to 4:4:4/RGB
+ * and from 4:4:4/RGB to 4:2:2.
+ * Default to RGB output except if 4:2:0 as input, which CSC cannot convert.
+ */
+static unsigned long dw_hdmi_determine_output_bus_format(struct dw_hdmi *hdmi)
+{
+	unsigned int depth = hdmi_bus_fmt_color_depth(
+					hdmi->hdmi_data.enc_in_bus_format);
+	bool is_420 = hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_in_bus_format);
+	unsigned long fmt = MEDIA_BUS_FMT_RGB888_1X24;
+
+	switch (depth) {
+	case 8:
+		if (is_420)
+			fmt = MEDIA_BUS_FMT_UYYVYY8_0_5X24;
+		else
+			fmt = MEDIA_BUS_FMT_RGB888_1X24;
+		break;
+	case 10:
+		if (is_420)
+			fmt = MEDIA_BUS_FMT_UYYVYY10_0_5X30;
+		else
+			fmt = MEDIA_BUS_FMT_RGB101010_1X30;
+		break;
+	case 12:
+		if (is_420)
+			fmt = MEDIA_BUS_FMT_UYYVYY12_0_5X36;
+		else
+			fmt = MEDIA_BUS_FMT_RGB121212_1X36;
+		break;
+	case 16:
+		if (is_420)
+			fmt = MEDIA_BUS_FMT_UYYVYY16_0_5X48;
+		else
+			fmt = MEDIA_BUS_FMT_RGB161616_1X48;
+		break;
+	}
+
+	return fmt;
+}
+
 static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 {
+	struct drm_display_info *display = &hdmi->connector.display_info;
 	int ret;
 
 	hdmi_disable_overflow_interrupts(hdmi);
@@ -1853,9 +1898,9 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	}
 
 	if ((hdmi->vic == 6) || (hdmi->vic == 7) ||
-	    (hdmi->vic == 21) || (hdmi->vic == 22) ||
-	    (hdmi->vic == 2) || (hdmi->vic == 3) ||
-	    (hdmi->vic == 17) || (hdmi->vic == 18))
+		 (hdmi->vic == 21) || (hdmi->vic == 22) ||
+		 (hdmi->vic == 2) || (hdmi->vic == 3) ||
+		 (hdmi->vic == 17) || (hdmi->vic == 18))
 		hdmi->hdmi_data.enc_out_encoding = V4L2_YCBCR_ENC_601;
 	else
 		hdmi->hdmi_data.enc_out_encoding = V4L2_YCBCR_ENC_709;
@@ -1863,22 +1908,29 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	hdmi->hdmi_data.video_mode.mpixelrepetitionoutput = 0;
 	hdmi->hdmi_data.video_mode.mpixelrepetitioninput = 0;
 
-	/* TOFIX: Get input format from plat data or fallback to RGB888 */
-	if (hdmi->plat_data->input_bus_format)
+	if (hdmi->hdmi_data.bridge_in_bus_format)
+		hdmi->hdmi_data.enc_in_bus_format =
+			hdmi->hdmi_data.bridge_in_bus_format;
+	else if (hdmi->plat_data->input_bus_format)
 		hdmi->hdmi_data.enc_in_bus_format =
 			hdmi->plat_data->input_bus_format;
 	else
 		hdmi->hdmi_data.enc_in_bus_format = MEDIA_BUS_FMT_RGB888_1X24;
 
-	/* TOFIX: Get input encoding from plat data or fallback to none */
-	if (hdmi->plat_data->input_bus_encoding)
+	if (hdmi->hdmi_data.bridge_in_encoding)
+		hdmi->hdmi_data.enc_in_encoding =
+			hdmi->hdmi_data.bridge_in_encoding;
+	else if (hdmi->plat_data->input_bus_encoding)
 		hdmi->hdmi_data.enc_in_encoding =
 			hdmi->plat_data->input_bus_encoding;
 	else
 		hdmi->hdmi_data.enc_in_encoding = V4L2_YCBCR_ENC_DEFAULT;
 
-	/* TOFIX: Default to RGB888 output format */
-	hdmi->hdmi_data.enc_out_bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+	if (display->num_bus_formats)
+		hdmi->hdmi_data.enc_out_bus_format = display->bus_formats[0];
+	else
+		hdmi->hdmi_data.enc_out_bus_format =
+				dw_hdmi_determine_output_bus_format(hdmi);
 
 	hdmi->hdmi_data.pix_repet_factor = 0;
 	hdmi->hdmi_data.hdcp_enable = 0;
@@ -2150,6 +2202,56 @@ dw_hdmi_bridge_mode_valid(struct drm_bridge *bridge,
 	return mode_status;
 }
 
+static bool dw_hdmi_drm_bridge_format_set(struct drm_bridge *bridge,
+					 const u32 input_bus_format,
+					 const u32 input_encoding)
+{
+	struct dw_hdmi *hdmi = bridge->driver_private;
+
+	/* Filter supported input bus formats */
+	switch (input_bus_format) {
+	case MEDIA_BUS_FMT_RGB888_1X24:
+	case MEDIA_BUS_FMT_RGB101010_1X30:
+	case MEDIA_BUS_FMT_RGB121212_1X36:
+	case MEDIA_BUS_FMT_RGB161616_1X48:
+	case MEDIA_BUS_FMT_YUV8_1X24:
+	case MEDIA_BUS_FMT_YUV10_1X30:
+	case MEDIA_BUS_FMT_YUV12_1X36:
+	case MEDIA_BUS_FMT_YUV16_1X48:
+	case MEDIA_BUS_FMT_UYVY8_1X16:
+	case MEDIA_BUS_FMT_UYVY10_1X20:
+	case MEDIA_BUS_FMT_UYVY12_1X24:
+	case MEDIA_BUS_FMT_UYYVYY8_0_5X24:
+	case MEDIA_BUS_FMT_UYYVYY10_0_5X30:
+	case MEDIA_BUS_FMT_UYYVYY12_0_5X36:
+	case MEDIA_BUS_FMT_UYYVYY16_0_5X48:
+		break;
+	default:
+		dev_dbg(hdmi->dev, "Unsupported Input bus format %x\n",
+			input_bus_format);
+		return false;
+	}
+
+	/* Filter supported input bus encoding */
+	switch (input_encoding) {
+	case V4L2_YCBCR_ENC_DEFAULT:
+	case V4L2_YCBCR_ENC_601:
+	case V4L2_YCBCR_ENC_709:
+	case V4L2_YCBCR_ENC_XV601:
+	case V4L2_YCBCR_ENC_XV709:
+		break;
+	default:
+		dev_dbg(hdmi->dev, "Unsupported Input encoding %x\n",
+			input_bus_format);
+		return false;
+	}
+
+	hdmi->hdmi_data.bridge_in_bus_format = input_bus_format;
+	hdmi->hdmi_data.bridge_in_encoding = input_encoding;
+
+	return true;
+}
+
 static void dw_hdmi_bridge_mode_set(struct drm_bridge *bridge,
 				    const struct drm_display_mode *orig_mode,
 				    const struct drm_display_mode *mode)
@@ -2192,6 +2294,7 @@ static const struct drm_bridge_funcs dw_hdmi_bridge_funcs = {
 	.disable = dw_hdmi_bridge_disable,
 	.mode_set = dw_hdmi_bridge_mode_set,
 	.mode_valid = dw_hdmi_bridge_mode_valid,
+	.format_set = dw_hdmi_drm_bridge_format_set,
 };
 
 static irqreturn_t dw_hdmi_i2c_irq(struct dw_hdmi *hdmi)
