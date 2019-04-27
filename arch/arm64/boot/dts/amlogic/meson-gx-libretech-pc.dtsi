@@ -360,7 +360,7 @@
 	status = "okay";
 };
 
-&usb0 {
+&usb {
 	status = "okay";
 };
 
