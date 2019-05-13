@@ -16244,33 +16244,33 @@ write_dump_to_file(dhd_pub_t *dhd, uint8 *buf, int size, char *fname)
 	int ret = 0;
 	char memdump_path[128];
 	char memdump_type[32];
-	struct timeval curtime;
+	struct timespec64 curtime;
 	uint32 file_mode;
 
 	/* Init file name */
 	memset(memdump_path, 0, sizeof(memdump_path));
 	memset(memdump_type, 0, sizeof(memdump_type));
-	do_gettimeofday(&curtime);
+	ktime_get_real_ts64(&curtime);
 	dhd_convert_memdump_type_to_str(dhd->memdump_type, memdump_type);
 #ifdef CUSTOMER_HW4_DEBUG
-	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%ld.%ld",
+	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%lld.%ld",
 		DHD_COMMON_DUMP_PATH, fname, memdump_type,
-		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
+		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_nsec);
 	file_mode = O_CREAT | O_WRONLY | O_SYNC;
 #elif defined(CUSTOMER_HW2)
-	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%ld.%ld",
+	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%lld.%ld",
 		"/data/misc/wifi/", fname, memdump_type,
-		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
+		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_nsec);
 	file_mode = O_CREAT | O_WRONLY | O_SYNC;
 #elif (defined(BOARD_PANDA) || defined(__ARM_ARCH_7A__))
-	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%ld.%ld",
+	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%lld.%ld",
 		"/data/misc/wifi/", fname, memdump_type,
-		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
+		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_nsec);
 	file_mode = O_CREAT | O_WRONLY;
 #else
-	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%ld.%ld",
+	snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%lld.%ld",
 		"/installmedia/", fname, memdump_type,
-		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
+		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_nsec);
 	/* Extra flags O_DIRECT and O_SYNC are required for Brix Android, as we are
 	 * calling BUG_ON immediately after collecting the socram dump.
 	 * So the file write operation should directly write the contents into the
@@ -16283,9 +16283,9 @@ write_dump_to_file(dhd_pub_t *dhd, uint8 *buf, int size, char *fname)
 		/* Check if it is live Brix image having /installmedia, else use /data */
 		if (IS_ERR(fp)) {
 			DHD_ERROR(("open file %s, try /data/\n", memdump_path));
-			snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%ld.%ld",
+			snprintf(memdump_path, sizeof(memdump_path), "%s%s_%s_%lld.%ld",
 				"/data/", fname, memdump_type,
-				(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
+				(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_nsec);
 		} else {
 			filp_close(fp, NULL);
 		}
@@ -17982,7 +17982,7 @@ do_dhd_log_dump(dhd_pub_t *dhdp)
 	loff_t pos = 0;
 	unsigned int wr_size = 0;
 	char dump_path[128];
-	struct timeval curtime;
+	struct timespec64 curtime;
 	uint32 file_mode;
 	unsigned long flags = 0;
 	struct dhd_log_dump_buf *dld_buf = &g_dld_buf[0];
@@ -18006,10 +18006,10 @@ do_dhd_log_dump(dhd_pub_t *dhdp)
 
 	/* Init file name */
 	memset(dump_path, 0, sizeof(dump_path));
-	do_gettimeofday(&curtime);
-	snprintf(dump_path, sizeof(dump_path), "%s_%ld.%ld",
+	ktime_get_real_ts64(&curtime);
+	snprintf(dump_path, sizeof(dump_path), "%s_%lld.%ld",
 		DHD_COMMON_DUMP_PATH "debug_dump",
-		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_usec);
+		(unsigned long)curtime.tv_sec, (unsigned long)curtime.tv_msec);
 	file_mode = O_CREAT | O_WRONLY | O_SYNC;
 
 	DHD_ERROR(("debug_dump_path = %s\n", dump_path));
