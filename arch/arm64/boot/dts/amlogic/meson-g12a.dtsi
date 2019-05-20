@@ -269,6 +269,7 @@
 								 "eth_txd0",
 								 "eth_txd1";
 							function = "eth";
+							drive-strength-microamp = <4000>;
 							bias-disable;
 						};
 					};
@@ -281,6 +282,7 @@
 								 "eth_txd2_rgmii",
 								 "eth_txd3_rgmii";
 							function = "eth";
+							drive-strength-microamp = <4000>;
 							bias-disable;
 						};
 					};
