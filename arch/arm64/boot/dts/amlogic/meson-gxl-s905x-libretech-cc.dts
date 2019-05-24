@@ -273,6 +273,7 @@
 
 &usb {
 	status = "okay";
+	dr_mode = "host";
 
 	/*
 	 * even though the schematics don't show it:

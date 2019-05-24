@@ -433,4 +433,5 @@
 
 &usb {
 	status = "okay";
+	dr_mode = "peripheral";
 };

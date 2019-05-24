@@ -187,6 +187,7 @@
 
 &usb {
 	status = "okay";
+	dr_mode = "host";
 
 	/*
 	 * HDMI_5V is also used as supply for the USB VBUS.
