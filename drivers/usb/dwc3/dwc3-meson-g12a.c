@@ -102,6 +102,7 @@
 #define USB2_OTG_PHY						1
 
 struct dwc3_meson_data {
+	bool otg_phy_start_as_device;
 	u8 num_u2p_registers;
 	u8 usb_glue_reg_offset;
 	int num_phys;
@@ -125,11 +126,9 @@ struct dwc3_meson_g12a {
 	struct usb_role_switch		*role_switch;
 };
 
-static int dwc3_meson_g12a_usb2_set_mode(struct dwc3_meson_g12a *priv,
+static void dwc3_meson_g12a_usb2_set_mode(struct dwc3_meson_g12a *priv,
 					  int i, enum phy_mode mode)
 {
-	int ret;
-
 	if (priv->data->num_u2p_registers) {
 		if (mode == PHY_MODE_USB_HOST)
 			regmap_update_bits(priv->u2p_regmap[i], U2P_R0,
@@ -138,18 +137,12 @@ static int dwc3_meson_g12a_usb2_set_mode(struct dwc3_meson_g12a *priv,
 		else
 			regmap_update_bits(priv->u2p_regmap[i], U2P_R0,
 					   U2P_R0_HOST_DEVICE, 0);
-	} else {
-		ret = phy_set_mode(priv->phys[i], mode);
-		if (ret)
-			return ret;
 	}
-
-	return 0;
 }
 
-static int dwc3_meson_g12a_usb2_init(struct dwc3_meson_g12a *priv)
+static void dwc3_meson_g12a_usb2_init(struct dwc3_meson_g12a *priv)
 {
-	int i, ret;
+	int i;
 
 	if (priv->otg_mode == USB_DR_MODE_PERIPHERAL)
 		priv->otg_phy_mode = PHY_MODE_USB_DEVICE;
@@ -174,23 +167,17 @@ static int dwc3_meson_g12a_usb2_init(struct dwc3_meson_g12a *priv)
 					U2P_R0_ID_PULLUP | U2P_R0_DRV_VBUS,
 					U2P_R0_ID_PULLUP | U2P_R0_DRV_VBUS);
 
-			ret = dwc3_meson_g12a_usb2_set_mode(priv, i,
-							priv->otg_phy_mode);
-			if (ret)
-				return ret;
+			dwc3_meson_g12a_usb2_set_mode(priv, i,
+						      priv->otg_phy_mode);
 		} else {
-			ret = dwc3_meson_g12a_usb2_set_mode(priv, i,
-							    PHY_MODE_USB_HOST);
-			if (ret)
-				return ret;
+			dwc3_meson_g12a_usb2_set_mode(priv, i,
+						      PHY_MODE_USB_HOST);
 		}
 
 		if (priv->data->num_u2p_registers)
 			regmap_update_bits(priv->u2p_regmap[i], U2P_R0,
 					   U2P_R0_POWER_ON_RESET, 0);
 	}
-
-	return 0;
 }
 
 static void dwc3_meson_g12a_usb3_init(struct dwc3_meson_g12a *priv)
@@ -239,13 +226,9 @@ static void dwc3_meson_g12a_usb_otg_apply_mode(struct dwc3_meson_g12a *priv)
 	}
 }
 
-static int dwc3_meson_g12a_usb_init(struct dwc3_meson_g12a *priv)
+static void dwc3_meson_g12a_usb_init(struct dwc3_meson_g12a *priv)
 {
-	int ret;
-
-	ret = dwc3_meson_g12a_usb2_init(priv);
-	if (ret)
-		return ret;
+	dwc3_meson_g12a_usb2_init(priv);
 
 	regmap_update_bits(priv->usb_glue_regmap, USB_R1,
 			USB_R1_U3H_FLADJ_30MHZ_REG_MASK,
@@ -266,8 +249,6 @@ static int dwc3_meson_g12a_usb_init(struct dwc3_meson_g12a *priv)
 		dwc3_meson_g12a_usb3_init(priv);
 
 	dwc3_meson_g12a_usb_otg_apply_mode(priv);
-
-	return 0;
 }
 
 static const struct regmap_config phy_meson_g12a_usb_glue_regmap_conf = {
@@ -340,11 +321,15 @@ static int dwc3_meson_g12a_otg_mode_set(struct dwc3_meson_g12a *priv,
 
 	priv->otg_phy_mode = mode;
 
-	ret = dwc3_meson_g12a_usb2_set_mode(priv, USB2_OTG_PHY, mode);
-	if (ret)
-		return ret;
+	dwc3_meson_g12a_usb2_set_mode(priv, USB2_OTG_PHY, mode);
 
 	dwc3_meson_g12a_usb_otg_apply_mode(priv);
+
+	ret = phy_set_mode(priv->phys[USB2_OTG_PHY],
+			   mode == PHY_MODE_USB_HOST ? PHY_MODE_USB_OTG
+			   			     : PHY_MODE_USB_DEVICE);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -489,6 +474,14 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
 
 	dwc3_meson_g12a_usb_init(priv);
 
+	/* On GXL/GXM, PHY must be started in device mode for DWC2 init */
+	if (priv->data->otg_phy_start_as_device) {
+		ret = phy_set_mode(priv->phys[USB2_OTG_PHY],
+				   PHY_MODE_USB_DEVICE);
+		if (ret)
+			return ret;
+	}
+
 	/* Init PHYs */
 	for (i = 0 ; i < PHY_COUNT ; ++i) {
 		ret = phy_init(priv->phys[i]);
@@ -507,6 +500,19 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
 	if (ret) {
 		clk_disable_unprepare(priv->clk);
 		goto err_phys_power;
+	}
+
+	/* Set PHY modes */
+	for (i = 0 ; i < PHY_COUNT ; ++i) {
+		enum phy_mode mode = (i == USB2_OTG_PHY ? priv->otg_phy_mode
+							: PHY_MODE_USB_HOST);
+
+		if (i == USB2_OTG_PHY && mode == PHY_MODE_USB_HOST)
+			mode = PHY_MODE_USB_OTG;
+
+		ret = phy_set_mode(priv->phys[i], mode);
+		if (ret)
+			goto err_phys_power;
 	}
 
 	/* Setup OTG mode corresponding to the ID pin */
@@ -634,6 +640,7 @@ static const struct dev_pm_ops dwc3_meson_g12a_dev_pm_ops = {
 };
 
 static const struct dwc3_meson_data dwc3_meson_gxl_data = {
+	.otg_phy_start_as_device = true,
 	.num_u2p_registers = 0,
 	.usb_glue_reg_offset = 0x00,
 	.num_phys = 2,
@@ -641,6 +648,7 @@ static const struct dwc3_meson_data dwc3_meson_gxl_data = {
 };
 
 static const struct dwc3_meson_data dwc3_meson_gxm_data = {
+	.otg_phy_start_as_device = true,
 	.num_u2p_registers = 0,
 	.usb_glue_reg_offset = 0x00,
 	.num_phys = 3,
