@@ -157,14 +157,25 @@ static int phy_meson_gxl_usb2_set_mode(struct phy *phy,
 {
 	struct phy_meson_gxl_usb2_priv *priv = phy_get_drvdata(phy);
 
+	regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_POWER_ON_RESET,
+			   U2P_R0_POWER_ON_RESET);
+
 	switch (mode) {
 	case PHY_MODE_USB_HOST:
-	case PHY_MODE_USB_OTG:
 		regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_DM_PULLDOWN,
 				   U2P_R0_DM_PULLDOWN);
 		regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_DP_PULLDOWN,
 				   U2P_R0_DP_PULLDOWN);
 		regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_ID_PULLUP, 0);
+		break;
+
+	case PHY_MODE_USB_OTG:
+		regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_DM_PULLDOWN,
+				   U2P_R0_DM_PULLDOWN);
+		regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_DP_PULLDOWN,
+				   U2P_R0_DP_PULLDOWN);
+		regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_ID_PULLUP,
+				   U2P_R0_ID_PULLUP);
 		break;
 
 	case PHY_MODE_USB_DEVICE:
@@ -180,7 +191,10 @@ static int phy_meson_gxl_usb2_set_mode(struct phy *phy,
 		return -EINVAL;
 	}
 
-	phy_meson_gxl_usb2_reset(phy);
+	udelay(RESET_COMPLETE_TIME);
+	regmap_update_bits(priv->regmap, U2P_R0, U2P_R0_POWER_ON_RESET,
+			   0);
+	udelay(RESET_COMPLETE_TIME);
 
 	priv->mode = mode;
 
