@@ -35,3 +35,7 @@
 		reg = <0>;
 	};
 };
+
+&usb {
+	dr_mode = "host";
+};
