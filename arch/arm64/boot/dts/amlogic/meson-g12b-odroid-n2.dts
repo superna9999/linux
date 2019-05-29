@@ -129,7 +129,7 @@
 		regulator-name = "USB_PWR_EN";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
-		vin-supply = <&hub_5v>;
+		vin-supply = <&vcc_5v>;
 
 		/* Connected to the microUSB port power enable */
 		gpio = <&gpio GPIOH_6 GPIO_ACTIVE_HIGH>;
@@ -284,5 +284,5 @@
 };
 
 &usb2_phy1 {
-	phy-supply = <&vcc_5v>;
+	phy-supply = <&hub_5v>;
 };
