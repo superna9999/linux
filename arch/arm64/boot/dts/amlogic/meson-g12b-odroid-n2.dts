@@ -11,6 +11,7 @@
 #include <dt-bindings/gpio/meson-g12a-gpio.h>
 #include <dt-bindings/sound/meson-g12a-tohdmitx.h>
 #include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/sound/meson-g12a-tohdmitx.h>
 
 / {
 	compatible = "hardkernel,odroid-n2", "amlogic,g12b";
@@ -396,6 +397,10 @@
 	clocks = <&clkc CLKID_CPUB_CLK>;
 	clock-latency = <50000>;
 	#cooling-cells = <2>;
+};
+
+&clkc_audio {
+	status = "okay";
 };
 
 &ext_mdio {
