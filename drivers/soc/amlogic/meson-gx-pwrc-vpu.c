@@ -362,6 +362,10 @@ static const struct of_device_id meson_gx_pwrc_vpu_match_table[] = {
 	  .compatible = "amlogic,meson-g12a-pwrc-vpu",
 	  .data = &vpu_hdmi_pd_g12a
 	},
+	{
+	  .compatible = "amlogic,meson-sm1-pwrc-vpu",
+	  .data = &vpu_hdmi_pd_g12a /* TOFIX */
+	},
 	{ /* sentinel */ }
 };
 
