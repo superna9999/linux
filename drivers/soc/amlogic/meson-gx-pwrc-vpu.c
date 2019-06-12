@@ -18,6 +18,7 @@
 /* AO Offsets */
 
 #define AO_RTI_GEN_PWR_SLEEP0		(0x3a << 2)
+#define AO_RTI_GEN_PWR_ISO0		(0x3b << 2)
 
 #define GEN_PWR_VPU_HDMI		BIT(8)
 #define GEN_PWR_VPU_HDMI_ISO		BIT(9)
@@ -28,6 +29,8 @@
 #define HHI_VPU_MEM_PD_REG0		(0x41 << 2)
 #define HHI_VPU_MEM_PD_REG1		(0x42 << 2)
 #define HHI_VPU_MEM_PD_REG2		(0x4d << 2)
+#define HHI_VPU_MEM_PD_REG3		(0x43 << 2)
+#define HHI_VPU_MEM_PD_REG4		(0x44 << 2)
 
 struct meson_gx_pwrc_vpu {
 	struct generic_pm_domain genpd;
@@ -107,6 +110,53 @@ static int meson_g12a_pwrc_vpu_power_off(struct generic_pm_domain *genpd)
 				   0x3 << i, 0x3 << i);
 		udelay(5);
 	}
+	for (i = 8; i < 16; i++) {
+		regmap_update_bits(pd->regmap_hhi, HHI_MEM_PD_REG0,
+				   BIT(i), BIT(i));
+		udelay(5);
+	}
+	udelay(20);
+
+	regmap_update_bits(pd->regmap_ao, AO_RTI_GEN_PWR_SLEEP0,
+			   GEN_PWR_VPU_HDMI, GEN_PWR_VPU_HDMI);
+
+	msleep(20);
+
+	clk_disable_unprepare(pd->vpu_clk);
+	clk_disable_unprepare(pd->vapb_clk);
+
+	return 0;
+}
+
+static int meson_sm1_pwrc_vpu_power_off(struct generic_pm_domain *genpd)
+{
+	struct meson_gx_pwrc_vpu *pd = genpd_to_pd(genpd);
+	int i;
+
+	regmap_update_bits(pd->regmap_ao, AO_RTI_GEN_PWR_ISO0,
+			   GEN_PWR_VPU_HDMI, GEN_PWR_VPU_HDMI);
+	udelay(20);
+
+	/* Power Down Memories */
+	for (i = 0; i < 32; i += 2) {
+		regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG0,
+				   0x3 << i, 0x3 << i);
+		udelay(5);
+	}
+	for (i = 0; i < 32; i += 2) {
+		regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG1,
+				   0x3 << i, 0x3 << i);
+		udelay(5);
+	}
+	for (i = 0; i < 32; i += 2) {
+		regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG2,
+				   0x3 << i, 0x3 << i);
+		udelay(5);
+	}
+	regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG4,
+				   0x3 << 4, 0x3 << 4);
+	regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG4,
+				   0x7, 0x7);
 	for (i = 8; i < 16; i++) {
 		regmap_update_bits(pd->regmap_hhi, HHI_MEM_PD_REG0,
 				   BIT(i), BIT(i));
@@ -242,6 +292,64 @@ static int meson_g12a_pwrc_vpu_power_on(struct generic_pm_domain *genpd)
 	return 0;
 }
 
+static int meson_sm1_pwrc_vpu_power_on(struct generic_pm_domain *genpd)
+{
+	struct meson_gx_pwrc_vpu *pd = genpd_to_pd(genpd);
+	int ret;
+	int i;
+
+	regmap_update_bits(pd->regmap_ao, AO_RTI_GEN_PWR_SLEEP0,
+			   GEN_PWR_VPU_HDMI, 0);
+	udelay(20);
+
+	/* Power Up Memories */
+	for (i = 0; i < 32; i += 2) {
+		regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG0,
+				   0x3 << i, 0);
+		udelay(5);
+	}
+
+	for (i = 0; i < 32; i += 2) {
+		regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG1,
+				   0x3 << i, 0);
+		udelay(5);
+	}
+
+	for (i = 0; i < 32; i += 2) {
+		regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG2,
+				   0x3 << i, 0);
+		udelay(5);
+	}
+
+	regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG4, 0x3 << 4, 0);
+
+	regmap_update_bits(pd->regmap_hhi, HHI_VPU_MEM_PD_REG4, 0x7, 0);
+
+	for (i = 8; i < 16; i++) {
+		regmap_update_bits(pd->regmap_hhi, HHI_MEM_PD_REG0,
+				   BIT(i), 0);
+		udelay(5);
+	}
+	udelay(20);
+
+	ret = reset_control_assert(pd->rstc);
+	if (ret)
+		return ret;
+
+	regmap_update_bits(pd->regmap_ao, AO_RTI_GEN_PWR_ISO0,
+			   GEN_PWR_VPU_HDMI, 0);
+
+	ret = reset_control_deassert(pd->rstc);
+	if (ret)
+		return ret;
+
+	ret = meson_gx_pwrc_vpu_setup_clk(pd);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 static bool meson_gx_pwrc_vpu_get_power(struct meson_gx_pwrc_vpu *pd)
 {
 	u32 reg;
@@ -264,6 +372,14 @@ static struct meson_gx_pwrc_vpu vpu_hdmi_pd_g12a = {
 		.name = "vpu_hdmi",
 		.power_off = meson_g12a_pwrc_vpu_power_off,
 		.power_on = meson_g12a_pwrc_vpu_power_on,
+	},
+};
+
+static struct meson_gx_pwrc_vpu vpu_hdmi_pd_sm1 = {
+	.genpd = {
+		.name = "vpu_hdmi",
+		.power_off = meson_sm1_pwrc_vpu_power_off,
+		.power_on = meson_sm1_pwrc_vpu_power_on,
 	},
 };
 
@@ -361,6 +477,10 @@ static const struct of_device_id meson_gx_pwrc_vpu_match_table[] = {
 	{
 	  .compatible = "amlogic,meson-g12a-pwrc-vpu",
 	  .data = &vpu_hdmi_pd_g12a
+	},
+	{
+	  .compatible = "amlogic,meson-sm1-pwrc-vpu",
+	  .data = &vpu_hdmi_pd_sm1
 	},
 	{ /* sentinel */ }
 };
