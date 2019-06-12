@@ -133,6 +133,7 @@ properties:
         items:
           - enum:
               - amlogic,u200
+              - seirobotics,sei610
           - const: amlogic,g12a
 
       - description: Boards with the Amlogic Meson G12B S922X SoC
@@ -143,5 +144,7 @@ properties:
 
       - description: Boards with the Amlogic Meson SM1 S905X3 SoC
         items:
+          - enum:
+              - seirobotics,sei610
           - const: amlogic,sm1
 ...
