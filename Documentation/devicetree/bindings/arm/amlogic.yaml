@@ -141,4 +141,7 @@ properties:
               - hardkernel,odroid-n2
           - const: amlogic,g12b
 
+      - description: Boards with the Amlogic Meson SM1 S905X3 SoC
+        items:
+          - const: amlogic,sm1
 ...
