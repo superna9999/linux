@@ -126,7 +126,7 @@
 		regulator-max-microvolt = <3300000>;
 		vin-supply = <&vddao_3v3>;
 		gpio = <&gpio GPIOH_8 GPIO_OPEN_DRAIN>;
-		enable-active-high;
+		enable-active-low;
 	};
 
 	vddio_ao1v8: regulator-vddio_ao1v8 {
@@ -331,6 +331,19 @@
 	status = "okay";
 	pinctrl-0 = <&i2c3_sda_a_pins>, <&i2c3_sck_a_pins>;
 	pinctrl-names = "default";
+};
+
+&ir {
+	status = "okay";
+	pinctrl-0 = <&remote_input_ao_pins>;
+	pinctrl-names = "default";
+};
+
+&ir_blaster {
+	status = "okay";
+	pinctrl-0 = <&remote_out_ao_pins>;
+	pinctrl-names = "default";
+	vcc-supply = <&vddao_3v3_t>;
 };
 
 &pwm_AO_ab {
