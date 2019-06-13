@@ -270,6 +270,21 @@ config IR_MESON
 	   To compile this driver as a module, choose M here: the
 	   module will be called meson-ir.
 
+config IR_MESON_BLASTER
+	tristate "Amlogic Meson IR remote transmitter"
+	depends on RC_CORE
+	depends on LIRC
+	depends on COMMON_CLK && OF
+	depends on ARCH_MESON || COMPILE_TEST
+	select REGMAP
+	select REGMAP_MMIO
+	help
+	   Say Y if you want to use the IR remote transmitter available
+	   on Amlogic Meson SoCs.
+
+	   To compile this driver as a module, choose M here: the
+	   module will be called meson-ir-blaster.
+
 config IR_MTK
 	tristate "Mediatek IR remote receiver"
 	depends on RC_CORE
