@@ -2046,6 +2046,14 @@
 							bias-disable;
 						};
 					};
+
+					remote_out_ao_pins: remote-out-ao {
+						mux {
+							groups = "remote_ao_out";
+							function = "remote_ao_out";
+							bias-disable;
+						};
+					};
 				};
 			};
 
@@ -2059,9 +2067,18 @@
 			};
 
 			sec_AO: ao-secure@140 {
-				compatible = "amlogic,meson-gx-ao-secure", "syscon";
+				compatible = "amlogic,meson-gx-ao-secure",
+					     "simple-mfd", "syscon";
 				reg = <0x0 0x140 0x0 0x140>;
 				amlogic,has-chip-id;
+
+				ir_blaster: ir-transmitter {
+					compatible = "amlogic,g12a-ir-blaster";
+					interrupts = <GIC_SPI 198 IRQ_TYPE_EDGE_RISING>;
+					resets = <&clkc_AO RESET_AO_IR_OUT>;
+					clocks = <&clkc_AO CLKID_AO_IR_OUT>;
+					status = "disabled";
+				};
 			};
 
 			cecb_AO: cec@280 {
