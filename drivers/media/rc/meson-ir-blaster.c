@@ -46,8 +46,8 @@ enum {
 };
 
 #define IR_BLASTER_ADDR1			(IR_BLASTER_OFFSET + 0x4)
-#define 	IR_BLASTER_ADDR1_COUNT_HIGH	GENMASK(31, 16)
-#define 	IR_BLASTER_ADDR1_COUNT_LOW	GENMASK(15, 0)
+#define 	IR_BLASTER_ADDR1_COUNT_LOW	GENMASK(31, 16)
+#define 	IR_BLASTER_ADDR1_COUNT_HIGH	GENMASK(15, 0)
 
 #define IR_BLASTER_ADDR2			(IR_BLASTER_OFFSET + 0x8)
 #define 	IR_BLASTER_ADDR2_WRITE_FIFO	BIT(16)
@@ -83,6 +83,8 @@ static int meson_ir_blaster_set_duty_cycle(struct rc_dev *dev, u32 duty_cycle)
 
 	ir->duty_cycle = duty_cycle;
 
+	pr_info("%s: %d\n", __func__, duty_cycle);
+
 	return 0;
 }
 
@@ -98,6 +100,8 @@ static int meson_ir_blaster_set_carrier(struct rc_dev *dev, u32 carrier)
 
 	ir->carrier = carrier;
 
+	pr_info("%s: %d\n", __func__, carrier);
+
 	return 0;
 }
 
@@ -111,6 +115,9 @@ static int meson_ir_blaster_tx(struct rc_dev *dev, unsigned int *txbuf,
 
 	period = DIV_ROUND_CLOSEST(USEC_PER_SEC, ir->carrier);
 	duty = DIV_ROUND_CLOSEST(ir->duty_cycle * period, 100);
+
+	pr_info("%s: period %d\n", __func__, period);
+	pr_info("%s: duty %d\n", __func__, duty);
 
 	reset_control_reset(ir->reset);
 
@@ -130,34 +137,37 @@ static int meson_ir_blaster_tx(struct rc_dev *dev, unsigned int *txbuf,
 	/* TOFIX add IRQ FIFO support */
 
 	regmap_update_bits(ir->regmap, IR_BLASTER_ADDR0,
-			   IR_BLASTER_ADDR0_ENABLE, IR_BLASTER_ADDR0_ENABLE);
+			   IR_BLASTER_ADDR0_ENABLE,
+			   IR_BLASTER_ADDR0_ENABLE);
 
 	for (i = 0 ; i < count ; i++) {
 		unsigned long timebase;
 		unsigned long delay;
-
-		if (!(i % 2))
-			reg = IR_BLASTER_ADDR2_MOD_ENABLE;
-		else
-			reg = 0;
 		
-		if (txbuf[i] <= 1024) {
-			timebase = IR_BLASTER_TIMEBASE_1US;
-			delay = txbuf[i] - 1;
-		} else if (txbuf[i] <= 10240) {
-			timebase = IR_BLASTER_TIMEBASE_10US;
-			delay = DIV_ROUND_CLOSEST(txbuf[i], 10) - 1;
-		} else if (txbuf[i] <= 102400) {
-			timebase = IR_BLASTER_TIMEBASE_100US;
-			delay = DIV_ROUND_CLOSEST(txbuf[i], 100) - 1;
+		//pr_info("%s: i %d delay %d\n", __func__, i, txbuf[i]);
+		reg = IR_BLASTER_ADDR2_WRITE_FIFO;
+
+		if (i % 2) {
+			if (txbuf[i] <= 1024) {
+				timebase = IR_BLASTER_TIMEBASE_1US;
+				delay = txbuf[i];
+			} else if (txbuf[i] <= 10240) {
+				timebase = IR_BLASTER_TIMEBASE_10US;
+				delay = DIV_ROUND_CLOSEST(txbuf[i], 10);
+			} else {
+				timebase = IR_BLASTER_TIMEBASE_100US;
+				delay = DIV_ROUND_CLOSEST(txbuf[i], 100);
+			}
 		} else {
+			reg |= IR_BLASTER_ADDR2_MOD_ENABLE;
 			timebase = IR_BLASTER_TIMEBASE_MOD_CLOCK;
-			delay = DIV_ROUND_CLOSEST(txbuf[i], period) - 1;
+			delay = DIV_ROUND_CLOSEST(txbuf[i], period);
 		}
 
-		reg |= IR_BLASTER_ADDR2_WRITE_FIFO;
 		reg |= FIELD_PREP(IR_BLASTER_ADDR2_TIMEBASE, timebase);
-		reg |= FIELD_PREP(IR_BLASTER_ADDR2_COUNT, delay);
+		reg |= FIELD_PREP(IR_BLASTER_ADDR2_COUNT, delay - 1);
+		
+		//pr_info("%s: i %d reg %x\n", __func__, i, reg);
 
 		regmap_write(ir->regmap, IR_BLASTER_ADDR2, reg);
 
@@ -165,6 +175,8 @@ static int meson_ir_blaster_tx(struct rc_dev *dev, unsigned int *txbuf,
 		regmap_read(ir->regmap, IR_BLASTER_ADDR0, &reg);
 		if (!(reg & IR_BLASTER_ADDR0_FULL))
 			continue;
+
+		pr_info("%s: i %d fifo full\n", __func__, i);
 
 		ret = regmap_read_poll_timeout(ir->regmap,
 					       IR_BLASTER_ADDR0, reg,
@@ -194,6 +206,10 @@ static int meson_ir_blaster_probe(struct platform_device *pdev)
 	ir = devm_kzalloc(dev, sizeof(struct meson_ir_blaster), GFP_KERNEL);
 	if (!ir)
 		return -ENOMEM;
+
+	/* Default values */
+	ir->carrier = 38000;
+	ir->duty_cycle = 50;
 
 	ir->regmap = syscon_node_to_regmap(of_get_parent(pdev->dev.of_node));
 	if (IS_ERR(ir->regmap)) {

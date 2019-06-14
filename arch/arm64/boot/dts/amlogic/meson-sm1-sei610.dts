@@ -56,6 +56,11 @@
 		};
 	};
 
+	/*ir-out {
+		compatible = "pwm-ir-tx";
+		pwms = <&pwm_AO_cd 0 26316 0>;
+	};*/
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -353,6 +358,14 @@
 	clocks = <&xtal>;
 	clock-names = "clkin0";
 };
+
+/*&pwm_AO_cd {
+	status = "okay";
+	pinctrl-0 = <&pwm_ao_c_4_pins>;
+	pinctrl-names = "default";
+	clocks = <&xtal>;
+	clock-names = "clkin0";
+};*/
 
 &pwm_ef {
 	status = "okay";
