@@ -2052,6 +2052,7 @@
 							groups = "remote_ao_out";
 							function = "remote_ao_out";
 							bias-disable;
+							drive-strength-microamp = <3000>;
 						};
 					};
 				};
