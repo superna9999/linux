@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2019 BayLibre, SAS
  * Author: Neil Armstrong <narmstrong@baylibre.com>
+ * Copyright (c) 2019 Christian Hewitt <christianshewitt@gmail.com>
  */
 
 /dts-v1/;
@@ -10,6 +11,7 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/gpio/meson-g12a-gpio.h>
 #include <dt-bindings/sound/meson-g12a-tohdmitx.h>
+#include <dt-bindings/usb/pd.h>
 
 / {
 	compatible = "khadas,vim3", "amlogic,g12b";
@@ -41,55 +43,23 @@
 		clock-names = "ext_clock";
 	};
 
-	tflash_vdd: regulator-tflash_vdd {
+	dc_in: regulator-dc_in {
 		compatible = "regulator-fixed";
-
-		regulator-name = "TFLASH_VDD";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-
-		gpio = <&gpio_ao GPIOAO_8 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-
-	tf_io: gpio-regulator-tf_io {
-		compatible = "regulator-gpio";
-
-		regulator-name = "TF_IO";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <3300000>;
-
-		gpios = <&gpio_ao GPIOAO_9 GPIO_ACTIVE_HIGH>;
-		gpios-states = <0>;
-
-		states = <3300000 0
-			  1800000 1>;
-	};
-
-	flash_1v8: regulator-flash_1v8 {
-		compatible = "regulator-fixed";
-		regulator-name = "FLASH_1V8";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
-		vin-supply = <&vcc_3v3>;
-		regulator-always-on;
-	};
-
-	main_12v: regulator-main_12v {
-		compatible = "regulator-fixed";
-		regulator-name = "12V";
-		regulator-min-microvolt = <12000000>;
-		regulator-max-microvolt = <12000000>;
+		regulator-name = "DC_IN";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
 		regulator-always-on;
 	};
 
 	vcc_5v: regulator-vcc_5v {
 		compatible = "regulator-fixed";
-		regulator-name = "5V";
+		regulator-name = "VCC_5V";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
-		regulator-always-on;
-		vin-supply = <&main_12v>;
+		vin-supply = <&dc_in>;
+
+		gpio = <&gpio GPIOH_8 GPIO_OPEN_DRAIN>;
+		enable-active-high;
 	};
 
 	vcc_1v8: regulator-vcc_1v8 {
@@ -106,7 +76,7 @@
 		regulator-name = "VCC_3V3";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		vin-supply = <&vddao_3v3>;
+		vin-supply = <&vsys_3v3>;
 		regulator-always-on;
 		/* FIXME: actually controlled by VDDCPU_B_EN */
 	};
@@ -118,10 +88,10 @@
 		compatible = "pwm-regulator";
 
 		regulator-name = "VDDCPU_A";
-		regulator-min-microvolt = <721000>;
-		regulator-max-microvolt = <1022000>;
+		regulator-min-microvolt = <690000>;
+		regulator-max-microvolt = <1050000>;
 
-		vin-supply = <&main_12v>;
+		vin-supply = <&dc_in>;
 
 		pwms = <&pwm_ab 0 1250 0>;
 		pwm-dutycycle-range = <100 0>;
@@ -132,15 +102,15 @@
 
 	vddcpu_b: regulator-vddcpu-b {
 		/*
-		 * Silergy SY8120B1ABC Regulator.
+		 * Silergy SY8030DEC Regulator.
 		 */
 		compatible = "pwm-regulator";
 
 		regulator-name = "VDDCPU_B";
-		regulator-min-microvolt = <721000>;
-		regulator-max-microvolt = <1022000>;
+		regulator-min-microvolt = <690000>;
+		regulator-max-microvolt = <1050000>;
 
-		vin-supply = <&main_12v>;
+		vin-supply = <&vsys_3v3>;
 
 		pwms = <&pwm_AO_cd 1 1250 0>;
 		pwm-dutycycle-range = <100 0>;
@@ -149,45 +119,30 @@
 		regulator-always-on;
 	};
 
-	hub_5v: regulator-hub_5v {
-		compatible = "regulator-fixed";
-		regulator-name = "HUB_5V";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		vin-supply = <&vcc_5v>;
-
-		/* Connected to the Hub CHIPENABLE, LOW sets low power state */
-		gpio = <&gpio GPIOH_5 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-
-	usb_pwr_en: regulator-usb_pwr_en {
-		compatible = "regulator-fixed";
-		regulator-name = "USB_PWR_EN";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		vin-supply = <&vcc_5v>;
-
-		/* Connected to the microUSB port power enable */
-		gpio = <&gpio GPIOH_6 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-
 	vddao_1v8: regulator-vddao_1v8 {
 		compatible = "regulator-fixed";
-		regulator-name = "VDDAO_1V8";
+		regulator-name = "VDDIO_AO1V8";
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
-		vin-supply = <&vddao_3v3>;
+		vin-supply = <&vsys_3v3>;
 		regulator-always-on;
 	};
 
-	vddao_3v3: regulator-vddao_3v3 {
+	emmc_1v8: regulator-emmc_1v8 {
 		compatible = "regulator-fixed";
-		regulator-name = "VDDAO_3V3";
+		regulator-name = "EMMC_AO1V8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&vcc_3v3>;
+		regulator-always-on;
+	};
+
+	vsys_3v3: regulator-vsys_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "VSYS_3V3";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		vin-supply = <&main_12v>;
+		vin-supply = <&dc_in>;
 		regulator-always-on;
 	};
 
@@ -371,6 +326,36 @@
 	};
 };
 
+&i2c_AO {
+	status = "okay";
+	pinctrl-0 = <&i2c_ao_sck_pins>, <&i2c_ao_sda_pins>;
+	pinctrl-names = "default";
+
+	/* TOFIX Add sensors */
+
+	fusb302: typec-portc@22 {
+		compatible = "fcs,fusb302";
+		reg = <0x22>;
+		interrupt-parent = <&gpio_intc>;
+		interrupts = <8 IRQ_TYPE_LEVEL_LOW>;
+
+		usb_con: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			power-role = "sink";
+			data-role = "dual";
+			sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+			op-sink-microwatt = <10000000>;
+		};
+	};
+
+	rtc@51 {
+		compatible = "haoyu,hym8563";
+		reg = <0x51>;
+		#clock-cells = <0>;
+	};
+};
+
 &ir {
 	status = "okay";
 	pinctrl-0 = <&remote_input_ao_pins>;
@@ -400,32 +385,6 @@
         pinctrl-names = "default";
 };
 
-&uart_A {
-	status = "okay";
-	pinctrl-0 = <&uart_a_pins>, <&uart_a_cts_rts_pins>;
-	pinctrl-names = "default";
-	uart-has-rtscts;
-
-	bluetooth {
-		compatible = "brcm,bcm43438-bt";
-		shutdown-gpios = <&gpio GPIOX_17 GPIO_ACTIVE_HIGH>;
-		max-speed = <2000000>;
-		clocks = <&wifi32k>;
-		clock-names = "lpo";
-	};
-};
-
-&uart_AO {
-	status = "okay";
-	pinctrl-0 = <&uart_ao_a_pins>;
-	pinctrl-names = "default";
-};
-
-&usb {
-	status = "okay";
-	dr_mode = "host";
-};
-
 /* SDIO */
 &sd_emmc_a {
 	status = "okay";
@@ -445,7 +404,7 @@
 
 	mmc-pwrseq = <&sdio_pwrseq>;
 
-	vmmc-supply = <&vddao_3v3>;
+	vmmc-supply = <&vsys_3v3>;
 	vqmmc-supply = <&vddao_1v8>;
 
 	brcmf: wifi@1 {
@@ -467,9 +426,8 @@
 	disable-wp;
 
 	cd-gpios = <&gpio GPIOC_6 GPIO_ACTIVE_LOW>;
-	vmmc-supply = <&tflash_vdd>;
-	vqmmc-supply = <&tf_io>;
-
+	vmmc-supply = <&vsys_3v3>;
+	vqmmc-supply = <&vsys_3v3>;
 };
 
 /* eMMC */
@@ -488,7 +446,7 @@
 
 	mmc-pwrseq = <&emmc_pwrseq>;
 	vmmc-supply = <&vcc_3v3>;
-	vqmmc-supply = <&flash_1v8>;
+	vqmmc-supply = <&emmc_1v8>;
 };
 
 &tdmif_b {
@@ -501,4 +459,42 @@
 
 &tohdmitx {
 	status = "okay";
+};
+
+&uart_A {
+	status = "okay";
+	pinctrl-0 = <&uart_a_pins>, <&uart_a_cts_rts_pins>;
+	pinctrl-names = "default";
+	uart-has-rtscts;
+
+	bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		shutdown-gpios = <&gpio GPIOX_17 GPIO_ACTIVE_HIGH>;
+		max-speed = <2000000>;
+		clocks = <&wifi32k>;
+		clock-names = "lpo";
+	};
+};
+
+&uart_AO {
+	status = "okay";
+	pinctrl-0 = <&uart_ao_a_pins>;
+	pinctrl-names = "default";
+};
+
+&usb2_phy0 {
+	phy-supply = <&dc_in>;
+};
+
+&usb2_phy1 {
+	phy-supply = <&vcc_5v>;
+};
+
+&usb3_pcie_phy {
+	phy-supply = <&dc_in>;
+};
+
+&usb {
+	status = "okay";
+	dr_mode = "peripheral";
 };
