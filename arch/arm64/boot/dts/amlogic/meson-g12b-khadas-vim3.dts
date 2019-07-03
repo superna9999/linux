@@ -31,6 +31,21 @@
 		reg = <0x0 0x0 0x0 0x40000000>;
 	};
 
+	leds {
+		compatible = "gpio-leds";
+
+		white {
+			label = "vim3:white";
+			gpios = <&gpio_ao GPIOAO_4 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+
+		red {
+			label = "vim3:red";
+			gpios = <&gpio_expander 5 GPIO_ACTIVE_LOW>;
+		};
+	};
+
 	emmc_pwrseq: emmc-pwrseq {
 		compatible = "mmc-pwrseq-emmc";
 		reset-gpios = <&gpio BOOT_12 GPIO_ACTIVE_LOW>;
@@ -347,12 +362,12 @@
 		reg = <0xe>;
 	};
 
-	gpio-controller@20 {
+	gpio_expander: gpio-controller@20 {
 		compatible = "ti,tca6408";
 		reg = <0x20>;
 		vcc-supply = <&vcc_3v3>;
 		gpio-controller;
-		#gpio-cells = <1>;
+		#gpio-cells = <2>;
 	};
 
 	fusb302: typec-portc@22 {
