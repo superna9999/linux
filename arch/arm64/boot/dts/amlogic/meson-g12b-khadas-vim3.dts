@@ -383,7 +383,7 @@
 	pinctrl-names = "default";
 
 	sensor@e {
-		compatible = "kionix,kxtj9";
+		compatible = "kionix,kxtj21009";
 		reg = <0xe>;
 		interrupt-parent = <&gpio_intc>;
 		interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
