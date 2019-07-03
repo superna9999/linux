@@ -342,7 +342,18 @@
 	pinctrl-0 = <&i2c_ao_sck_pins>, <&i2c_ao_sda_pins>;
 	pinctrl-names = "default";
 
-	/* TOFIX Add sensors */
+	sensor@e {
+		compatible = "kionix,kxtj9";
+		reg = <0xe>;
+	};
+
+	gpio-controller@20 {
+		compatible = "ti,tca6408";
+		reg = <0x20>;
+		vcc-supply = <&vcc_3v3>;
+		gpio-controller;
+		#gpio-cells = <1>;
+	};
 
 	fusb302: typec-portc@22 {
 		compatible = "fcs,fusb302";
