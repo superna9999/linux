@@ -146,6 +146,17 @@
 		regulator-always-on;
 	};
 
+	usb_pwr: regulator-usb_pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "USB_PWR";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&vcc_5v>;
+
+		gpio = <&gpio GPIOA_6 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
 	hdmi-connector {
 		compatible = "hdmi-connector";
 		type = "a";
@@ -487,11 +498,11 @@
 };
 
 &usb2_phy1 {
-	phy-supply = <&vcc_5v>;
+	phy-supply = <&usb_pwr>;
 };
 
 &usb3_pcie_phy {
-	phy-supply = <&dc_in>;
+	phy-supply = <&usb_pwr>;
 };
 
 &usb {
