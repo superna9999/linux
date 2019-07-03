@@ -449,6 +449,11 @@
         pinctrl-names = "default";
 };
 
+&saradc {
+	status = "okay";
+	vref-supply = <&vddao_1v8>;
+};
+
 /* SDIO */
 &sd_emmc_a {
 	status = "okay";
