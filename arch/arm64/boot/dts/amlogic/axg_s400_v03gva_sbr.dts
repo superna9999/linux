@@ -1338,7 +1338,7 @@
 		 *	LOOPBACK,
 		 */
 		resample_module = <3>;
-		status = "okay";
+		status = "disabled";
 	};
 }; /* end of audiobus */
 
