@@ -3892,9 +3892,7 @@ static int snd_soc_dai_link_event(struct snd_soc_dapm_widget *w,
 			snd_soc_dai_hw_free(source, &substream);
 
 			source->active--;
-			if (source->driver->ops->shutdown)
-				source->driver->ops->shutdown(&substream,
-							      source);
+			snd_soc_dai_shutdown(source, &substream);
 		}
 
 		substream.stream = SNDRV_PCM_STREAM_PLAYBACK;
@@ -3904,8 +3902,7 @@ static int snd_soc_dai_link_event(struct snd_soc_dapm_widget *w,
 			snd_soc_dai_hw_free(sink, &substream);
 
 			sink->active--;
-			if (sink->driver->ops->shutdown)
-				sink->driver->ops->shutdown(&substream, sink);
+			snd_soc_dai_shutdown(sink, &substream);
 		}
 		break;
 
