@@ -1479,8 +1479,8 @@
 			groups = "pdm_dclk_a14",
 				"pdm_din0",
 				"pdm_din1",
-				"pdm_din2",
-				"pdm_din3";
+				"pdm_din2";
+				/* "pdm_din3"; */ /* HDMI I2S IN MUTE control*/
 			function = "pdm";
 		};
 	};
