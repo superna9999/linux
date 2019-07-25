@@ -2425,8 +2425,10 @@ static struct clk_regmap meson8b_vdec_hevc = {
 };
 
 /* TODO: the clock at index 0 is "DDR_PLL" which we don't support yet */
-static const char * const meson8b_cts_amclk_parent_names[] = {
-	"mpll0", "mpll1", "mpll2"
+static const struct clk_hw *meson8b_cts_amclk_parent_hws[] = {
+	&meson8b_mpll0.hw,
+	&meson8b_mpll1.hw,
+	&meson8b_mpll2.hw
 };
 
 static u32 meson8b_cts_amclk_mux_table[] = { 1, 2, 3 };
@@ -2442,8 +2444,8 @@ static struct clk_regmap meson8b_cts_amclk_sel = {
 	.hw.init = &(struct clk_init_data){
 		.name = "cts_amclk_sel",
 		.ops = &clk_regmap_mux_ops,
-		.parent_names = meson8b_cts_amclk_parent_names,
-		.num_parents = ARRAY_SIZE(meson8b_cts_amclk_parent_names),
+		.parent_hws = meson8b_cts_amclk_parent_hws,
+		.num_parents = ARRAY_SIZE(meson8b_cts_amclk_parent_hws),
 	},
 };
 
@@ -2457,7 +2459,9 @@ static struct clk_regmap meson8b_cts_amclk_div = {
 	.hw.init = &(struct clk_init_data){
 		.name = "cts_amclk_div",
 		.ops = &clk_regmap_divider_ops,
-		.parent_names = (const char *[]){ "cts_amclk_sel" },
+		.parent_hws = (const struct clk_hw *[]) {
+			&meson8b_cts_amclk_sel.hw
+		},
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
 	},
@@ -2471,15 +2475,19 @@ static struct clk_regmap meson8b_cts_amclk = {
 	.hw.init = &(struct clk_init_data){
 		.name = "cts_amclk",
 		.ops = &clk_regmap_gate_ops,
-		.parent_names = (const char *[]){ "cts_amclk_div" },
+		.parent_hws = (const struct clk_hw *[]) {
+			&meson8b_cts_amclk_div.hw
+		},
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
 /* TODO: the clock at index 0 is "DDR_PLL" which we don't support yet */
-static const char * const meson8b_cts_mclk_i958_parent_names[] = {
-	"mpll0", "mpll1", "mpll2"
+static const struct clk_hw *meson8b_cts_mclk_i958_parent_hws[] = {
+	&meson8b_mpll0.hw,
+	&meson8b_mpll1.hw,
+	&meson8b_mpll2.hw
 };
 
 static u32 meson8b_cts_mclk_i958_mux_table[] = { 1, 2, 3 };
@@ -2495,8 +2503,8 @@ static struct clk_regmap meson8b_cts_mclk_i958_sel = {
 	.hw.init = &(struct clk_init_data) {
 		.name = "cts_mclk_i958_sel",
 		.ops = &clk_regmap_mux_ops,
-		.parent_names = meson8b_cts_mclk_i958_parent_names,
-		.num_parents = ARRAY_SIZE(meson8b_cts_mclk_i958_parent_names),
+		.parent_hws = meson8b_cts_mclk_i958_parent_hws,
+		.num_parents = ARRAY_SIZE(meson8b_cts_mclk_i958_parent_hws),
 	},
 };
 
@@ -2510,7 +2518,9 @@ static struct clk_regmap meson8b_cts_mclk_i958_div = {
 	.hw.init = &(struct clk_init_data) {
 		.name = "cts_mclk_i958_div",
 		.ops = &clk_regmap_divider_ops,
-		.parent_names = (const char *[]){ "cts_mclk_i958_sel" },
+		.parent_hws = (const struct clk_hw *[]) {
+			&meson8b_cts_mclk_i958_sel.hw
+		},
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
 	},
@@ -2524,7 +2534,9 @@ static struct clk_regmap meson8b_cts_mclk_i958 = {
 	.hw.init = &(struct clk_init_data){
 		.name = "cts_mclk_i958",
 		.ops = &clk_regmap_gate_ops,
-		.parent_names = (const char *[]){ "cts_mclk_i958_div" },
+		.parent_hws = (const struct clk_hw *[]) {
+			&meson8b_cts_mclk_i958_div.hw
+		},
 		.num_parents = 1,
 		.flags = CLK_SET_RATE_PARENT,
 	},
@@ -2539,8 +2551,10 @@ static struct clk_regmap meson8b_cts_i958 = {
 	.hw.init = &(struct clk_init_data){
 		.name = "cts_i958",
 		.ops = &clk_regmap_mux_ops,
-		.parent_names = (const char *[]){ "cts_amclk",
-						  "cts_mclk_i958" },
+		.parent_hws = (const struct clk_hw *[]) {
+			&meson8b_cts_amclk.hw,
+			&meson8b_cts_mclk_i958.hw
+		},
 		.num_parents = 2,
 		/*
 		 * The parent is specific to origin of the audio data. Let the
