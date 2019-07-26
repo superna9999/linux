@@ -3662,6 +3662,8 @@ print_trace_header(struct seq_file *m, struct trace_iterator *iter)
 		   "desktop",
 #elif defined(CONFIG_PREEMPT)
 		   "preempt",
+#elif defined(CONFIG_PREEMPT_RT)
+		   "preempt_rt",
 #else
 		   "unknown",
 #endif
