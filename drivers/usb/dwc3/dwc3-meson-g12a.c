@@ -566,6 +566,9 @@ static int __maybe_unused dwc3_meson_g12a_suspend(struct device *dev)
 	struct dwc3_meson_g12a *priv = dev_get_drvdata(dev);
 	int i;
 
+	if (priv->vbus && priv->otg_phy_mode == PHY_MODE_USB_HOST)
+		regulator_disable(priv->vbus);
+
 	for (i = 0 ; i < PHY_COUNT ; ++i) {
 		phy_power_off(priv->phys[i]);
 		phy_exit(priv->phys[i]);
@@ -598,6 +601,9 @@ static int __maybe_unused dwc3_meson_g12a_resume(struct device *dev)
 		if (ret)
 			return ret;
 	}
+
+       if (priv->vbus && priv->otg_phy_mode == PHY_MODE_USB_HOST)
+               regulator_enable(priv->vbus);
 
 	return 0;
 }
