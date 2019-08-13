@@ -91,6 +91,24 @@ static const u16 csc_coeff_rgb_in_eitu709[3][4] = {
 	{ 0x6756, 0x78ab, 0x2000, 0x0200 }
 };
 
+static const u32 dw_hdmi_bus_fmts[] = {
+	MEDIA_BUS_FMT_RGB888_1X24,
+	MEDIA_BUS_FMT_RGB101010_1X30,
+	MEDIA_BUS_FMT_RGB121212_1X36,
+	MEDIA_BUS_FMT_RGB161616_1X48,
+	MEDIA_BUS_FMT_YUV8_1X24,
+	MEDIA_BUS_FMT_YUV10_1X30,
+	MEDIA_BUS_FMT_YUV12_1X36,
+	MEDIA_BUS_FMT_YUV16_1X48,
+	MEDIA_BUS_FMT_UYVY8_1X16,
+	MEDIA_BUS_FMT_UYVY10_1X20,
+	MEDIA_BUS_FMT_UYVY12_1X24,
+	MEDIA_BUS_FMT_UYYVYY8_0_5X24,
+	MEDIA_BUS_FMT_UYYVYY10_0_5X30,
+	MEDIA_BUS_FMT_UYYVYY12_0_5X36,
+	MEDIA_BUS_FMT_UYYVYY16_0_5X48,
+};
+
 struct hdmi_vmode {
 	bool mdataenablepolarity;
 
@@ -2190,6 +2208,33 @@ static const struct drm_connector_helper_funcs dw_hdmi_connector_helper_funcs = 
 	.get_modes = dw_hdmi_connector_get_modes,
 };
 
+static int dw_hdmi_bridge_atomic_check(struct drm_bridge *bridge,
+				       struct drm_bridge_state *bridge_state,
+				       struct drm_crtc_state *crtc_state,
+				       struct drm_connector_state *conn_state)
+{
+	struct dw_hdmi *hdmi = bridge->driver_private;
+	int ret;
+
+	ret = drm_atomic_bridge_choose_output_bus_cfg(bridge_state, crtc_state,
+						      conn_state);
+	if (ret)
+		return ret;
+
+	dev_dbg(hdmi->dev, "selected output format %x\n",
+			bridge_state->output_bus_cfg.fmt);
+
+	ret = drm_atomic_bridge_choose_input_bus_cfg(bridge_state, crtc_state,
+						      conn_state);
+	if (ret)
+		return ret;
+
+	dev_dbg(hdmi->dev, "selected input format %x\n",
+			bridge_state->input_bus_cfg.fmt);
+
+	return 0;
+}
+
 static int dw_hdmi_bridge_attach(struct drm_bridge *bridge)
 {
 	struct dw_hdmi *hdmi = bridge->driver_private;
@@ -2267,6 +2312,7 @@ static void dw_hdmi_bridge_enable(struct drm_bridge *bridge)
 
 static const struct drm_bridge_funcs dw_hdmi_bridge_funcs = {
 	.attach = dw_hdmi_bridge_attach,
+	.atomic_check = dw_hdmi_bridge_atomic_check,
 	.enable = dw_hdmi_bridge_enable,
 	.disable = dw_hdmi_bridge_disable,
 	.mode_set = dw_hdmi_bridge_mode_set,
@@ -2733,6 +2779,13 @@ __dw_hdmi_probe(struct platform_device *pdev,
 
 	hdmi->bridge.driver_private = hdmi;
 	hdmi->bridge.funcs = &dw_hdmi_bridge_funcs;
+	hdmi->bridge.input_bus_caps.supported_fmts = dw_hdmi_bus_fmts;
+	hdmi->bridge.input_bus_caps.num_supported_fmts =
+					ARRAY_SIZE(dw_hdmi_bus_fmts);
+	hdmi->bridge.output_bus_caps.supported_fmts = dw_hdmi_bus_fmts;
+	hdmi->bridge.output_bus_caps.num_supported_fmts =
+					ARRAY_SIZE(dw_hdmi_bus_fmts);
+
 #ifdef CONFIG_OF
 	hdmi->bridge.of_node = pdev->dev.of_node;
 #endif
