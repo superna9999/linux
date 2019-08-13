@@ -615,10 +615,12 @@ int drm_find_best_bus_format(const struct drm_bus_caps *a,
 	if (!a->num_supported_fmts && !b->num_supported_fmts) {
 		*selected_bus_fmt = 0;
 		return 0;
-	} else if (b->num_supported_fmts > 1 && b->supported_fmts) {
+	} else if (!a->num_supported_fmts &&
+		   b->num_supported_fmts > 1 && b->supported_fmts) {
 		*selected_bus_fmt = b->supported_fmts[0];
 		return 0;
-	} else if (a->num_supported_fmts > 1 && a->supported_fmts) {
+	} else if (!b->num_supported_fmts &&
+		   a->num_supported_fmts > 1 && a->supported_fmts) {
 		*selected_bus_fmt = a->supported_fmts[0];
 		return 0;
 	} else if (!a->num_supported_fmts || !a->supported_fmts ||
