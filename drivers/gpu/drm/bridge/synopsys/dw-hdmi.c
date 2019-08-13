@@ -1987,11 +1987,10 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	hdmi->hdmi_data.video_mode.mpixelrepetitionoutput = 0;
 	hdmi->hdmi_data.video_mode.mpixelrepetitioninput = 0;
 
-	/* TOFIX: Get input format from plat data or fallback to RGB888 */
 	if (hdmi->plat_data->input_bus_format)
 		hdmi->hdmi_data.enc_in_bus_format =
 			hdmi->plat_data->input_bus_format;
-	else
+	else if (hdmi->hdmi_data.enc_in_bus_format == MEDIA_BUS_FMT_FIXED)
 		hdmi->hdmi_data.enc_in_bus_format = MEDIA_BUS_FMT_RGB888_1X24;
 
 	/* TOFIX: Get input encoding from plat data or fallback to none */
@@ -2001,8 +2000,8 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	else
 		hdmi->hdmi_data.enc_in_encoding = V4L2_YCBCR_ENC_DEFAULT;
 
-	/* TOFIX: Default to RGB888 output format */
-	hdmi->hdmi_data.enc_out_bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+	if (hdmi->hdmi_data.enc_out_bus_format == MEDIA_BUS_FMT_FIXED)
+		hdmi->hdmi_data.enc_out_bus_format = MEDIA_BUS_FMT_RGB888_1X24;
 
 	hdmi->hdmi_data.pix_repet_factor = 0;
 	hdmi->hdmi_data.hdcp_enable = 0;
@@ -2227,6 +2226,240 @@ static const struct drm_connector_helper_funcs dw_hdmi_connector_helper_funcs = 
 	.get_modes = dw_hdmi_connector_get_modes,
 };
 
+static void dw_hdmi_bridge_atomic_get_output_bus_fmts(struct drm_bridge *bridge,
+					struct drm_bridge_state *bridge_state,
+					struct drm_crtc_state *crtc_state,
+					struct drm_connector_state *conn_state,
+					unsigned int *num_output_fmts,
+					u32 *output_fmts)
+{
+	struct drm_connector *conn = conn_state->connector;
+	struct drm_display_info *info = &conn->display_info;
+	struct drm_display_mode *mode = &crtc_state->mode;
+	bool is_hdmi2_sink = info->hdmi.scdc.supported;	
+	int i = 0;
+
+	/*
+	 * If the current mode enforces 4:2:0, force the output but format
+	 * to 4:2:0 and do not add the YUV422/444/RGB formats
+	 */
+	if (drm_mode_is_420_only(info, mode) ||
+	    (!is_hdmi2_sink && drm_mode_is_420_also(info, mode))) {
+
+		/* Order bus formats from 16bit to 8bit if supported */
+		if (info->bpc == 16 &&
+		    (info->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_48)) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_UYYVYY16_0_5X48;
+			++i;
+		}
+
+		if (info->bpc >= 12 &&
+		    (info->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_36)) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_UYYVYY12_0_5X36;
+			++i;
+		}
+
+		if (info->bpc >= 10 &&
+		    (info->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_30)) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_UYYVYY10_0_5X30;
+			++i;
+		}
+
+		/* Default 8bit fallback */
+		if (output_fmts)
+			output_fmts[i] = MEDIA_BUS_FMT_UYYVYY8_0_5X24;
+		++i;
+
+		*num_output_fmts = i;
+
+		return;
+	}
+
+	/*
+	 * Order bus formats from 16bit to 8bit and from YUV422 to RGB
+	 * if supported. In any case the default RGB888 format is added
+	 */
+
+	if (info->bpc == 16) {
+		if (info->color_formats & DRM_COLOR_FORMAT_YCRCB444) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_YUV16_1X48;
+			++i;
+		}
+
+		if (output_fmts)
+			output_fmts[i] = MEDIA_BUS_FMT_RGB161616_1X48;
+		++i;
+	}
+
+	if (info->bpc >= 12) {
+		if (info->color_formats & DRM_COLOR_FORMAT_YCRCB422) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_UYVY12_1X24;
+			++i;
+		}
+
+		if (info->color_formats & DRM_COLOR_FORMAT_YCRCB444) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_YUV12_1X36;
+			++i;
+		}
+
+		if (output_fmts)
+			output_fmts[i] = MEDIA_BUS_FMT_RGB121212_1X36;
+		++i;
+	}
+
+	if (info->bpc >= 10) {
+		if (info->color_formats & DRM_COLOR_FORMAT_YCRCB422) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_UYVY10_1X20;
+			++i;
+		}
+
+		if (info->color_formats & DRM_COLOR_FORMAT_YCRCB444) {
+			if (output_fmts)
+				output_fmts[i] = MEDIA_BUS_FMT_YUV10_1X30;
+			++i;
+		}
+
+		if (output_fmts)
+			output_fmts[i] = MEDIA_BUS_FMT_RGB101010_1X30;
+		++i;
+	}
+
+	if (info->color_formats & DRM_COLOR_FORMAT_YCRCB422) {
+		if (output_fmts)
+			output_fmts[i] = MEDIA_BUS_FMT_UYVY8_1X16;
+		++i;
+	}
+
+	if (info->color_formats & DRM_COLOR_FORMAT_YCRCB444) {
+		if (output_fmts)
+			output_fmts[i] = MEDIA_BUS_FMT_YUV8_1X24;
+		++i;
+	}
+
+	/* Default 8bit RGB fallback */
+	if (output_fmts)
+		output_fmts[i] = MEDIA_BUS_FMT_RGB888_1X24;
+	++i;
+
+	*num_output_fmts = i;
+}
+
+static void dw_hdmi_bridge_atomic_get_input_bus_fmts(struct drm_bridge *bridge,
+					struct drm_bridge_state *bridge_state,
+					struct drm_crtc_state *crtc_state,
+					struct drm_connector_state *conn_state,
+					u32 output_fmt,
+					unsigned int *num_input_fmts,
+					u32 *input_fmts)
+{
+	int i = 0;
+
+	switch (output_fmt) {
+		/* 8bit */
+		case MEDIA_BUS_FMT_RGB888_1X24:
+			if (input_fmts)
+				input_fmts[i] = MEDIA_BUS_FMT_RGB888_1X24;
+			++i;
+		/* Fallthrought */
+		case MEDIA_BUS_FMT_YUV8_1X24:
+			if (input_fmts)
+				input_fmts[i] = MEDIA_BUS_FMT_YUV8_1X24;
+			++i;
+			break;
+		case MEDIA_BUS_FMT_UYVY8_1X16:
+		/* Fallthrought */
+		case MEDIA_BUS_FMT_UYYVYY8_0_5X24:
+			if (input_fmts)
+				input_fmts[i] = output_fmt;
+			++i;
+			break;
+
+		/* 10bit */
+		case MEDIA_BUS_FMT_RGB101010_1X30:
+			if (input_fmts)
+				input_fmts[i] = output_fmt;
+			++i;
+		/* Fallthrought */
+		case MEDIA_BUS_FMT_YUV10_1X30:
+			if (input_fmts)
+				input_fmts[i] = MEDIA_BUS_FMT_YUV10_1X30;
+			++i;
+			break;
+		case MEDIA_BUS_FMT_UYVY10_1X20:
+		/* Fallthrought */
+		case MEDIA_BUS_FMT_UYYVYY10_0_5X30:
+			if (input_fmts)
+				input_fmts[i] = output_fmt;
+			++i;
+			break;
+
+		/* 12bit */
+		case MEDIA_BUS_FMT_RGB121212_1X36:
+			if (input_fmts)
+				input_fmts[i] = output_fmt;
+			++i;
+		/* Fallthrought */
+		case MEDIA_BUS_FMT_YUV12_1X36:
+			if (input_fmts)
+				input_fmts[i] = MEDIA_BUS_FMT_YUV12_1X36;
+			++i;
+			break;
+		case MEDIA_BUS_FMT_UYVY12_1X24:
+		/* Fallthrought */
+		case MEDIA_BUS_FMT_UYYVYY12_0_5X36:
+			if (input_fmts)
+				input_fmts[i] = output_fmt;
+			++i;
+			break;
+
+		/* 16bit */
+		case MEDIA_BUS_FMT_RGB161616_1X48:
+			if (input_fmts)
+				input_fmts[i] = output_fmt;
+			++i;
+		/* Fallthrought */
+		case MEDIA_BUS_FMT_YUV16_1X48:
+			if (input_fmts)
+				input_fmts[i] = MEDIA_BUS_FMT_YUV16_1X48;
+			++i;
+			break;
+		case MEDIA_BUS_FMT_UYYVYY16_0_5X48:
+			if (input_fmts)
+				input_fmts[i] = output_fmt;
+			++i;
+			break;
+	}
+
+	*num_input_fmts = i;
+}
+
+static int dw_hdmi_bridge_atomic_check(struct drm_bridge *bridge,
+				       struct drm_bridge_state *bridge_state,
+				       struct drm_crtc_state *crtc_state,
+				       struct drm_connector_state *conn_state)
+{
+	struct dw_hdmi *hdmi = bridge->driver_private;
+
+	dev_dbg(hdmi->dev, "selected output format %x\n",
+			bridge_state->output_bus_cfg.fmt);
+
+	hdmi->hdmi_data.enc_out_bus_format = bridge_state->output_bus_cfg.fmt;
+
+	dev_dbg(hdmi->dev, "selected input format %x\n",
+			bridge_state->input_bus_cfg.fmt);
+
+	hdmi->hdmi_data.enc_in_bus_format = bridge_state->input_bus_cfg.fmt;
+
+	return 0;
+}
+
 static int dw_hdmi_bridge_attach(struct drm_bridge *bridge)
 {
 	struct dw_hdmi *hdmi = bridge->driver_private;
@@ -2327,6 +2560,9 @@ static void dw_hdmi_bridge_enable(struct drm_bridge *bridge)
 static const struct drm_bridge_funcs dw_hdmi_bridge_funcs = {
 	.attach = dw_hdmi_bridge_attach,
 	.detach = dw_hdmi_bridge_detach,
+	.atomic_check = dw_hdmi_bridge_atomic_check,
+	.atomic_get_output_bus_fmts = dw_hdmi_bridge_atomic_get_output_bus_fmts,
+	.atomic_get_input_bus_fmts = dw_hdmi_bridge_atomic_get_input_bus_fmts,
 	.enable = dw_hdmi_bridge_enable,
 	.disable = dw_hdmi_bridge_disable,
 	.mode_set = dw_hdmi_bridge_mode_set,
@@ -2790,6 +3026,7 @@ __dw_hdmi_probe(struct platform_device *pdev,
 
 	hdmi->bridge.driver_private = hdmi;
 	hdmi->bridge.funcs = &dw_hdmi_bridge_funcs;
+
 #ifdef CONFIG_OF
 	hdmi->bridge.of_node = pdev->dev.of_node;
 #endif
