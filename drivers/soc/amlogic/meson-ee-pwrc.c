@@ -187,7 +187,7 @@ static struct meson_ee_pwrc_mem_domain sm1_pwrc_mem_audio[] = {
 	{ HHI_AUDIO_MEM_PD_REG0, GENMASK(27, 26) },
 };
 
-#define VPU_PD(__name, __resets, __clks, __top_pd, __mem, __get_power)	\
+#define VPU_PD(__name, __top_pd, __mem, __resets, __clks, __get_power)	\
 	{								\
 		.name = __name,						\
 		.reset_names_count = ARRAY_SIZE(__resets),		\
@@ -214,17 +214,15 @@ static struct meson_ee_pwrc_mem_domain sm1_pwrc_mem_audio[] = {
 static bool pwrc_vpu_get_power(struct meson_ee_pwrc_domain *pwrc_domain);
 
 static struct meson_ee_pwrc_domain_desc g12a_pwrc_domains[] = {
-	[PWRC_G12A_VPU_ID]  = VPU_PD("VPU", g12a_pwrc_vpu_resets,
-				     g12a_pwrc_vpu_clks, &g12a_pwrc_vpu,
-				     g12a_pwrc_mem_vpu,
+	[PWRC_G12A_VPU_ID]  = VPU_PD("VPU", &g12a_pwrc_vpu, g12a_pwrc_mem_vpu,
+				     g12a_pwrc_vpu_resets, g12a_pwrc_vpu_clks,
 				     pwrc_vpu_get_power),
 	[PWRC_G12A_ETH_ID] = MEM_PD("ETH", g12a_pwrc_mem_eth),
 };
 
 static struct meson_ee_pwrc_domain_desc sm1_pwrc_domains[] = {
-	[PWRC_SM1_VPU_ID]  = VPU_PD("VPU", g12a_pwrc_vpu_resets,
-				    g12a_pwrc_vpu_clks, &sm1_pwrc_vpu,
-				    sm1_pwrc_mem_vpu,
+	[PWRC_SM1_VPU_ID]  = VPU_PD("VPU", &sm1_pwrc_vpu, sm1_pwrc_mem_vpu,
+				    g12a_pwrc_vpu_resets, g12a_pwrc_vpu_clks,
 				    pwrc_vpu_get_power),
 	[PWRC_SM1_NNA_ID]  = TOP_PD("NNA", &sm1_pwrc_nna, sm1_pwrc_mem_nna),
 	[PWRC_SM1_USB_ID]  = TOP_PD("USB", &sm1_pwrc_usb, sm1_pwrc_mem_usb),
@@ -404,10 +402,10 @@ static int meson_ee_pwrc_on(struct generic_pm_domain *domain)
 }
 
 static int meson_ee_pwrc_init_domain(struct platform_device *pdev,
-				     struct meson_ee_pwrc *sm1_pwrc,
+				     struct meson_ee_pwrc *pwrc,
 				     struct meson_ee_pwrc_domain *dom)
 {
-	dom->pwrc = sm1_pwrc;
+	dom->pwrc = pwrc;
 	dom->num_rstc = dom->desc.reset_names_count;
 	dom->num_clks = dom->desc.clk_names_count;
 
@@ -415,14 +413,15 @@ static int meson_ee_pwrc_init_domain(struct platform_device *pdev,
 		int rst;
 
 		dom->rstc = devm_kcalloc(&pdev->dev, dom->num_rstc,
-				sizeof(struct reset_control *),	GFP_KERNEL);
+					 sizeof(struct reset_control *),
+					 GFP_KERNEL);
 		if (!dom->rstc)
 			return -ENOMEM;
 
 		for (rst = 0 ; rst < dom->num_rstc ; ++rst) {
 			dom->rstc[rst] = devm_reset_control_get_exclusive(
-					&pdev->dev,
-					dom->desc.reset_names[rst]);
+						&pdev->dev,
+						dom->desc.reset_names[rst]);
 			if (IS_ERR(dom->rstc[rst]))
 				return PTR_ERR(dom->rstc[rst]);
 		}
@@ -438,7 +437,7 @@ static int meson_ee_pwrc_init_domain(struct platform_device *pdev,
 
 		for (clk = 0 ; clk < dom->num_clks ; ++clk) {
 			dom->clks[clk] = devm_clk_get(&pdev->dev,
-					dom->desc.clk_names[clk]);
+						      dom->desc.clk_names[clk]);
 			if (IS_ERR(dom->clks[clk]))
 				return PTR_ERR(dom->clks[clk]);
 		}
@@ -448,10 +447,23 @@ static int meson_ee_pwrc_init_domain(struct platform_device *pdev,
 	dom->base.power_on = meson_ee_pwrc_on;
 	dom->base.power_off = meson_ee_pwrc_off;
 
-	if (dom->desc.get_power) {
-		bool powered_off = dom->desc.get_power(dom);
-		pm_genpd_init(&dom->base, &pm_domain_always_on_gov,
-			      powered_off);
+	/*
+	 * This is a special case for the VPU power domain, which can be
+	 * enabled previously by the bootloader. In this case the VPU
+	 * pipeline may be functional but no driver maybe never attach
+	 * to this power domain, and if the domain is disabled it could
+	 * cause system errors. This is why the pm_domain_always_on_gov
+	 * is used here.
+	 * For the same reason, the clocks should be enabled in case
+	 * we need to power the domain off, otherwise the internal clocks
+	 * prepare/enable counters won't be in sync.
+	 */
+	if (dom->desc.get_power && !dom->desc.get_power(dom)) {
+		int ret = meson_ee_clk_enable(dom);
+		if (ret)
+			return ret;
+
+		pm_genpd_init(&dom->base, &pm_domain_always_on_gov, false);
 	} else
 		pm_genpd_init(&dom->base, NULL, true);
 
@@ -462,7 +474,7 @@ static int meson_ee_pwrc_probe(struct platform_device *pdev)
 {
 	const struct meson_ee_pwrc_domain_data *match;
 	struct regmap *regmap_ao, *regmap_hhi;
-	struct meson_ee_pwrc *sm1_pwrc;
+	struct meson_ee_pwrc *pwrc;
 	int i, ret;
 
 	match = of_device_get_match_data(&pdev->dev);
@@ -471,27 +483,22 @@ static int meson_ee_pwrc_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	sm1_pwrc = devm_kzalloc(&pdev->dev, sizeof(*sm1_pwrc), GFP_KERNEL);
-	if (!sm1_pwrc)
+	pwrc = devm_kzalloc(&pdev->dev, sizeof(*pwrc), GFP_KERNEL);
+	if (!pwrc)
 		return -ENOMEM;
 
-	sm1_pwrc->xlate.domains =
-		devm_kcalloc(&pdev->dev,
-			     match->count,
-			     sizeof(*sm1_pwrc->xlate.domains),
-			     GFP_KERNEL);
-	if (!sm1_pwrc->xlate.domains)
+	pwrc->xlate.domains = devm_kcalloc(&pdev->dev, match->count,
+					   sizeof(*pwrc->xlate.domains),
+					   GFP_KERNEL);
+	if (!pwrc->xlate.domains)
 		return -ENOMEM;
 
-	sm1_pwrc->domains =
-		devm_kcalloc(&pdev->dev,
-			     match->count,
-			     sizeof(*sm1_pwrc->domains),
-			     GFP_KERNEL);
-	if (!sm1_pwrc->domains)
+	pwrc->domains = devm_kcalloc(&pdev->dev, match->count,
+				     sizeof(*pwrc->domains), GFP_KERNEL);
+	if (!pwrc->domains)
 		return -ENOMEM;
 
-	sm1_pwrc->xlate.num_domains = match->count;
+	pwrc->xlate.num_domains = match->count;
 
 	regmap_hhi = syscon_node_to_regmap(of_get_parent(pdev->dev.of_node));
 	if (IS_ERR(regmap_hhi)) {
@@ -506,26 +513,39 @@ static int meson_ee_pwrc_probe(struct platform_device *pdev)
 		return PTR_ERR(regmap_ao);
 	}
 
-	sm1_pwrc->regmap_ao = regmap_ao;
-	sm1_pwrc->regmap_hhi = regmap_hhi;
+	pwrc->regmap_ao = regmap_ao;
+	pwrc->regmap_hhi = regmap_hhi;
 
-	platform_set_drvdata(pdev, sm1_pwrc);
+	platform_set_drvdata(pdev, pwrc);
 
 	for (i = 0 ; i < match->count ; ++i) {
-		struct meson_ee_pwrc_domain *dom = &sm1_pwrc->domains[i];
+		struct meson_ee_pwrc_domain *dom = &pwrc->domains[i];
 
 		memcpy(&dom->desc, &match->domains[i], sizeof(dom->desc));
 
-		ret = meson_ee_pwrc_init_domain(pdev, sm1_pwrc, dom);
+		ret = meson_ee_pwrc_init_domain(pdev, pwrc, dom);
 		if (ret)
 			return ret;
 
-		sm1_pwrc->xlate.domains[i] = &dom->base;
+		pwrc->xlate.domains[i] = &dom->base;
 	}
 
-	of_genpd_add_provider_onecell(pdev->dev.of_node, &sm1_pwrc->xlate);
+	of_genpd_add_provider_onecell(pdev->dev.of_node, &pwrc->xlate);
 
 	return 0;
+}
+
+static void meson_ee_pwrc_shutdown(struct platform_device *pdev)
+{
+	struct meson_ee_pwrc *pwrc = platform_get_drvdata(pdev);
+	int i;
+
+	for (i = 0 ; i < pwrc->xlate.num_domains ; ++i) {
+		struct meson_ee_pwrc_domain *dom = &pwrc->domains[i];
+
+		if (dom->desc.get_power && !dom->desc.get_power(dom))
+			meson_ee_pwrc_off(&dom->base);
+	}
 }
 
 static struct meson_ee_pwrc_domain_data meson_ee_g12a_pwrc_data = {
@@ -551,7 +571,8 @@ static const struct of_device_id meson_ee_pwrc_match_table[] = {
 };
 
 static struct platform_driver meson_ee_pwrc_driver = {
-	.probe	= meson_ee_pwrc_probe,
+	.probe = meson_ee_pwrc_probe,
+	.shutdown = meson_ee_pwrc_shutdown,
 	.driver = {
 		.name		= "meson_ee_pwrc",
 		.of_match_table	= meson_ee_pwrc_match_table,
