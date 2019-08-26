@@ -4990,6 +4990,19 @@ static int meson_g12b_dvfs_setup(struct platform_device *pdev)
 	return 0;
 }
 
+static int meson_g12b_resume(struct device *dev)
+{
+	u32 ret;
+
+	ret = clk_invalidate_rate(
+			__clk_lookup(clk_hw_get_name(&g12b_cpu_clk.hw)));
+	if (ret)
+		return ret;
+
+	return clk_invalidate_rate(
+			__clk_lookup(clk_hw_get_name(&g12b_cpub_clk.hw)));
+}
+
 static int meson_g12a_dvfs_setup(struct platform_device *pdev)
 {
 	struct clk_hw **hws = g12a_hw_onecell_data.hws;
@@ -5022,30 +5035,64 @@ static int meson_g12a_dvfs_setup(struct platform_device *pdev)
 	return 0;
 }
 
+static int meson_g12a_resume(struct device *dev)
+{
+	return clk_invalidate_rate(
+			__clk_lookup(clk_hw_get_name(&g12a_cpu_clk.hw)));
+}
+
 struct meson_g12a_data {
 	const struct meson_eeclkc_data eeclkc_data;
 	int (*dvfs_setup)(struct platform_device *pdev);
+	int (*resume)(struct device *dev);
 };
+
+static const struct
+meson_g12a_data *meson_g12a_get_data(struct device *dev)
+{
+	const struct meson_eeclkc_data *eeclkc_data =
+			of_device_get_match_data(dev);
+
+	if (!eeclkc_data)
+		return ERR_PTR(-EINVAL);
+
+	return container_of(eeclkc_data, struct meson_g12a_data,
+			    eeclkc_data);
+}
 
 static int meson_g12a_probe(struct platform_device *pdev)
 {
-	const struct meson_eeclkc_data *eeclkc_data;
-	const struct meson_g12a_data *g12a_data;
 	int ret;
+	const struct meson_g12a_data *g12a_data =
+			meson_g12a_get_data(&pdev->dev);
 
-	eeclkc_data = of_device_get_match_data(&pdev->dev);
-	if (!eeclkc_data)
-		return -EINVAL;
+	if (IS_ERR(g12a_data))
+		return PTR_ERR(g12a_data);
 
 	ret = meson_eeclkc_probe(pdev);
 	if (ret)
 		return ret;
 
-	g12a_data = container_of(eeclkc_data, struct meson_g12a_data,
-				 eeclkc_data);
-
 	if (g12a_data->dvfs_setup)
 		return g12a_data->dvfs_setup(pdev);
+
+	return 0;
+}
+
+static int __maybe_unused g12a_clkc_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int __maybe_unused g12a_clkc_resume(struct device *dev)
+{
+	const struct meson_g12a_data *g12a_data = meson_g12a_get_data(dev);
+
+	if (IS_ERR(g12a_data))
+		return PTR_ERR(g12a_data);
+
+	if (g12a_data->resume)
+		return g12a_data->resume(dev);
 
 	return 0;
 }
@@ -5059,6 +5106,7 @@ static const struct meson_g12a_data g12a_clkc_data = {
 		.init_count = ARRAY_SIZE(g12a_init_regs),
 	},
 	.dvfs_setup = meson_g12a_dvfs_setup,
+	.resume = meson_g12a_resume,
 };
 
 static const struct meson_g12a_data g12b_clkc_data = {
@@ -5068,6 +5116,7 @@ static const struct meson_g12a_data g12b_clkc_data = {
 		.hw_onecell_data = &g12b_hw_onecell_data,
 	},
 	.dvfs_setup = meson_g12b_dvfs_setup,
+	.resume = meson_g12b_resume,
 };
 
 static const struct meson_g12a_data sm1_clkc_data = {
@@ -5077,6 +5126,11 @@ static const struct meson_g12a_data sm1_clkc_data = {
 		.hw_onecell_data = &sm1_hw_onecell_data,
 	},
 	.dvfs_setup = meson_g12a_dvfs_setup,
+	.resume = meson_g12a_resume,
+};
+
+static const struct dev_pm_ops g12a_clkc_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(g12a_clkc_suspend, g12a_clkc_resume)
 };
 
 static const struct of_device_id clkc_match_table[] = {
@@ -5100,6 +5154,7 @@ static struct platform_driver g12a_driver = {
 	.driver		= {
 		.name	= "g12a-clkc",
 		.of_match_table = clkc_match_table,
+		.pm	= &g12a_clkc_dev_pm_ops,
 	},
 };
 
