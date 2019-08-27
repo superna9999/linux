@@ -2534,63 +2534,6 @@ int clk_set_parent(struct clk *clk, struct clk *parent)
 }
 EXPORT_SYMBOL_GPL(clk_set_parent);
 
-/**
- * __clk_invalidate_tree
- * @core: first clk in the subtree
- *
- * Walks the subtree of clks starting with clk and recalculates the parents,
- * then accuracies and rates as it goes.
- */
-static int __clk_invalidate_tree(struct clk_core *core)
-{
-	int ret;
-
-	core->parent = __clk_init_parent(core);
-
-	if (core->parent) {
-		ret = __clk_invalidate_tree(core->parent);
-		return ret;
-	}
-
-	__clk_recalc_accuracies(core);
-	__clk_recalc_rates(core, 0);
-
-	return 0;
-}
-
-static int clk_core_invalidate_rate(struct clk_core *core)
-{
-	int ret;
-
-	clk_prepare_lock();
-
-	ret = __clk_invalidate_tree(core);
-
-	clk_prepare_unlock();
-
-	return ret;
-}
-
-/**
- * clk_invalidate_rate - invalidate and recalc rate of the clock and it's tree
- * @clk: the clk whose rate is too be invalidated
- *
- * If it's known the actual hardware state of a clock tree has changed,
- * this call will invalidate the cached rate of the clk and it's possible
- * parents tree to permit recalculation of the actual rate.
- *
- * Returns 0 on success, -EERROR otherwise.
- * If clk is NULL then returns 0.
- */
-int clk_invalidate_rate(struct clk *clk)
-{
-	if (!clk)
-		return 0;
-
-	return clk_core_invalidate_rate(clk->core);
-}
-EXPORT_SYMBOL_GPL(clk_invalidate_rate);
-
 static int clk_core_set_phase_nolock(struct clk_core *core, int degrees)
 {
 	int ret = -EINVAL;
