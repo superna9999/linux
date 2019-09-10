@@ -100,6 +100,8 @@
 #define USB2_OTG_PHY						1
 
 struct dwc3_meson_data {
+	bool otg_phy_start_as_device;
+	bool otg_phy_needs_power_toggle;
 	u8 num_u2p_registers;
 	u8 usb_glue_reg_offset;
 	int num_phys;
@@ -223,6 +225,11 @@ static void dwc3_meson_g12a_usb3_init(struct dwc3_meson_g12a *priv)
 static void dwc3_meson_g12a_usb_otg_apply_mode(struct dwc3_meson_g12a *priv)
 {
 	if (priv->otg_phy_mode == PHY_MODE_USB_DEVICE) {
+		/* Isolate the OTG PHY port from the Host Controller */
+		regmap_update_bits(priv->usb_glue_regmap, USB_R1,
+				USB_R1_U3H_HOST_U2_PORT_DISABLE_MASK,
+				FIELD_PREP(USB_R1_U3H_HOST_U2_PORT_DISABLE_MASK,
+					   BIT(USB2_OTG_PHY)));
 		regmap_update_bits(priv->usb_glue_regmap, USB_R0,
 				USB_R0_U2D_ACT, USB_R0_U2D_ACT);
 		regmap_update_bits(priv->usb_glue_regmap, USB_R0,
@@ -230,6 +237,9 @@ static void dwc3_meson_g12a_usb_otg_apply_mode(struct dwc3_meson_g12a *priv)
 		regmap_update_bits(priv->usb_glue_regmap, USB_R4,
 				USB_R4_P21_SLEEP_M0, USB_R4_P21_SLEEP_M0);
 	} else {
+		regmap_update_bits(priv->usb_glue_regmap, USB_R1,
+				USB_R1_U3H_HOST_U2_PORT_DISABLE_MASK, 0);
+		msleep(500);
 		regmap_update_bits(priv->usb_glue_regmap, USB_R0,
 				USB_R0_U2D_ACT, 0);
 		regmap_update_bits(priv->usb_glue_regmap, USB_R4,
@@ -338,11 +348,11 @@ static int dwc3_meson_g12a_otg_mode_set(struct dwc3_meson_g12a *priv,
 
 	priv->otg_phy_mode = mode;
 
+	dwc3_meson_g12a_usb_otg_apply_mode(priv);
+
 	ret = dwc3_meson_g12a_usb2_set_mode(priv, USB2_OTG_PHY, mode);
 	if (ret)
 		return ret;
-
-	dwc3_meson_g12a_usb_otg_apply_mode(priv);
 
 	return 0;
 }
@@ -383,7 +393,8 @@ static irqreturn_t dwc3_meson_g12a_irq_thread(int irq, void *data)
 			dev_warn(priv->dev, "Failed to switch OTG mode\n");
 	}
 
-	regmap_update_bits(priv->regmap, USB_R5, USB_R5_ID_DIG_IRQ, 0);
+	regmap_update_bits(priv->usb_glue_regmap, USB_R5,
+			   USB_R5_ID_DIG_IRQ, 0);
 
 	return IRQ_HANDLED;
 }
@@ -503,7 +514,7 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
 
 	if (priv->otg_mode == USB_DR_MODE_OTG) {
 		/* Ack irq before registering */
-		regmap_update_bits(priv->regmap, USB_R5,
+		regmap_update_bits(priv->usb_glue_regmap, USB_R5,
 				   USB_R5_ID_DIG_IRQ, 0);
 
 		irq = platform_get_irq(pdev, 0);
@@ -515,6 +526,14 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
 	}
 
 	dwc3_meson_g12a_usb_init(priv);
+
+	/* On GXL/GXM, PHY must be started in device mode for DWC2 init */
+	if (priv->data->otg_phy_start_as_device) {
+		ret = phy_set_mode(priv->phys[USB2_OTG_PHY],
+				   PHY_MODE_USB_DEVICE);
+		if (ret)
+			return ret;
+	}
 
 	/* Init PHYs */
 	for (i = 0 ; i < PHY_COUNT ; ++i) {
@@ -534,6 +553,19 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
 	if (ret) {
 		clk_disable_unprepare(priv->clk);
 		goto err_phys_power;
+	}
+
+	/* Set PHY modes */
+	for (i = 0 ; i < PHY_COUNT ; ++i) {
+		enum phy_mode mode = (i == USB2_OTG_PHY ? priv->otg_phy_mode
+							: PHY_MODE_USB_HOST);
+
+		if (i == USB2_OTG_PHY && mode == PHY_MODE_USB_HOST)
+			mode = PHY_MODE_USB_OTG;
+
+		ret = phy_set_mode(priv->phys[i], mode);
+		if (ret)
+			goto err_phys_power;
 	}
 
 	/* Setup OTG mode corresponding to the ID pin */
@@ -672,6 +704,7 @@ static const struct dev_pm_ops dwc3_meson_g12a_dev_pm_ops = {
 };
 
 static const struct dwc3_meson_data dwc3_meson_gxl_data = {
+	.otg_phy_start_as_device = true,
 	.num_u2p_registers = 0,
 	.usb_glue_reg_offset = 0x00,
 	.num_phys = 2,
@@ -679,6 +712,7 @@ static const struct dwc3_meson_data dwc3_meson_gxl_data = {
 };
 
 static const struct dwc3_meson_data dwc3_meson_gxm_data = {
+	.otg_phy_start_as_device = true,
 	.num_u2p_registers = 0,
 	.usb_glue_reg_offset = 0x00,
 	.num_phys = 3,
