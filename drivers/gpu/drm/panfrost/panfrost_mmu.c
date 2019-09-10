@@ -367,7 +367,7 @@ int panfrost_mmu_init(struct panfrost_device *pfdev)
 
 	pfdev->mmu->pgtbl_cfg = (struct io_pgtable_cfg) {
 		.pgsize_bitmap	= SZ_4K | SZ_2M,
-		.ias		= FIELD_GET(0xff, pfdev->features.mmu_features),
+		.ias		= 48, /* Force 48 until we handle 33bit ias */
 		.oas		= FIELD_GET(0xff00, pfdev->features.mmu_features),
 		.tlb		= &mmu_tlb_ops,
 		.iommu_dev	= pfdev->dev,
