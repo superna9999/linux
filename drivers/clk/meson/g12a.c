@@ -131,8 +131,6 @@ static struct clk_regmap g12a_sys_pll_dco = {
 			.fw_name = "xtal",
 		},
 		.num_parents = 1,
-		/* This clock feeds the CPU, avoid disabling it */
-		.flags = CLK_IS_CRITICAL,
 	},
 };
 
@@ -497,7 +495,7 @@ static struct clk_regmap g12a_cpu_clk = {
 			&g12a_sys_pll.hw,
 		},
 		.num_parents = 2,
-		.flags = CLK_SET_RATE_PARENT,
+		.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
 	},
 };
 
@@ -517,7 +515,7 @@ static struct clk_regmap g12b_cpu_clk = {
 			&g12b_sys1_pll.hw
 		},
 		.num_parents = 2,
-		.flags = CLK_SET_RATE_PARENT,
+		.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
 	},
 };
 
@@ -681,7 +679,7 @@ static struct clk_regmap g12b_cpub_clk = {
 			&g12a_sys_pll.hw
 		},
 		.num_parents = 2,
-		.flags = CLK_SET_RATE_PARENT,
+		.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
 	},
 };
 
