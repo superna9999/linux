@@ -386,13 +386,21 @@ static void panfrost_job_timedout(struct drm_sched_job *sched_job)
 
 	mutex_lock(&pfdev->reset_lock);
 
+	if (pfdev->is_resetting) {
+		mutex_unlock(&pfdev->reset_lock);
+		return;
+	}
+	pfdev->is_resetting = true;
+
+	mutex_unlock(&pfdev->reset_lock);
+
 	for (i = 0; i < NUM_JOB_SLOTS; i++)
 		drm_sched_stop(&pfdev->js->queue[i].sched, sched_job);
 
 	if (sched_job)
 		drm_sched_increase_karma(sched_job);
 
-	/* panfrost_core_dump(pfdev); */
+	mutex_lock(&pfdev->reset_lock);
 
 	panfrost_devfreq_record_transition(pfdev, js);
 	panfrost_gpu_soft_reset(pfdev);
@@ -409,6 +417,7 @@ static void panfrost_job_timedout(struct drm_sched_job *sched_job)
 	for (i = 0; i < NUM_JOB_SLOTS; i++)
 		drm_sched_start(&pfdev->js->queue[i].sched, true);
 
+	pfdev->is_resetting = false;
 	mutex_unlock(&pfdev->reset_lock);
 }
 

@@ -91,6 +91,8 @@ struct panfrost_device {
 		unsigned long cur_volt;
 		struct panfrost_devfreq_slot slot[NUM_JOB_SLOTS];
 	} devfreq;
+
+	bool is_resetting;
 };
 
 struct panfrost_file_priv {

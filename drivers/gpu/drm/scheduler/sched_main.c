@@ -414,7 +414,10 @@ void drm_sched_stop(struct drm_gpu_scheduler *sched, struct drm_sched_job *bad)
 	 * this TDR finished and before the newly restarted jobs had a
 	 * chance to complete.
 	 */
-	cancel_delayed_work(&sched->work_tdr);
+	if (bad->sched != sched)
+		cancel_delayed_work_sync(&sched->work_tdr);
+	else
+		cancel_delayed_work(&sched->work_tdr);
 }
 
 EXPORT_SYMBOL(drm_sched_stop);
