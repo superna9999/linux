@@ -7,6 +7,7 @@
  */
 
 #include <linux/export.h>
+#include <linux/bitfield.h>
 
 #include "meson_drv.h"
 #include "meson_viu.h"
@@ -333,6 +334,57 @@ void meson_viu_osd1_reset(struct meson_drm *priv)
 
 	/* Reload the conversion matrix */
 	meson_viu_load_matrix(priv);
+}
+
+void meson_viu_g12a_enable_osd1_afbc(struct meson_drm *priv)
+{
+	/* Enable Mali AFBC Unpack */
+	writel_bits_relaxed(VIU_OSD1_MALI_UNPACK_EN,
+			    VIU_OSD1_MALI_UNPACK_EN,
+			    priv->io_base + _REG(VIU_OSD1_MALI_UNPACK_CTRL));
+
+	/* Setup RGBA Reordering */
+	writel_bits_relaxed(VIU_OSD1_MALI_AFBCD_A_REORDER |
+			    VIU_OSD1_MALI_AFBCD_B_REORDER |
+			    VIU_OSD1_MALI_AFBCD_G_REORDER |
+			    VIU_OSD1_MALI_AFBCD_R_REORDER,
+			    FIELD_PREP(VIU_OSD1_MALI_AFBCD_A_REORDER,
+				       VIU_OSD1_MALI_REORDER_A) |
+			    FIELD_PREP(VIU_OSD1_MALI_AFBCD_B_REORDER,
+				       VIU_OSD1_MALI_REORDER_B) |
+			    FIELD_PREP(VIU_OSD1_MALI_AFBCD_G_REORDER,
+				       VIU_OSD1_MALI_REORDER_G) |
+			    FIELD_PREP(VIU_OSD1_MALI_AFBCD_R_REORDER,
+				       VIU_OSD1_MALI_REORDER_R),
+			    priv->io_base + _REG(VIU_OSD1_MALI_UNPACK_CTRL));
+
+	/* Select AFBCD path for OSD1 */
+	writel_bits_relaxed(OSD_PATH_OSD_AXI_SEL_OSD1_AFBCD,
+			    OSD_PATH_OSD_AXI_SEL_OSD1_AFBCD,
+			    priv->io_base + _REG(OSD_PATH_MISC_CTRL));
+}
+
+void meson_viu_g12a_disable_osd1_afbc(struct meson_drm *priv)
+{
+	/* Disable AFBCD path for OSD1 */
+	writel_bits_relaxed(OSD_PATH_OSD_AXI_SEL_OSD1_AFBCD, 0,
+			    priv->io_base + _REG(OSD_PATH_MISC_CTRL));
+
+	/* Disable AFBCD unpack */
+	writel_bits_relaxed(VIU_OSD1_MALI_UNPACK_EN, 0,
+			    priv->io_base + _REG(VIU_OSD1_MALI_UNPACK_CTRL));
+}
+
+void meson_viu_gxm_enable_osd1_afbc(struct meson_drm *priv)
+{
+	writel_bits_relaxed(MALI_AFBC_MISC, FIELD_PREP(MALI_AFBC_MISC, 0x90),
+			    priv->io_base + _REG(VIU_MISC_CTRL1));
+}
+
+void meson_viu_gxm_disable_osd1_afbc(struct meson_drm *priv)
+{
+	writel_bits_relaxed(MALI_AFBC_MISC, FIELD_PREP(MALI_AFBC_MISC, 0x00),
+			    priv->io_base + _REG(VIU_MISC_CTRL1));
 }
 
 static inline uint32_t meson_viu_osd_burst_length_reg(uint32_t length)
