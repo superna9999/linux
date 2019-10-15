@@ -23,6 +23,7 @@
 #include "meson_registers.h"
 #include "meson_venc.h"
 #include "meson_viu.h"
+#include "meson_rdma.h"
 #include "meson_vpp.h"
 #include "meson_osd_afbcd.h"
 
@@ -39,8 +40,6 @@ struct meson_crtc {
 	void (*enable_osd1_afbc)(struct meson_drm *priv);
 	void (*disable_osd1_afbc)(struct meson_drm *priv);
 	unsigned int viu_offset;
-	bool vsync_forced;
-	bool vsync_disabled;
 };
 #define to_meson_crtc(x) container_of(x, struct meson_crtc, base)
 
@@ -51,7 +50,6 @@ static int meson_crtc_enable_vblank(struct drm_crtc *crtc)
 	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
 	struct meson_drm *priv = meson_crtc->priv;
 
-	meson_crtc->vsync_disabled = false;
 	meson_venc_enable_vsync(priv);
 
 	return 0;
@@ -62,10 +60,7 @@ static void meson_crtc_disable_vblank(struct drm_crtc *crtc)
 	struct meson_crtc *meson_crtc = to_meson_crtc(crtc);
 	struct meson_drm *priv = meson_crtc->priv;
 
-	if (!meson_crtc->vsync_forced) {
-		meson_crtc->vsync_disabled = true;
-		meson_venc_disable_vsync(priv);
-	}
+	meson_venc_disable_vsync(priv);
 }
 
 static const struct drm_crtc_funcs meson_crtc_funcs = {
@@ -368,10 +363,11 @@ void meson_crtc_irq(struct meson_drm *priv)
 		if (meson_crtc->enable_osd1)
 			meson_crtc->enable_osd1(priv);
 
-		if (priv->viu.osd1_afbcd)
-			meson_crtc->vsync_forced = true;
-		else
-			meson_crtc->vsync_forced = false;
+		if (priv->viu.osd1_afbcd) {
+			priv->afbcd.ops->reset(priv);
+			priv->afbcd.ops->setup(priv);
+			priv->afbcd.ops->enable(priv);
+		}
 
 		priv->viu.osd1_commit = false;
 	}
@@ -594,15 +590,6 @@ void meson_crtc_irq(struct meson_drm *priv)
 
 		priv->viu.vd1_commit = false;
 	}
-
-	if (meson_crtc->vsync_forced && priv->viu.osd1_afbcd) {
-		priv->afbcd.ops->reset(priv);
-		priv->afbcd.ops->setup(priv);
-		priv->afbcd.ops->enable(priv);
-	}
-
-	if (meson_crtc->vsync_disabled)
-		return;
 
 	drm_crtc_handle_vblank(priv->crtc);
 
