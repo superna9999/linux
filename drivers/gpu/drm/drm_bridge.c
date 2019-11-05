@@ -255,8 +255,7 @@ bool drm_bridge_chain_mode_fixup(struct drm_bridge *bridge,
 		return true;
 
 	encoder = bridge->encoder;
-	list_for_each_entry_from(bridge, &encoder->bridge_chain,
-				 chain_node) {
+	list_for_each_entry_from(bridge, &encoder->bridge_chain, chain_node) {
 		if (!bridge->funcs->mode_fixup)
 			continue;
 
@@ -466,8 +465,7 @@ void drm_atomic_bridge_chain_disable(struct drm_bridge *bridge,
 		return;
 
 	encoder = bridge->encoder;
-	list_for_each_entry_reverse(iter, &encoder->bridge_chain,
-				    chain_node) {
+	list_for_each_entry_reverse(iter, &encoder->bridge_chain, chain_node) {
 		if (iter->funcs->atomic_disable) {
 			struct drm_bridge_state *old_bridge_state;
 
@@ -510,8 +508,7 @@ void drm_atomic_bridge_chain_post_disable(struct drm_bridge *bridge,
 		return;
 
 	encoder = bridge->encoder;
-	list_for_each_entry_from(bridge, &encoder->bridge_chain,
-				 chain_node) {
+	list_for_each_entry_from(bridge, &encoder->bridge_chain, chain_node) {
 		if (bridge->funcs->atomic_post_disable) {
 			struct drm_bridge_state *old_bridge_state;
 
@@ -553,8 +550,7 @@ void drm_atomic_bridge_chain_pre_enable(struct drm_bridge *bridge,
 		return;
 
 	encoder = bridge->encoder;
-	list_for_each_entry_reverse(iter, &bridge->encoder->bridge_chain,
-				    chain_node) {
+	list_for_each_entry_reverse(iter, &encoder->bridge_chain, chain_node) {
 		if (iter->funcs->atomic_pre_enable) {
 			struct drm_bridge_state *old_bridge_state;
 
@@ -596,8 +592,7 @@ void drm_atomic_bridge_chain_enable(struct drm_bridge *bridge,
 		return;
 
 	encoder = bridge->encoder;
-	list_for_each_entry_from(bridge, &bridge->encoder->bridge_chain,
-				 chain_node) {
+	list_for_each_entry_from(bridge, &encoder->bridge_chain, chain_node) {
 		if (bridge->funcs->atomic_enable) {
 			struct drm_bridge_state *old_bridge_state;
 

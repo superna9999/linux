@@ -718,8 +718,8 @@ drm_atomic_get_bridge_state(struct drm_atomic_state *state,
 	struct drm_private_state *obj_state;
 
 	obj_state = drm_atomic_get_private_obj_state(state, &bridge->base);
-	if (!obj_state)
-		return NULL;
+	if (IS_ERR(obj_state))
+		return ERR_CAST(obj_state);
 
 	return drm_priv_to_bridge_state(obj_state);
 }
