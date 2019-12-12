@@ -189,7 +189,8 @@ static int vdec_queue_setup(struct vb2_queue *q, unsigned int *num_buffers,
 			    struct device *alloc_devs[])
 {
 	struct amvdec_session *sess = vb2_get_drv_priv(q);
-	u32 output_size = amvdec_get_output_size(sess);
+	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+	u32 output_size = codec_ops->get_output_size(sess);
 
 	if (*num_planes) {
 		switch (q->type) {
