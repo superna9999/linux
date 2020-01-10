@@ -50,7 +50,7 @@ MODULE_DESCRIPTION("Virtual Video Test Driver");
 MODULE_AUTHOR("Hans Verkuil");
 MODULE_LICENSE("GPL");
 
-static unsigned n_devs = 1;
+static unsigned n_devs = 3;
 module_param(n_devs, uint, 0444);
 MODULE_PARM_DESC(n_devs, " number of driver instances to create");
 
@@ -106,7 +106,7 @@ MODULE_PARM_DESC(ccs_out_mode, " output crop/compose/scale mode:\n"
 			   "\t\t    bit 0=crop, 1=compose, 2=scale,\n"
 			   "\t\t    -1=user-controlled (default)");
 
-static unsigned multiplanar[VIVID_MAX_DEVS] = { [0 ... (VIVID_MAX_DEVS - 1)] = 1 };
+static unsigned multiplanar[VIVID_MAX_DEVS] = { 1, 2, 2, [3 ... (VIVID_MAX_DEVS - 1)] = 1 };
 module_param_array(multiplanar, uint, NULL, 0444);
 MODULE_PARM_DESC(multiplanar, " 1 (default) creates a single planar device, 2 creates a multiplanar device.");
 
