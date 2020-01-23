@@ -743,7 +743,7 @@ drm_atomic_bridge_chain_select_bus_fmts(struct drm_bridge *bridge,
 		 * If the driver implements ->atomic_get_output_bus_fmts() it
 		 * should also implement the atomic state hooks.
 		 */
-		if (WARN_ON(last_bridge_state))
+		if (WARN_ON(!last_bridge_state))
 			return -EINVAL;
 
 		out_bus_fmts = funcs->atomic_get_output_bus_fmts(last_bridge,
