@@ -55,6 +55,14 @@ properties:
         description: |
           For LVDS encoders, port 0 is the parallel input
           For LVDS decoders, port 0 is the LVDS input
+        properties:
+          bus-width:
+            allOf:
+              - $ref: /schemas/types.yaml#/definitions/uint32
+              - enum: [18, 24]
+              - default: 24
+          description:
+            Number of data lines used to transmit the RGB data.
 
       port@1:
         type: object
