@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 
+#include <drm/drm_atomic_state_helper.h>
 #include <drm/drm_bridge.h>
 #include <drm/drm_encoder.h>
 
@@ -135,15 +136,31 @@ int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 
 	if (bridge->funcs->attach) {
 		ret = bridge->funcs->attach(bridge);
-		if (ret < 0) {
-			list_del(&bridge->chain_node);
-			bridge->dev = NULL;
-			bridge->encoder = NULL;
-			return ret;
+		if (ret < 0)
+			goto err_reset_bridge;
+	}
+
+	if (bridge->funcs->atomic_reset) {
+		struct drm_bridge_state *state;
+
+		state = bridge->funcs->atomic_reset(bridge);
+		if (IS_ERR(state)) {
+			ret = PTR_ERR(state);
+			goto err_detach_bridge;
 		}
 	}
 
 	return 0;
+
+err_detach_bridge:
+	if (bridge->funcs->detach)
+		bridge->funcs->detach(bridge);
+
+err_reset_bridge:
+	bridge->dev = NULL;
+	bridge->encoder = NULL;
+	list_del(&bridge->chain_node);
+	return ret;
 }
 EXPORT_SYMBOL(drm_bridge_attach);
 
@@ -154,6 +171,8 @@ void drm_bridge_detach(struct drm_bridge *bridge)
 
 	if (WARN_ON(!bridge->dev))
 		return;
+
+	drm_atomic_private_obj_fini(&bridge->base);
 
 	if (bridge->funcs->detach)
 		bridge->funcs->detach(bridge);

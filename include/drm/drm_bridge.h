@@ -25,6 +25,8 @@
 
 #include <linux/list.h>
 #include <linux/ctype.h>
+
+#include <drm/drm_atomic.h>
 #include <drm/drm_encoder.h>
 #include <drm/drm_mode_object.h>
 #include <drm/drm_modes.h>
@@ -338,6 +340,49 @@ struct drm_bridge_funcs {
 	 */
 	void (*atomic_post_disable)(struct drm_bridge *bridge,
 				    struct drm_atomic_state *old_state);
+
+	/**
+	 * @atomic_duplicate_state:
+	 *
+	 * Duplicate the current bridge state object (which is guaranteed to be
+	 * non-NULL).
+	 *
+	 * The atomic_duplicate_state() is optional. When not implemented the
+	 * core allocates a drm_bridge_state object and calls
+	 * &__drm_atomic_helper_bridge_duplicate_state() to initialize it.
+	 *
+	 * RETURNS:
+	 * A valid drm_bridge_state object or NULL if the allocation fails.
+	 */
+	struct drm_bridge_state *(*atomic_duplicate_state)(struct drm_bridge *bridge);
+
+	/**
+	 * @atomic_destroy_state:
+	 *
+	 * Destroy a bridge state object previously allocated by
+	 * &drm_bridge_funcs.atomic_duplicate_state().
+	 *
+	 * The atomic_destroy_state hook is optional. When not implemented the
+	 * core calls kfree() on the state.
+	 */
+	void (*atomic_destroy_state)(struct drm_bridge *bridge,
+				     struct drm_bridge_state *state);
+
+	/**
+	 * @atomic_reset:
+	 *
+	 * Reset the bridge to a predefined state (or retrieve its current
+	 * state) and return a &drm_bridge_state object matching this state.
+	 * This function is called at attach time.
+	 *
+	 * The atomic_reset hook is optional. When not implemented the core
+	 * allocates a new state and calls &__drm_atomic_helper_bridge_reset().
+	 *
+	 * RETURNS:
+	 * A valid drm_bridge_state object in case of success, an ERR_PTR()
+	 * giving the reason of the failure otherwise.
+	 */
+	struct drm_bridge_state *(*atomic_reset)(struct drm_bridge *bridge);
 };
 
 /**
@@ -380,6 +425,8 @@ struct drm_bridge_timings {
  * struct drm_bridge - central DRM bridge control structure
  */
 struct drm_bridge {
+	/** @base: inherit from &drm_private_object */
+	struct drm_private_obj base;
 	/** @dev: DRM device this bridge belongs to */
 	struct drm_device *dev;
 	/** @encoder: encoder to which this bridge is connected */
@@ -403,6 +450,12 @@ struct drm_bridge {
 	/** @driver_private: pointer to the bridge driver's internal context */
 	void *driver_private;
 };
+
+static inline struct drm_bridge *
+drm_priv_to_bridge(struct drm_private_obj *priv)
+{
+	return container_of(priv, struct drm_bridge, base);
+}
 
 void drm_bridge_add(struct drm_bridge *bridge);
 void drm_bridge_remove(struct drm_bridge *bridge);
