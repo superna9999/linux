@@ -328,6 +328,24 @@
 	vqmmc-supply = <&emmc_1v8>;
 };
 
+&spicc1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&spicc1_pins>;
+	num-cs = <1>;
+
+	cs-gpios = <&gpio GPIOH_6 GPIO_ACTIVE_LOW>;
+
+	ethernet@0 {
+		compatible = "microchip,enc28j60";
+		reg = <0>;
+		interrupt-parent = <&gpio_intc>;
+		/* GPIOA_4 */
+		interrupts = <65 IRQ_TYPE_EDGE_FALLING>;
+		spi-max-frequency = <12000000>;
+	};
+};
+
 &uart_A {
 	status = "okay";
 	pinctrl-0 = <&uart_a_pins>, <&uart_a_cts_rts_pins>;
