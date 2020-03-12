@@ -266,6 +266,24 @@
 	vqmmc-supply = <&vddio_boot>;
 };
 
+&spicc {
+       status = "okay";
+       pinctrl-names = "default";
+       pinctrl-0 = <&spi_pins>;
+       num-cs = <1>;
+
+       cs-gpios = <&gpio GPIOX_10 GPIO_ACTIVE_LOW>;
+
+       ethernet@0 {
+               compatible = "microchip,enc28j60";
+               reg = <0>;
+               interrupt-parent = <&gpio_intc>;
+               /* GPIOAO_6 */
+               interrupts = <108 IRQ_TYPE_EDGE_FALLING>;
+               spi-max-frequency = <12000000>;
+       };
+};
+
 &uart_AO {
 	status = "okay";
 	pinctrl-0 = <&uart_ao_a_pins>;
