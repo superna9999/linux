@@ -62,7 +62,8 @@ int panfrost_gpu_soft_reset(struct panfrost_device *pfdev)
 	gpu_write(pfdev, GPU_INT_MASK, 0);
 	gpu_write(pfdev, GPU_INT_CLEAR, GPU_IRQ_RESET_COMPLETED);
 
-	if (of_device_is_compatible(pfdev->dev->of_node, "amlogic,meson-gxm-mali")) {
+	if (of_device_is_compatible(pfdev->dev->of_node, "amlogic,meson-gxm-mali") ||
+	    of_device_is_compatible(pfdev->dev->of_node, "amlogic,meson-g12a-mali")) {
 		reset_control_assert(pfdev->rstc);
 		udelay(10);
 		reset_control_deassert(pfdev->rstc);
