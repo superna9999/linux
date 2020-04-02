@@ -380,7 +380,7 @@ void panfrost_gpu_fini(struct panfrost_device *pfdev)
 
 u32 panfrost_gpu_get_latest_flush_id(struct panfrost_device *pfdev)
 {
-	if (panfrost_has_hw_feature(pfdev, HW_FEATURE_FLUSH_REDUCTION))
-		return gpu_read(pfdev, GPU_LATEST_FLUSH_ID);
+	//if (panfrost_has_hw_feature(pfdev, HW_FEATURE_FLUSH_REDUCTION))
+	//	return gpu_read(pfdev, GPU_LATEST_FLUSH_ID);
 	return 0;
 }
