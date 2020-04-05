@@ -99,6 +99,14 @@ config POWER_RESET_HISI
 	help
 	  Reboot support for Hisilicon boards.
 
+config POWER_RESET_KHADAS_MCU
+	bool "Khadas MCU power-off driver"
+	depends on OF || COMPILE_TEST
+	depends on REGMAP
+	help
+	  This driver supports turning off board via the on-board MCU
+	  on Khadas boards.
+
 config POWER_RESET_MSM
 	bool "Qualcomm MSM power-off driver"
 	depends on ARCH_QCOM
