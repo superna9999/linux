@@ -14,6 +14,10 @@
 
 static bool khadas_mcu_reg_volatile(struct device *dev, unsigned int reg)
 {
+	if (reg >= KHADAS_MCU_USER_DATA_0_REG &&
+	    reg < KHADAS_MCU_PWR_OFF_CMD_REG)
+		return true;
+
 	switch (reg) {
 	case KHADAS_MCU_PWR_OFF_CMD_REG:
 	case KHADAS_MCU_PASSWD_START_REG:
