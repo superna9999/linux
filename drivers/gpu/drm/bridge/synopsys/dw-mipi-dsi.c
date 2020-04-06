@@ -8,6 +8,7 @@
  * Rockchip version from rockchip/dw-mipi-dsi.c with phy & bridge APIs.
  */
 
+#define DEBUG
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/debugfs.h>
@@ -315,14 +316,19 @@ static int dw_mipi_dsi_host_attach(struct mipi_dsi_host *host,
 	if (ret)
 		return ret;
 
+	pr_info("panel: %08x\n", panel);
+	pr_info("bridge: %08x\n", bridge);
+
 	if (panel) {
 		bridge = drm_panel_bridge_add_typed(panel,
 						    DRM_MODE_CONNECTOR_DSI);
 		if (IS_ERR(bridge))
 			return PTR_ERR(bridge);
+		pr_info("bridge: %p\n", bridge);
 	}
 
 	dsi->panel_bridge = bridge;
+	pr_info("panel_bridge: %08x\n", dsi->panel_bridge);
 
 	drm_bridge_add(&dsi->bridge);
 
@@ -941,6 +947,8 @@ static int dw_mipi_dsi_bridge_attach(struct drm_bridge *bridge,
 {
 	struct dw_mipi_dsi *dsi = bridge_to_dsi(bridge);
 
+	pr_info("%s\n", __func__);
+
 	if (!bridge->encoder) {
 		DRM_ERROR("Parent encoder object not found\n");
 		return -ENODEV;
@@ -948,6 +956,10 @@ static int dw_mipi_dsi_bridge_attach(struct drm_bridge *bridge,
 
 	/* Set the encoder type as caller does not know it */
 	bridge->encoder->encoder_type = DRM_MODE_ENCODER_DSI;
+
+	pr_info("%s bridge->encoder: %p\n", __func__, bridge->encoder);
+	pr_info("%s dsi->panel_bridge: %p\n", __func__, dsi->panel_bridge);
+	pr_info("%s bridge: %p\n", __func__, bridge);
 
 	/* Attach the panel-bridge to the dsi bridge */
 	return drm_bridge_attach(bridge->encoder, dsi->panel_bridge, bridge,
@@ -1040,20 +1052,22 @@ __dw_mipi_dsi_probe(struct platform_device *pdev,
 
 		return ERR_PTR(ret);
 	}
+	
+	ret = clk_prepare_enable(dsi->pclk);
+	if (ret) {
+		dev_err(dev, "%s: Failed to enable pclk\n", __func__);
+		return ERR_PTR(ret);
+	}
 
 	if (apb_rst) {
-		ret = clk_prepare_enable(dsi->pclk);
-		if (ret) {
-			dev_err(dev, "%s: Failed to enable pclk\n", __func__);
-			return ERR_PTR(ret);
-		}
-
 		reset_control_assert(apb_rst);
 		usleep_range(10, 20);
 		reset_control_deassert(apb_rst);
-
-		clk_disable_unprepare(dsi->pclk);
 	}
+	dev_info(&pdev->dev, "Detected DW-MIPI version %06x\n",
+		 dsi_read(dsi, DSI_VERSION) & VERSION);
+
+	clk_disable_unprepare(dsi->pclk);
 
 	dw_mipi_dsi_debugfs_init(dsi);
 	pm_runtime_enable(dev);
@@ -1121,6 +1135,7 @@ EXPORT_SYMBOL_GPL(dw_mipi_dsi_remove);
 int dw_mipi_dsi_bind(struct dw_mipi_dsi *dsi, struct drm_encoder *encoder)
 {
 	int ret;
+	pr_info("%s\n", __func__);
 
 	ret = drm_bridge_attach(encoder, &dsi->bridge, NULL, 0);
 	if (ret) {
