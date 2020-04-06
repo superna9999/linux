@@ -7,6 +7,7 @@
  * subsystem, and only handles one master device, but this doesn't have to be
  * the case.
  */
+#define DEBUG
 #include <linux/component.h>
 #include <linux/device.h>
 #include <linux/kref.h>
