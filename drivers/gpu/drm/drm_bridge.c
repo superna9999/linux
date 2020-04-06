@@ -116,6 +116,8 @@ int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 {
 	int ret;
 
+	pr_info("%s %08x %08x %08x\n", __func__, encoder, bridge, previous);
+
 	if (!encoder || !bridge)
 		return -EINVAL;
 
@@ -135,6 +137,7 @@ int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 
 	if (bridge->funcs->attach) {
 		ret = bridge->funcs->attach(bridge);
+		pr_info("%s:%d %d\n", __func__, __LINE__, ret);
 		if (ret < 0) {
 			list_del(&bridge->chain_node);
 			bridge->dev = NULL;
