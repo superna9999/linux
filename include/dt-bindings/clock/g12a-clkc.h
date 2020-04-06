@@ -150,5 +150,6 @@
 #define CLKID_CTS_ENCL				269
 #define CLKID_MIPI_DSI_PXCLK_SEL		270
 #define CLKID_MIPI_DSI_PXCLK			272
+#define CLKID_VDIN_MEAS				275
 
 #endif /* __G12A_CLKC_H */
