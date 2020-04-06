@@ -286,6 +286,8 @@ static int meson_clk_pll_wait_lock(struct clk_hw *hw)
 		udelay(20);
 	} while (--delay);
 
+	pr_warn("%s: pll %s did not lock\n", __func__, clk_hw_get_name(hw));
+
 	return -ETIMEDOUT;
 }
 
