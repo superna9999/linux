@@ -395,6 +395,7 @@ static int phy_meson_axg_mipi_dphy_probe(struct platform_device *pdev)
 
 static const struct of_device_id phy_meson_axg_mipi_dphy_of_match[] = {
 	{ .compatible = "amlogic,axg-mipi-dphy", },
+	{ .compatible = "amlogic,g12a-mipi-dphy", },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, phy_meson_axg_mipi_dphy_of_match);
