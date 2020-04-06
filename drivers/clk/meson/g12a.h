@@ -255,8 +255,11 @@
 #define CLKID_DSU_CLK_DYN1			249
 #define CLKID_DSU_CLK_DYN			250
 #define CLKID_DSU_CLK_FINAL			251
+#define CLKID_CTS_ENCL_SEL			256
+#define CLKID_MIPI_DSI_PXCLK_DIV		259
 
-#define NR_CLKS					256
+
+#define NR_CLKS					261
 
 /* include the CLKIDs that have been made part of the DT binding */
 #include <dt-bindings/clock/g12a-clkc.h>
