@@ -147,5 +147,8 @@
 #define CLKID_SPICC1_SCLK			261
 #define CLKID_NNA_AXI_CLK			264
 #define CLKID_NNA_CORE_CLK			267
+#define CLKID_CTS_ENCL				269
+#define CLKID_MIPI_DSI_PXCLK_SEL		270
+#define CLKID_MIPI_DSI_PXCLK			272
 
 #endif /* __G12A_CLKC_H */
