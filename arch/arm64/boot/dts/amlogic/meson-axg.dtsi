@@ -144,7 +144,7 @@
 	};
 
 	scpi {
-		compatible = "arm,scpi-pre-1.0";
+		compatible = "amlogic,meson-gxbb-scpi", "arm,scpi-pre-1.0";
 		mboxes = <&mailbox 1 &mailbox 2>;
 		shmem = <&cpu_scp_lpri &cpu_scp_hpri>;
 
@@ -160,7 +160,7 @@
 		};
 
 		scpi_sensors: sensors {
-			compatible = "amlogic,meson-gxbb-scpi-sensors";
+			compatible = "amlogic,meson-gxbb-scpi-sensors", "arm,scpi-sensors";
 			#thermal-sensor-cells = <1>;
 		};
 	};
