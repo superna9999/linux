@@ -86,15 +86,6 @@
 		sound-name-prefix = "DIT";
 	};
 
-	dmics: audio-codec-3 {
-		#sound-dai-cells = <0>;
-		compatible = "dmic-codec";
-		num-channels = <7>;
-		wakeup-delay-ms = <50>;
-		status = "okay";
-		sound-name-prefix = "MIC";
-	};
-
 	spdif_dir: audio-codec-4 {
 		#sound-dai-cells = <0>;
 		compatible = "linux,spdif-dir";
@@ -189,49 +180,13 @@
 		clock-names = "ext_clock";
 	};
 
-	speaker-leds {
-		compatible = "gpio-leds";
-
-		aled1 {
-			label = "speaker:aled1";
-			gpios = <&gpio_speaker 7 0>;
-		};
-
-		aled2 {
-			label = "speaker:aled2";
-			gpios = <&gpio_speaker 6 0>;
-		};
-
-		aled3 {
-			label = "speaker:aled3";
-			gpios = <&gpio_speaker 5 0>;
-		};
-
-		aled4 {
-			label = "speaker:aled4";
-			gpios = <&gpio_speaker 4 0>;
-		};
-
-		aled5 {
-			label = "speaker:aled5";
-			gpios = <&gpio_speaker 3 0>;
-		};
-
-		aled6 {
-			label = "speaker:aled6";
-			gpios = <&gpio_speaker 2 0>;
-		};
-	};
-
 	sound {
 		compatible = "amlogic,axg-sound-card";
 		model = "AXG-S400";
 		audio-aux-devs = <&tdmin_a>, <&tdmin_b>,  <&tdmin_c>,
 				 <&tdmin_lb>, <&tdmout_c>;
 		audio-widgets = "Line", "Lineout",
-				"Line", "Linein",
-				"Speaker", "Speaker1 Left",
-				"Speaker", "Speaker1 Right";
+				"Line", "Linein";
 		audio-routing = "TDMOUT_C IN 0", "FRDDR_A OUT 2",
 				"SPDIFOUT IN 0", "FRDDR_A OUT 3",
 				"TDMOUT_C IN 1", "FRDDR_B OUT 2",
@@ -259,18 +214,11 @@
 				"TODDR_A IN 3", "SPDIFIN Capture",
 				"TODDR_B IN 3", "SPDIFIN Capture",
 				"TODDR_C IN 3", "SPDIFIN Capture",
-				"TODDR_A IN 4", "PDM Capture",
-				"TODDR_B IN 4", "PDM Capture",
-				"TODDR_C IN 4", "PDM Capture",
 				"TODDR_A IN 6", "TDMIN_LB OUT",
 				"TODDR_B IN 6", "TDMIN_LB OUT",
 				"TODDR_C IN 6", "TDMIN_LB OUT",
 				"Lineout", "Lineout AOUTL",
 				"Lineout", "Lineout AOUTR",
-				"Speaker1 Left", "SPK1 OUT_A",
-				"Speaker1 Left", "SPK1 OUT_B",
-				"Speaker1 Right", "SPK1 OUT_C",
-				"Speaker1 Right", "SPK1 OUT_D",
 				"Linein AINL", "Linein",
 				"Linein AINR", "Linein";
 		assigned-clocks = <&clkc CLKID_HIFI_PLL>,
@@ -318,10 +266,6 @@
 			};
 
 			codec@1 {
-				sound-dai = <&speaker_amp1>;
-			};
-
-			codec@2 {
 				sound-dai = <&linein>;
 			};
 
@@ -340,14 +284,6 @@
 
 			codec {
 				sound-dai = <&spdif_dir>;
-			};
-		};
-
-		dai-link-9 {
-			sound-dai = <&pdm>;
-
-			codec {
-				sound-dai = <&dmics>;
 			};
 		};
 	};
@@ -404,41 +340,12 @@
 	status = "okay";
 	pinctrl-0 = <&i2c1_z_pins>;
 	pinctrl-names = "default";
-
-	speaker_amp1: audio-codec@1b {
-		compatible = "ti,tas5707";
-		reg = <0x1b>;
-		reset-gpios = <&gpio_ao GPIOAO_4 GPIO_ACTIVE_LOW>;
-		#sound-dai-cells = <0>;
-		AVDD-supply = <&vcc_3v3>;
-		DVDD-supply = <&vcc_3v3>;
-		PVDD_A-supply = <&main_12v>;
-		PVDD_B-supply = <&main_12v>;
-		PVDD_C-supply = <&main_12v>;
-		PVDD_D-supply = <&main_12v>;
-		sound-name-prefix = "SPK1";
-	};
 };
 
 &i2c_AO {
 	status = "okay";
 	pinctrl-0 = <&i2c_ao_sck_10_pins>, <&i2c_ao_sda_11_pins>;
 	pinctrl-names = "default";
-
-	gpio_speaker: gpio-controller@1f {
-		compatible = "nxp,pca9557";
-		reg = <0x1f>;
-		gpio-controller;
-		#gpio-cells = <2>;
-		vcc-supply = <&vddao_3v3>;
-	};
-};
-
-&pdm {
-	pinctrl-0 = <&pdm_dclk_a14_pins>, <&pdm_din0_pins>,
-		    <&pdm_din1_pins>, <&pdm_din2_pins>, <&pdm_din3_pins>;
-	pinctrl-names = "default";
-	status = "okay";
 };
 
 &pwm_ab {
