@@ -69,6 +69,8 @@ struct panfrost_compatible {
 	int num_pm_domains;
 	/* Only required if num_pm_domains > 1. */
 	const char * const *pm_domain_names;
+	/* Hardware requires SoC reset instead of Mali IP soft reset */
+	bool requires_external_reset;
 };
 
 struct panfrost_device {
