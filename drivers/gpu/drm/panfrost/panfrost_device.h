@@ -71,6 +71,8 @@ struct panfrost_compatible {
 	const char * const *pm_domain_names;
 	/* Hardware requires SoC reset instead of Mali IP soft reset */
 	bool requires_external_reset;
+	/* Vendor implementation quirks callback */
+	void (*vendor_quirks)(struct panfrost_device *pfdev);
 };
 
 struct panfrost_device {
