@@ -670,8 +670,6 @@ static const struct panfrost_compatible default_data = {
 static const struct panfrost_compatible amlogic_gxm_data = {
 	.num_supplies = ARRAY_SIZE(default_supplies),
 	.supply_names = default_supplies,
-	.num_pm_domains = 1, /* optional */
-	.pm_domain_names = NULL,
 	.requires_external_reset = true,
 	.vendor_quirks = panfrost_gpu_amlogic_quirks,
 };
@@ -679,8 +677,6 @@ static const struct panfrost_compatible amlogic_gxm_data = {
 static const struct panfrost_compatible amlogic_g12a_data = {
 	.num_supplies = ARRAY_SIZE(default_supplies),
 	.supply_names = default_supplies,
-	.num_pm_domains = 1, /* optional */
-	.pm_domain_names = NULL,
 	.vendor_quirks = panfrost_gpu_amlogic_quirks,
 };
 
