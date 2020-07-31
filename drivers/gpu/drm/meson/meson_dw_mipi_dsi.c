@@ -315,9 +315,6 @@ static void meson_dw_mipi_dsi_init(struct meson_dw_mipi_dsi *mipi_dsi)
 
 static struct clk_bulk_data meson_dw_mipi_dsi_clocks[] = {
 	{ .id = "px_clk" },
-	{ .id = "encl" },
-	{ .id = "vencl" },
-	{ .id = "vdin_meas" },
 };
 
 static int meson_dw_mipi_dsi_bind(struct device *dev, struct device *master,
