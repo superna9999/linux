@@ -93,6 +93,25 @@ static int meson_plane_atomic_check(struct drm_plane *plane,
 						   false, true);
 }
 
+static int meson_plane_atomic_check_axg(struct drm_plane *plane,
+					struct drm_plane_state *state)
+{
+	struct drm_crtc_state *crtc_state;
+
+	if (!state->crtc)
+		return 0;
+
+	crtc_state = drm_atomic_get_crtc_state(state->state, state->crtc);
+	if (IS_ERR(crtc_state))
+		return PTR_ERR(crtc_state);
+
+	/* AXG VPU OSD plane doesn't support scaling */
+	return drm_atomic_helper_check_plane_state(state, crtc_state,
+						   DRM_PLANE_HELPER_NO_SCALING,
+						   DRM_PLANE_HELPER_NO_SCALING,
+						   true, true);
+}
+
 #define MESON_MOD_AFBC_VALID_BITS (AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |	\
 				   AFBC_FORMAT_MOD_BLOCK_SIZE_32x8 |	\
 				   AFBC_FORMAT_MOD_YTR |		\
@@ -119,6 +138,29 @@ static u32 meson_g12a_afbcd_line_stride(struct meson_drm *priv)
 	case DRM_FORMAT_XBGR8888:
 	case DRM_FORMAT_ABGR8888:
 		line_stride = ((priv->viu.osd1_width << 5) + 127) >> 7;
+		break;
+	}
+
+	return ((line_stride + 1) >> 1) << 1;
+}
+
+static u32 meson_axg_line_stride(struct meson_drm *priv, u32 format)
+{
+	u32 line_stride = 0;
+	u32 bwidth;
+
+	switch (format) {
+	case DRM_FORMAT_RGB565:
+		bwidth = priv->viu.osd1_width >> 1;
+		line_stride = ((bwidth << 4) + 127) >> 7;
+		break;
+	case DRM_FORMAT_RGB888:
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_ABGR8888:
+		bwidth = priv->viu.osd1_width >> 2;
+		line_stride = ((bwidth << 5) + 127) >> 7;
 		break;
 	}
 
@@ -366,7 +408,10 @@ static void meson_plane_atomic_update(struct drm_plane *plane,
 	priv->viu.osd1_height = fb->height;
 	priv->viu.osd1_width = fb->width;
 
-	if (priv->viu.osd1_afbcd) {
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		priv->viu.osd1_blk2_cfg4 = meson_axg_line_stride(priv,
+							fb->format->format);
+	else if (priv->viu.osd1_afbcd) {
 		priv->afbcd.modifier = fb->modifier;
 		priv->afbcd.format = fb->format->format;
 
@@ -412,6 +457,13 @@ static void meson_plane_atomic_disable(struct drm_plane *plane,
 	meson_plane->enabled = false;
 	priv->viu.osd1_enabled = false;
 }
+
+static const struct drm_plane_helper_funcs meson_plane_helper_funcs_axg = {
+	.atomic_check	= meson_plane_atomic_check_axg,
+	.atomic_disable	= meson_plane_atomic_disable,
+	.atomic_update	= meson_plane_atomic_update,
+	.prepare_fb	= drm_gem_fb_prepare_fb,
+};
 
 static const struct drm_plane_helper_funcs meson_plane_helper_funcs = {
 	.atomic_check	= meson_plane_atomic_check,
@@ -550,7 +602,10 @@ int meson_plane_create(struct meson_drm *priv)
 				 format_modifiers,
 				 DRM_PLANE_TYPE_PRIMARY, "meson_primary_plane");
 
-	drm_plane_helper_add(plane, &meson_plane_helper_funcs);
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		drm_plane_helper_add(plane, &meson_plane_helper_funcs_axg);
+	else
+		drm_plane_helper_add(plane, &meson_plane_helper_funcs);
 
 	/* For now, OSD Primary plane is always on the front */
 	drm_plane_create_zpos_immutable_property(plane, 1);

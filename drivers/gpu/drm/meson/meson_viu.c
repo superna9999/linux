@@ -423,7 +423,8 @@ void meson_viu_init(struct meson_drm *priv)
 
 	/* On GXL/GXM, Use the 10bit HDR conversion matrix */
 	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXM) ||
-	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXL))
+	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXL) ||
+	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
 		meson_viu_load_matrix(priv);
 	else if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_G12A))
 		meson_viu_set_g12a_osd1_matrix(priv, RGB709_to_YUV709l_coeff,
@@ -432,9 +433,14 @@ void meson_viu_init(struct meson_drm *priv)
 	/* Initialize OSD1 fifo control register */
 	reg = VIU_OSD_DDR_PRIORITY_URGENT |
 		VIU_OSD_HOLD_FIFO_LINES(31) |
-		VIU_OSD_FIFO_DEPTH_VAL(32) | /* fifo_depth_val: 32*8=256 */
 		VIU_OSD_WORDS_PER_BURST(4) | /* 4 words in 1 burst */
 		VIU_OSD_FIFO_LIMITS(2);      /* fifo_lim: 2*16=32 */
+
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXM) ||
+	    meson_vpu_is_compatible(priv, VPU_COMPATIBLE_GXL))
+		reg |= VIU_OSD_FIFO_DEPTH_VAL(32); /* fifo_depth_val: 32*8=256 */
+	else
+		reg |= VIU_OSD_FIFO_DEPTH_VAL(64); /* fifo_depth_val: 64*8=512 */
 
 	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_G12A))
 		reg |= VIU_OSD_BURST_LENGTH_32;
