@@ -445,14 +445,29 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&nand_pins>;
 
-	status = "disabled";
+	status = "okay";
 
 	nand@0 {
 		reg = <0>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		nand-on-flash-bbt;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "bootloader";
+				reg = <0x00000000 0x00800000>;
+				read-only;
+			};
+
+			partition@800000 {
+				label = "root";
+				reg = <0x00800000 0x1f800000>;
+			};
+		};
 	};
 };
 
@@ -504,7 +519,7 @@
 
 /* emmc storage */
 &sd_emmc_c {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&emmc_pins>, <&emmc_ds_pins>;
 	pinctrl-1 = <&emmc_clk_gate_pins>;
 	pinctrl-names = "default", "clk-gate";
@@ -521,6 +536,10 @@
 
 	vmmc-supply = <&vcc_3v3>;
 	vqmmc-supply = <&vddio_boot>;
+};
+
+&sd_emmc_c_clkc {
+	status = "okay";
 };
 
 &spdifin {
