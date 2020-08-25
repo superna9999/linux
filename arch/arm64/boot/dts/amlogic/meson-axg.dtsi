@@ -1744,7 +1744,7 @@
 			};
 
 			sd_emmc_c_clkc: clock-controller@7000 {
-				compatible = "amlogic,meson-axg-mmc-clkc", "syscon";
+				compatible = "amlogic,axg-mmc-clkc", "syscon";
 				reg = <0x0 0x7000 0x0 0x4>;
 				#clock-cells = <1>;
 				clock-names = "clkin0", "clkin1";
