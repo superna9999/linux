@@ -434,6 +434,28 @@
 	};
 };
 
+/*
+ * The S400 board can be mounted with a NAND chip instead of an
+ * eMMC module, to enable usage of the NAND:
+ * - the nfc node must be enabled
+ * - the sd_emmc_c node must be disabled
+ * - the sd_emmc_c_clkc must be enabled
+ */
+&nfc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&nand_pins>;
+
+	status = "disabled";
+
+	nand@0 {
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		nand-on-flash-bbt;
+	};
+};
+
 &pdm {
 	pinctrl-0 = <&pdm_dclk_a14_pins>, <&pdm_din0_pins>,
 		    <&pdm_din1_pins>, <&pdm_din2_pins>, <&pdm_din3_pins>;
