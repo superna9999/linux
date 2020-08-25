@@ -6,6 +6,7 @@
 #include <dt-bindings/clock/axg-aoclkc.h>
 #include <dt-bindings/clock/axg-audio-clkc.h>
 #include <dt-bindings/clock/axg-clkc.h>
+#include <dt-bindings/clock/amlogic,mmc-clkc.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/gpio/meson-axg-gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
@@ -427,6 +428,27 @@
 					mux {
 						groups = "mclk_c";
 						function = "mclk_c";
+						bias-disable;
+					};
+				};
+
+				nand_pins: nand {
+					mux {
+						groups = "emmc_nand_d0",
+							 "emmc_nand_d1",
+							 "emmc_nand_d2",
+							 "emmc_nand_d3",
+							 "emmc_nand_d4",
+							 "emmc_nand_d5",
+							 "emmc_nand_d6",
+							 "emmc_nand_d7",
+							 "nand_rb0",
+							 "nand_ce0",
+							 "nand_ale",
+							 "nand_cle",
+							 "nand_wen_clk",
+							 "nand_ren_wr";
+						function = "nand";
 						bias-disable;
 					};
 				};
@@ -1721,6 +1743,16 @@
 				resets = <&reset RESET_SD_EMMC_B>;
 			};
 
+			sd_emmc_c_clkc: clock-controller@7000 {
+				compatible = "amlogic,meson-axg-mmc-clkc", "syscon";
+				reg = <0x0 0x7000 0x0 0x4>;
+				#clock-cells = <1>;
+				clock-names = "clkin0", "clkin1";
+				clocks = <&clkc CLKID_SD_EMMC_C_CLK0>,
+				       <&clkc CLKID_FCLK_DIV2>;
+				status = "disabled";
+			};
+
 			sd_emmc_c: mmc@7000 {
 				compatible = "amlogic,meson-axg-mmc";
 				reg = <0x0 0x7000 0x0 0x800>;
@@ -1731,6 +1763,21 @@
 					<&clkc CLKID_FCLK_DIV2>;
 				clock-names = "core", "clkin0", "clkin1";
 				resets = <&reset RESET_SD_EMMC_C>;
+			};
+
+			nfc: nand-controller@7800 {
+				compatible = "amlogic,meson-axg-nfc";
+				reg = <0x0 0x7800 0x0 0x100>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				interrupts = <GIC_SPI 34 IRQ_TYPE_EDGE_RISING>;
+				status = "disabled";
+				clocks = <&clkc CLKID_SD_EMMC_C>,
+				       <&sd_emmc_c_clkc CLKID_MMC_DIV>,
+				       <&sd_emmc_c_clkc CLKID_MMC_PHASE_RX>,
+				       <&sd_emmc_c_clkc CLKID_MMC_PHASE_TX>;
+				clock-names = "core", "device", "rx", "tx";
+				amlogic,mmc-syscon = <&sd_emmc_c_clkc>;
 			};
 		};
 
