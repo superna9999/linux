@@ -312,10 +312,19 @@ void meson_crtc_irq(struct meson_drm *priv)
 		writel_relaxed(priv->viu.osd_sc_v_ctrl0,
 				priv->io_base + _REG(VPP_OSD_VSC_CTRL0));
 
-		meson_canvas_config(priv->canvas, priv->canvas_id_osd1,
-				priv->viu.osd1_addr, priv->viu.osd1_stride,
-				priv->viu.osd1_height, MESON_CANVAS_WRAP_NONE,
-				MESON_CANVAS_BLKMODE_LINEAR, 0);
+		/* AXG doesn't use CANVAS since it support a single plane */
+		if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG)) {
+			writel_relaxed(priv->viu.osd1_addr,
+				priv->io_base + _REG(VIU_OSD1_BLK1_CFG_W4));
+			writel_relaxed(priv->viu.osd1_blk2_cfg4,
+				priv->io_base + _REG(VIU_OSD1_BLK2_CFG_W4));
+		} else
+			meson_canvas_config(priv->canvas, priv->canvas_id_osd1,
+					    priv->viu.osd1_addr,
+					    priv->viu.osd1_stride,
+					    priv->viu.osd1_height,
+					    MESON_CANVAS_WRAP_NONE,
+					    MESON_CANVAS_BLKMODE_LINEAR, 0);
 
 		/* Enable OSD1 */
 		if (meson_crtc->enable_osd1)

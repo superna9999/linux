@@ -184,6 +184,7 @@ static void meson_remove_framebuffers(void)
 static int meson_drv_bind_master(struct device *dev, bool has_components)
 {
 	struct platform_device *pdev = to_platform_device(dev);
+	const struct meson_drm_match_data *match;
 	struct meson_drm *priv;
 	struct drm_device *drm;
 	struct resource *res;
@@ -195,6 +196,10 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 		dev_err(dev, "No output connector available\n");
 		return -ENODEV;
 	}
+
+	match = of_device_get_match_data(dev);
+	if (!match)
+		return -ENODEV;
 
 	drm = drm_dev_alloc(&meson_driver, dev);
 	if (IS_ERR(drm))
@@ -208,8 +213,8 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 	drm->dev_private = priv;
 	priv->drm = drm;
 	priv->dev = dev;
-
-	priv->compat = (enum vpu_compatible)of_device_get_match_data(priv->dev);
+	priv->data = match;
+	priv->compat = match->compat;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "vpu");
 	regs = devm_ioremap_resource(dev, res);
@@ -240,32 +245,34 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 		goto free_drm;
 	}
 
-	priv->canvas = meson_canvas_get(dev);
-	if (IS_ERR(priv->canvas)) {
-		ret = PTR_ERR(priv->canvas);
-		goto free_drm;
-	}
+	if (priv->data->requires_canvas) {
+		priv->canvas = meson_canvas_get(dev);
+		if (IS_ERR(priv->canvas)) {
+			ret = PTR_ERR(priv->canvas);
+			goto free_drm;
+		}
 
-	ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_osd1);
-	if (ret)
-		goto free_drm;
-	ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_vd1_0);
-	if (ret) {
-		meson_canvas_free(priv->canvas, priv->canvas_id_osd1);
-		goto free_drm;
-	}
-	ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_vd1_1);
-	if (ret) {
-		meson_canvas_free(priv->canvas, priv->canvas_id_osd1);
-		meson_canvas_free(priv->canvas, priv->canvas_id_vd1_0);
-		goto free_drm;
-	}
-	ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_vd1_2);
-	if (ret) {
-		meson_canvas_free(priv->canvas, priv->canvas_id_osd1);
-		meson_canvas_free(priv->canvas, priv->canvas_id_vd1_0);
-		meson_canvas_free(priv->canvas, priv->canvas_id_vd1_1);
-		goto free_drm;
+		ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_osd1);
+		if (ret)
+			goto free_drm;
+		ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_vd1_0);
+		if (ret) {
+			meson_canvas_free(priv->canvas, priv->canvas_id_osd1);
+			goto free_drm;
+		}
+		ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_vd1_1);
+		if (ret) {
+			meson_canvas_free(priv->canvas, priv->canvas_id_osd1);
+			meson_canvas_free(priv->canvas, priv->canvas_id_vd1_0);
+			goto free_drm;
+		}
+		ret = meson_canvas_alloc(priv->canvas, &priv->canvas_id_vd1_2);
+		if (ret) {
+			meson_canvas_free(priv->canvas, priv->canvas_id_osd1);
+			meson_canvas_free(priv->canvas, priv->canvas_id_vd1_0);
+			meson_canvas_free(priv->canvas, priv->canvas_id_vd1_1);
+			goto free_drm;
+		}
 	}
 
 	priv->vsync_irq = platform_get_irq(pdev, 0);
@@ -278,8 +285,8 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 	meson_remove_framebuffers();
 
 	drm_mode_config_init(drm);
-	drm->mode_config.max_width = 3840;
-	drm->mode_config.max_height = 2160;
+	drm->mode_config.max_width = priv->data->max_width;
+	drm->mode_config.max_height = priv->data->max_height;
 	drm->mode_config.funcs = &meson_mode_config_funcs;
 	drm->mode_config.helper_private	= &meson_mode_config_helpers;
 
@@ -292,9 +299,11 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 
 	/* Encoder Initialization */
 
-	ret = meson_venc_cvbs_create(priv);
-	if (ret)
-		goto free_drm;
+	if (priv->data->provides_cvbs) {
+		ret = meson_venc_cvbs_create(priv);
+		if (ret)
+			goto free_drm;
+	}
 
 	if (has_components) {
 		ret = component_bind_all(drm->dev, drm);
@@ -304,13 +313,17 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 		}
 	}
 
-	ret = meson_plane_create(priv);
-	if (ret)
-		goto free_drm;
+	if (priv->data->osd_count) {
+		ret = meson_plane_create(priv);
+		if (ret)
+			goto free_drm;
+	}
 
-	ret = meson_overlay_create(priv);
-	if (ret)
-		goto free_drm;
+	if (priv->data->vd_count) {
+		ret = meson_overlay_create(priv);
+		if (ret)
+			goto free_drm;
+	}
 
 	ret = meson_crtc_create(priv);
 	if (ret)
@@ -454,15 +467,65 @@ static int meson_drv_probe(struct platform_device *pdev)
 	return 0;
 };
 
+static struct meson_drm_match_data meson_drm_gxbb_data = {
+	.compat = VPU_COMPATIBLE_GXBB,
+	.requires_canvas = true,
+	.provides_cvbs = true,
+	.osd_count = 2,
+	.vd_count = 2,
+	.max_width = 3840,
+	.max_height = 2160,
+};
+
+static struct meson_drm_match_data meson_drm_gxl_data = {
+	.compat = VPU_COMPATIBLE_GXL,
+	.requires_canvas = true,
+	.provides_cvbs = true,
+	.osd_count = 2,
+	.vd_count = 2,
+	.max_width = 3840,
+	.max_height = 2160,
+};
+
+static struct meson_drm_match_data meson_drm_gxm_data = {
+	.compat = VPU_COMPATIBLE_GXM,
+	.requires_canvas = true,
+	.provides_cvbs = true,
+	.osd_count = 2,
+	.vd_count = 2,
+	.max_width = 3840,
+	.max_height = 2160,
+};
+
+static struct meson_drm_match_data meson_drm_axg_data = {
+	.compat = VPU_COMPATIBLE_AXG,
+	.osd_count = 1,
+	.vd_count = 0,
+	.max_width = 1920,
+	.max_height = 1080,
+};
+
+static struct meson_drm_match_data meson_drm_g12a_data = {
+	.compat = VPU_COMPATIBLE_G12A,
+	.requires_canvas = true,
+	.provides_cvbs = true,
+	.osd_count = 4,
+	.vd_count = 2,
+	.max_width = 3840,
+	.max_height = 2160,
+};
+
 static const struct of_device_id dt_match[] = {
 	{ .compatible = "amlogic,meson-gxbb-vpu",
-	  .data       = (void *)VPU_COMPATIBLE_GXBB },
+	  .data       = (void *)&meson_drm_gxbb_data },
 	{ .compatible = "amlogic,meson-gxl-vpu",
-	  .data       = (void *)VPU_COMPATIBLE_GXL },
+	  .data       = (void *)&meson_drm_gxl_data },
 	{ .compatible = "amlogic,meson-gxm-vpu",
-	  .data       = (void *)VPU_COMPATIBLE_GXM },
+	  .data       = (void *)&meson_drm_gxm_data },
+	{ .compatible = "amlogic,meson-axg-vpu",
+	  .data       = (void *)&meson_drm_axg_data },
 	{ .compatible = "amlogic,meson-g12a-vpu",
-	  .data       = (void *)VPU_COMPATIBLE_G12A },
+	  .data       = (void *)&meson_drm_g12a_data },
 	{}
 };
 MODULE_DEVICE_TABLE(of, dt_match);

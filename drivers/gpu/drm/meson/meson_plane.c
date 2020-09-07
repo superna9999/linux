@@ -92,10 +92,52 @@ static int meson_plane_atomic_check(struct drm_plane *plane,
 						   false, true);
 }
 
+static int meson_plane_atomic_check_axg(struct drm_plane *plane,
+					struct drm_plane_state *state)
+{
+	struct drm_crtc_state *crtc_state;
+
+	if (!state->crtc)
+		return 0;
+
+	crtc_state = drm_atomic_get_crtc_state(state->state, state->crtc);
+	if (IS_ERR(crtc_state))
+		return PTR_ERR(crtc_state);
+
+	/* AXG VPU OSD plane doesn't support scaling */
+	return drm_atomic_helper_check_plane_state(state, crtc_state,
+						   DRM_PLANE_HELPER_NO_SCALING,
+						   DRM_PLANE_HELPER_NO_SCALING,
+						   true, true);
+}
+
 /* Takes a fixed 16.16 number and converts it to integer. */
 static inline int64_t fixed16_to_int(int64_t value)
 {
 	return value >> 16;
+}
+
+static u32 meson_axg_line_stride(struct meson_drm *priv, u32 format)
+{
+	u32 line_stride = 0;
+	u32 bwidth;
+
+	switch (format) {
+	case DRM_FORMAT_RGB565:
+		bwidth = priv->viu.osd1_stride >> 1;
+		line_stride = ((bwidth << 4) + 127) >> 7;
+		break;
+	case DRM_FORMAT_RGB888:
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_ABGR8888:
+		bwidth = priv->viu.osd1_stride >> 2;
+		line_stride = ((bwidth << 5) + 127) >> 7;
+		break;
+	}
+
+	return ((line_stride + 1) >> 1) << 1;
 }
 
 static void meson_plane_atomic_update(struct drm_plane *plane,
@@ -126,12 +168,20 @@ static void meson_plane_atomic_update(struct drm_plane *plane,
 	 */
 	spin_lock_irqsave(&priv->drm->event_lock, flags);
 
-	/* Enable OSD and BLK0, set max global alpha */
-	priv->viu.osd1_ctrl_stat = OSD_ENABLE |
-				   (0xFF << OSD_GLOBAL_ALPHA_SHIFT) |
-				   OSD_BLK0_ENABLE;
+	priv->viu.osd1_ctrl_stat = OSD_ENABLE | OSD_BLK0_ENABLE;
 
-	canvas_id_osd1 = priv->canvas_id_osd1;
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		priv->viu.osd1_ctrl_stat |= 0x100 << OSD_GLOBAL_ALPHA_SHIFT;
+	else
+		priv->viu.osd1_ctrl_stat |= 0xFF << OSD_GLOBAL_ALPHA_SHIFT;
+
+	priv->viu.osd1_ctrl_stat2 = readl(priv->io_base +
+					  _REG(VIU_OSD1_CTRL_STAT2));
+
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		canvas_id_osd1 = 0x40;
+	else
+		canvas_id_osd1 = priv->canvas_id_osd1;
 
 	/* Set up BLK0 to point to the right canvas */
 	priv->viu.osd1_blk0_cfg[0] = ((canvas_id_osd1 << OSD_CANVAS_SEL) |
@@ -143,42 +193,37 @@ static void meson_plane_atomic_update(struct drm_plane *plane,
 
 	switch (fb->format->format) {
 	case DRM_FORMAT_XRGB8888:
-		/* For XRGB, replace the pixel's alpha by 0xFF */
-		writel_bits_relaxed(OSD_REPLACE_EN, OSD_REPLACE_EN,
-				    priv->io_base + _REG(VIU_OSD1_CTRL_STAT2));
+	case DRM_FORMAT_ARGB8888:
 		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_32 |
-					      OSD_COLOR_MATRIX_32_ARGB;
+					OSD_COLOR_MATRIX_32_ARGB;
 		break;
 	case DRM_FORMAT_XBGR8888:
-		/* For XRGB, replace the pixel's alpha by 0xFF */
-		writel_bits_relaxed(OSD_REPLACE_EN, OSD_REPLACE_EN,
-				    priv->io_base + _REG(VIU_OSD1_CTRL_STAT2));
-		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_32 |
-					      OSD_COLOR_MATRIX_32_ABGR;
-		break;
-	case DRM_FORMAT_ARGB8888:
-		/* For ARGB, use the pixel's alpha */
-		writel_bits_relaxed(OSD_REPLACE_EN, 0,
-				    priv->io_base + _REG(VIU_OSD1_CTRL_STAT2));
-		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_32 |
-					      OSD_COLOR_MATRIX_32_ARGB;
-		break;
 	case DRM_FORMAT_ABGR8888:
-		/* For ARGB, use the pixel's alpha */
-		writel_bits_relaxed(OSD_REPLACE_EN, 0,
-				    priv->io_base + _REG(VIU_OSD1_CTRL_STAT2));
 		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_32 |
-					      OSD_COLOR_MATRIX_32_ABGR;
+					OSD_COLOR_MATRIX_32_ABGR;
 		break;
 	case DRM_FORMAT_RGB888:
 		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_24 |
-					      OSD_COLOR_MATRIX_24_RGB;
+					OSD_COLOR_MATRIX_24_RGB;
 		break;
 	case DRM_FORMAT_RGB565:
 		priv->viu.osd1_blk0_cfg[0] |= OSD_BLK_MODE_16 |
-					      OSD_COLOR_MATRIX_16_RGB565;
+					OSD_COLOR_MATRIX_16_RGB565;
 		break;
-	};
+	}
+
+	switch (fb->format->format) {
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_XBGR8888:
+		/* For XRGB, replace the pixel's alpha by 0xFF */
+		priv->viu.osd1_ctrl_stat2 |= OSD_REPLACE_EN;
+		break;
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_ABGR8888:
+		/* For ARGB, use the pixel's alpha */
+		priv->viu.osd1_ctrl_stat2 &= ~OSD_REPLACE_EN;
+		break;
+	}
 
 	/* Default scaler parameters */
 	vsc_bot_rcv_num = 0;
@@ -305,6 +350,11 @@ static void meson_plane_atomic_update(struct drm_plane *plane,
 	priv->viu.osd1_addr = gem->paddr;
 	priv->viu.osd1_stride = fb->pitches[0];
 	priv->viu.osd1_height = fb->height;
+	priv->viu.osd1_width = fb->width;
+
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		priv->viu.osd1_blk2_cfg4 = meson_axg_line_stride(priv,
+							fb->format->format);
 
 	if (!meson_plane->enabled) {
 		/* Reset OSD1 before enabling it on GXL+ SoCs */
@@ -337,6 +387,13 @@ static void meson_plane_atomic_disable(struct drm_plane *plane,
 	meson_plane->enabled = false;
 	priv->viu.osd1_enabled = false;
 }
+
+static const struct drm_plane_helper_funcs meson_plane_helper_funcs_axg = {
+	.atomic_check	= meson_plane_atomic_check_axg,
+	.atomic_disable	= meson_plane_atomic_disable,
+	.atomic_update	= meson_plane_atomic_update,
+	.prepare_fb	= drm_gem_fb_prepare_fb,
+};
 
 static const struct drm_plane_helper_funcs meson_plane_helper_funcs = {
 	.atomic_check	= meson_plane_atomic_check,
@@ -383,7 +440,10 @@ int meson_plane_create(struct meson_drm *priv)
 				 NULL,
 				 DRM_PLANE_TYPE_PRIMARY, "meson_primary_plane");
 
-	drm_plane_helper_add(plane, &meson_plane_helper_funcs);
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_AXG))
+		drm_plane_helper_add(plane, &meson_plane_helper_funcs_axg);
+	else
+		drm_plane_helper_add(plane, &meson_plane_helper_funcs);
 
 	/* For now, OSD Primary plane is always on the front */
 	drm_plane_create_zpos_immutable_property(plane, 1);

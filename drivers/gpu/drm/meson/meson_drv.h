@@ -21,7 +21,18 @@ enum vpu_compatible {
 	VPU_COMPATIBLE_GXBB = 0,
 	VPU_COMPATIBLE_GXL  = 1,
 	VPU_COMPATIBLE_GXM  = 2,
-	VPU_COMPATIBLE_G12A = 3,
+	VPU_COMPATIBLE_AXG  = 3,
+	VPU_COMPATIBLE_G12A = 4,
+};
+
+struct meson_drm_match_data {
+	enum vpu_compatible compat;
+	bool requires_canvas;
+	bool provides_cvbs;
+	unsigned int osd_count;
+	unsigned int vd_count;
+	unsigned int max_width;
+	unsigned int max_height;
 };
 
 struct meson_drm {
@@ -42,16 +53,22 @@ struct meson_drm {
 	struct drm_plane *primary_plane;
 	struct drm_plane *overlay_plane;
 
+	const struct meson_drm_match_data *data;
+
 	/* Components Data */
 	struct {
 		bool osd1_enabled;
 		bool osd1_interlace;
 		bool osd1_commit;
 		uint32_t osd1_ctrl_stat;
+		uint32_t osd1_ctrl_stat2;
 		uint32_t osd1_blk0_cfg[5];
+		uint32_t osd1_blk1_cfg4;
+		uint32_t osd1_blk2_cfg4;
 		uint32_t osd1_addr;
 		uint32_t osd1_stride;
 		uint32_t osd1_height;
+		uint32_t osd1_width;
 		uint32_t osd_sc_ctrl0;
 		uint32_t osd_sc_i_wh_m1;
 		uint32_t osd_sc_o_h_start_end;
