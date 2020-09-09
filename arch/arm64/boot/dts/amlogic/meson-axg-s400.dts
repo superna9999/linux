@@ -538,3 +538,13 @@
 	pinctrl-0 = <&uart_ao_a_pins>;
 	pinctrl-names = "default";
 };
+
+&usb {
+	status = "okay";
+	dr_mode = "otg";
+	vbus-supply = <&usb_pwr>;
+};
+
+&usb2_phy1 {
+	phy-supply = <&vcc_5v>;
+};
