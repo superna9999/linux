@@ -27,6 +27,7 @@ struct tdo_tl070wsh30_panel {
 	struct regulator *supply;
 	struct gpio_desc *reset_gpio;
 
+	bool enabled;
 	bool prepared;
 };
 
@@ -36,31 +37,29 @@ struct tdo_tl070wsh30_panel *to_tdo_tl070wsh30_panel(struct drm_panel *panel)
 	return container_of(panel, struct tdo_tl070wsh30_panel, base);
 }
 
-static int tdo_tl070wsh30_panel_disable(struct drm_panel *panel)
-{
-	struct tdo_tl070wsh30_panel *tdo_tl070wsh30 = to_tdo_tl070wsh30_panel(panel);
-
-	backlight_disable(tdo_tl070wsh30->backlight);
-
-	return 0;
-}
-
 static int tdo_tl070wsh30_panel_enable(struct drm_panel *panel)
 {
 	struct tdo_tl070wsh30_panel *tdo_tl070wsh30 = to_tdo_tl070wsh30_panel(panel);
 
+	if (tdo_tl070wsh30->enabled)
+		return 0;
+
 	backlight_enable(tdo_tl070wsh30->backlight);
+
+	tdo_tl070wsh30->enabled = true;
 
 	return 0;
 }
 
-static int tdo_tl070wsh30_panel_unprepare(struct drm_panel *panel)
+static int tdo_tl070wsh30_panel_disable(struct drm_panel *panel)
 {
 	struct tdo_tl070wsh30_panel *tdo_tl070wsh30 = to_tdo_tl070wsh30_panel(panel);
 	int err;
 
-	if (!tdo_tl070wsh30->prepared)
+	if (!tdo_tl070wsh30->enabled)
 		return 0;
+
+	backlight_disable(tdo_tl070wsh30->backlight);
 
 	err = mipi_dsi_dcs_set_display_off(tdo_tl070wsh30->link);
 	if (err < 0)
@@ -76,7 +75,7 @@ static int tdo_tl070wsh30_panel_unprepare(struct drm_panel *panel)
 
 	usleep_range(10000, 11000);
 
-	tdo_tl070wsh30->prepared = false;
+	tdo_tl070wsh30->enabled = false;
 
 	return 0;
 }
@@ -88,6 +87,20 @@ static int tdo_tl070wsh30_panel_prepare(struct drm_panel *panel)
 
 	if (tdo_tl070wsh30->prepared)
 		return 0;
+
+	err = regulator_enable(tdo_tl070wsh30->supply);
+	if (err < 0)
+		return err;
+
+	usleep_range(10000, 11000);
+
+	gpiod_set_value_cansleep(tdo_tl070wsh30->reset_gpio, 1);
+
+	usleep_range(10000, 11000);
+
+	gpiod_set_value_cansleep(tdo_tl070wsh30->reset_gpio, 0);
+
+	msleep(200);
 
 	err = mipi_dsi_dcs_exit_sleep_mode(tdo_tl070wsh30->link);
 	if (err < 0) {
@@ -106,6 +119,20 @@ static int tdo_tl070wsh30_panel_prepare(struct drm_panel *panel)
 	msleep(20);
 
 	tdo_tl070wsh30->prepared = true;
+
+	return 0;
+}
+
+static int tdo_tl070wsh30_panel_unprepare(struct drm_panel *panel)
+{
+	struct tdo_tl070wsh30_panel *tdo_tl070wsh30 = to_tdo_tl070wsh30_panel(panel);
+
+	if (!tdo_tl070wsh30->prepared)
+		return 0;
+
+	regulator_disable(tdo_tl070wsh30->supply);
+
+	tdo_tl070wsh30->prepared = false;
 
 	return 0;
 }
@@ -185,29 +212,9 @@ static int tdo_tl070wsh30_panel_add(struct tdo_tl070wsh30_panel *tdo_tl070wsh30)
 	if (IS_ERR(tdo_tl070wsh30->backlight))
 		return PTR_ERR(tdo_tl070wsh30->backlight);
 
-	err = regulator_enable(tdo_tl070wsh30->supply);
-	if (err < 0)
-		return err;
-
-	usleep_range(10000, 11000);
-
-	gpiod_set_value_cansleep(tdo_tl070wsh30->reset_gpio, 1);
-
-	usleep_range(10000, 11000);
-
-	gpiod_set_value_cansleep(tdo_tl070wsh30->reset_gpio, 0);
-
-	msleep(200);
-
 	drm_panel_add(&tdo_tl070wsh30->base);
 
 	return 0;
-}
-
-static void tdo_tl070wsh30_panel_del(struct tdo_tl070wsh30_panel *tdo_tl070wsh30)
-{
-	drm_panel_remove(&tdo_tl070wsh30->base);
-	put_device(&tdo_tl070wsh30->backlight->dev);
 }
 
 static int tdo_tl070wsh30_panel_probe(struct mipi_dsi_device *dsi)
@@ -239,19 +246,15 @@ static int tdo_tl070wsh30_panel_remove(struct mipi_dsi_device *dsi)
 	struct tdo_tl070wsh30_panel *tdo_tl070wsh30 = mipi_dsi_get_drvdata(dsi);
 	int err;
 
-	err = drm_panel_unprepare(&tdo_tl070wsh30->base);
-	if (err < 0)
-		dev_err(&dsi->dev, "failed to unprepare panel: %d\n", err);
-
-	err = drm_panel_disable(&tdo_tl070wsh30->base);
-	if (err < 0)
-		dev_err(&dsi->dev, "failed to disable panel: %d\n", err);
-
 	err = mipi_dsi_detach(dsi);
 	if (err < 0)
 		dev_err(&dsi->dev, "failed to detach from DSI host: %d\n", err);
 
-	tdo_tl070wsh30_panel_del(tdo_tl070wsh30);
+	drm_panel_remove(&tdo_tl070wsh30->base);
+	drm_panel_disable(&tdo_tl070wsh30->base);
+	drm_panel_unprepare(&tdo_tl070wsh30->base);
+
+	put_device(&tdo_tl070wsh30->backlight->dev);
 
 	return 0;
 }
@@ -260,8 +263,8 @@ static void tdo_tl070wsh30_panel_shutdown(struct mipi_dsi_device *dsi)
 {
 	struct tdo_tl070wsh30_panel *tdo_tl070wsh30 = mipi_dsi_get_drvdata(dsi);
 
-	drm_panel_unprepare(&tdo_tl070wsh30->base);
 	drm_panel_disable(&tdo_tl070wsh30->base);
+	drm_panel_unprepare(&tdo_tl070wsh30->base);
 }
 
 static struct mipi_dsi_driver tdo_tl070wsh30_panel_driver = {
