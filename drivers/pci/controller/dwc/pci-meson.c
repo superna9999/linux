@@ -461,12 +461,8 @@ static int meson_pcie_host_init(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 	struct meson_pcie *mp = to_meson_pcie(pci);
-	int ret;
 
-	ret = meson_pcie_establish_link(mp);
-	if (ret)
-		return ret;
-
+	meson_pcie_establish_link(mp);
 	meson_pcie_enable_interrupts(mp);
 
 	return 0;
