@@ -383,10 +383,7 @@ static int meson_pcie_host_init(struct pcie_port *pp)
 
 	pp->bridge->ops = &meson_pci_ops;
 
-	ret = meson_pcie_establish_link(mp);
-	if (ret)
-		return ret;
-
+	meson_pcie_establish_link(mp);
 	dw_pcie_msi_init(pp);
 
 	return 0;
