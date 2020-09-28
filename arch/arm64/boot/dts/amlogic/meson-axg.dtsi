@@ -1629,7 +1629,7 @@
 
 		vpu: vpu@ff900000 {
 			compatible = "amlogic,meson-axg-vpu";
-			reg = <0x0 0xff900000 0x0 0x100000>,
+			reg = <0x0 0xff900000 0x0 0x40000>,
 			      <0x0 0xff63c000 0x0 0x1000>;
 			reg-names = "vpu", "hhi";
 			interrupts = <GIC_SPI 3 IRQ_TYPE_EDGE_RISING>;
