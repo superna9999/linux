@@ -395,6 +395,16 @@
 	};
 };
 
+&pcieA {
+	reset-gpios = <&gpio GPIOX_19 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&pcieB {
+	reset-gpios = <&gpio GPIOZ_10 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
+	status = "okay";
+};
+
 &pwm_ab {
 	status = "okay";
 	pinctrl-0 = <&pwm_a_x20_pins>, <&pwm_b_z_pins>;
