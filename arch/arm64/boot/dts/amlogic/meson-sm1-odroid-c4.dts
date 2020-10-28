@@ -192,6 +192,7 @@
 		compatible = "amlogic,axg-sound-card";
 		model = "SM1-ODROID-C4";
 		audio-aux-devs = <&tdmout_a>, <&tdmout_b>;
+		audio-widgets = "Headphone", "Headphone Jack";
 		audio-routing = "TDMOUT_A IN 0", "FRDDR_A OUT 0",
 				"TDMOUT_A IN 1", "FRDDR_B OUT 0",
 				"TDMOUT_A IN 2", "FRDDR_C OUT 0",
@@ -199,7 +200,9 @@
 				"TDMOUT_B IN 0", "FRDDR_A OUT 1",
 				"TDMOUT_B IN 1", "FRDDR_B OUT 1",
 				"TDMOUT_B IN 2", "FRDDR_C OUT 1",
-				"TDM_B Playback", "TDMOUT_B OUT";
+				"TDM_B Playback", "TDMOUT_B OUT",
+				"Headphone Jack", "WM8731 LHPOUT",
+				"Headphone Jack", "WM8731 RHPOUT";
 
 		assigned-clocks = <&clkc CLKID_MPLL2>,
 				  <&clkc CLKID_MPLL0>,
@@ -247,8 +250,12 @@
 			dai-tdm-slot-tx-mask-3 = <1 1>;
 			mclk-fs = <256>;
 
-			codec {
+			codec-0 {
 				sound-dai = <&tohdmitx TOHDMITX_I2S_IN_B>;
+			};
+
+			codec-1 {
+				sound-dai = <&wm8731>;
 			};
 		};
 
@@ -330,6 +337,18 @@
 
 &frddr_c {
 	status = "okay";
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_sda_x_pins>, <&i2c1_sck_x_pins>;
+	pinctrl-names = "default";
+
+	wm8731: codec@1a {
+		compatible = "wlf,wm8731";
+		reg = <0x1a>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "WM8731";
+	};
 };
 
 &gpio {
@@ -481,7 +500,18 @@
 };
 
 &tdmif_b {
+	pinctrl-0 = <&mclk0_ao_pins>, <&tdm_ao_b_dout0_pins>,
+		    <&tdm_ao_b_fs_pins>, <&tdm_ao_b_sclk_pins>;
+	pinctrl-names = "default";
 	status = "okay";
+
+	assigned-clocks = <&clkc_audio AUD_CLKID_TDM_SCLK_PAD1>,
+			  <&clkc_audio AUD_CLKID_TDM_LRCLK_PAD1>,
+			  <&clkc_audio AUD_CLKID_TDM_MCLK_PAD0>;
+	assigned-clock-parents = <&clkc_audio AUD_CLKID_MST_B_SCLK>,
+				 <&clkc_audio AUD_CLKID_MST_B_LRCLK>,
+				 <&clkc_audio AUD_CLKID_MST_B_MCLK>;
+	assigned-clock-rates = <0>, <0>, <0>;
 };
 
 &tdmout_b {
