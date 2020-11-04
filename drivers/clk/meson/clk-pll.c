@@ -391,9 +391,9 @@ static int meson_clk_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 		meson_parm_write(clk->map, &pll->frac, frac);
 	}
 
-	/* If the pll is stopped, bail out now */
+	/* If the pll is stopped, bail out now * /
 	if (!enabled)
-		return 0;
+		return 0;*/
 
 	if (meson_clk_pll_enable(hw)) {
 		pr_warn("%s: pll did not lock, trying to restore old rate %lu\n",
