@@ -50,7 +50,7 @@ config PHY_MESON_G12A_USB3_PCIE
 	  If unsure, say N.
 
 config PHY_MESON_G12A_MIPI_DPHY_ANALOG
-	tristate "Meson G12A MIPI Analogi DPHY driver"
+	tristate "Meson G12A MIPI Analog DPHY driver"
 	default ARCH_MESON
 	depends on OF && (ARCH_MESON || COMPILE_TEST)
 	select GENERIC_PHY
