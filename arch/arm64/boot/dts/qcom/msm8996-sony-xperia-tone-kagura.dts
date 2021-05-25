@@ -14,3 +14,7 @@
 	compatible = "sony,kagura-row", "qcom,msm8996";
 	chassis-type = "handset";
 };
+
+&panel {
+	compatible = "sony,synaptics-jdi-kagura";
+};
