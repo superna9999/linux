@@ -178,10 +178,61 @@
 	output-low;
 };
 
+&dsi0 {
+	status = "okay";
+	vdda-supply = <&pm8994_l2>;
+	vcca-supply = <&pm8994_l22>;
+
+	panel: panel@0 {
+		reg = <0>;
+
+		disp-te-gpios = <&tlmm 10 GPIO_ACTIVE_HIGH>;
+
+		pvddio-gpio = <&tlmm 51 GPIO_ACTIVE_HIGH>;
+		preset-gpio = <&tlmm 8 GPIO_ACTIVE_HIGH>;
+		treset-gpio = <&tlmm 89 GPIO_ACTIVE_HIGH>;
+
+		vddio-supply = <&pm8994_s4>;
+		avdd-supply = <&pm8994_l2>;
+		tvdd-supply = <&panel_tvdd>;
+
+		backlight = <&pmi8994_wled>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&disp_reset_n_gpio &ts_reset_n &lcd_vddio_en &mdp_vsync_p_gpio>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi0_out>;
+			};
+		};
+	};
+};
+
+&dsi0_out {
+	remote-endpoint = <&panel_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&dsi0_phy {
+	status = "okay";
+
+	vdda-supply = <&pm8994_l2>;
+	vcca-supply = <&pm8994_l28>;
+};
+
+&gpu {
+	status = "okay";
+};
+
 &hsusb_phy1 {
 	vdd-supply = <&pm8994_l28>;
 	vdda-pll-supply = <&pm8994_l12>;
 	vdda-phy-dpdm-supply = <&pm8994_l24>;
+	status = "okay";
+};
+
+&mdss {
 	status = "okay";
 };
 
