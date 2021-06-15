@@ -13,6 +13,14 @@
 	chassis-type = "handset";
 };
 
+&dsi1 {
+	status = "disabled";
+};
+
+&dsi1_phy {
+	status = "disabled";
+};
+
 &framebuffer {
 	width = <1080>;
 	height = <2520>;

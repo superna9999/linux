@@ -30,20 +30,6 @@
 			height = <3840>;
 			stride = <(1644 * 4)>;
 			format = "a8r8g8b8";
-			/*
-			 * That's a lot of clocks, but it's necessary due
-			 * to unused clk cleanup & no panel driver yet..
-			 */
-			clocks = <&dispcc DISP_CC_MDSS_AHB_CLK>,
-				 <&gcc GCC_DISP_HF_AXI_CLK>,
-				 <&gcc GCC_DISP_SF_AXI_CLK>,
-				 <&dispcc DISP_CC_MDSS_VSYNC_CLK>,
-				 <&dispcc DISP_CC_MDSS_MDP_CLK>,
-				 <&dispcc DISP_CC_MDSS_BYTE0_CLK>,
-				 <&dispcc DISP_CC_MDSS_BYTE0_INTF_CLK>,
-				 <&dispcc DISP_CC_MDSS_PCLK0_CLK>,
-				 <&dispcc DISP_CC_MDSS_ESC0_CLK>;
-			power-domains = <&dispcc MDSS_GDSC>;
 		};
 	};
 
@@ -436,6 +422,47 @@
 //	status = "okay";
 };
 
+&dsi0 {
+	status = "okay";
+	vdda-supply = <&vreg_l9a_1p2>;
+
+	panel@0 {
+		compatible = "mdss,sofef03-m";
+		reg = <0>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reset-gpios = <&tlmm 75 GPIO_ACTIVE_HIGH>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi0_out>;
+			};
+		};
+	};
+};
+
+&dsi0_out {
+	remote-endpoint = <&panel_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&dsi0_phy {
+	status = "okay";
+	vdds-supply = <&vreg_l5a_0p88>;
+};
+
+&dsi1 {
+	status = "okay";
+	vdda-supply = <&vreg_l9a_1p2>;
+};
+
+&dsi1_phy {
+	status = "okay";
+	vdds-supply = <&vreg_l5a_0p88>;
+};
+
 &gpi_dma0 {
 	status = "okay";
 };
@@ -531,6 +558,10 @@
 	/* Qcom SMB1390 @ 10 */
 	/* Qcom SMB1390_slave @ 18 */
 	/* HALO HL6111R Qi charger @ 25 */
+};
+
+&mdss {
+	status = "okay";
 };
 
 &pcie0 {
