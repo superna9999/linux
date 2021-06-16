@@ -107,6 +107,17 @@
 			compatible = "cache";
 		};
 	};
+
+	soc {
+		nanoviq: gpu@ff100000 {
+			compatible = "vivante,gc";
+     			reg = <0x0 0xff100000 0x0 0x800>;
+			interrupts = <0 186 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clkc CLKID_NNA_AXI_CLK>,
+			         <&clkc CLKID_NNA_CORE_CLK>;
+			clock-names = "bus", "core";
+		};
+	};
 };
 
 &clkc {
