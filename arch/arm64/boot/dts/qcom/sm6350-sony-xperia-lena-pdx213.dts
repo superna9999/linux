@@ -7,6 +7,7 @@
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
 #include "sm6350.dtsi"
+#include "pm6150l.dtsi"
 #include "pm6350.dtsi"
 
 / {
@@ -28,7 +29,6 @@
 			height = <2520>;
 			stride = <(1080 * 4)>;
 			format = "a8r8g8b8";
-			clocks = <&gcc GCC_DISP_AXI_CLK>;
 		};
 	};
 
@@ -347,6 +347,53 @@
 	};
 };
 
+&dsi0 {
+	status = "okay";
+
+	panel@0 {
+		compatible = "samsung,pdx213-amoled";
+		reg = <0>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		disp-te-gpio = <&tlmm 23 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pm6150l_gpio 9 GPIO_ACTIVE_LOW>;
+
+		pinctrl-0 = <&te_gpio &panel_reset_pin>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi0_out>;
+			};
+		};
+	};
+};
+
+&dsi0_out {
+	remote-endpoint = <&panel_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&dsi0_phy {
+	status = "okay";
+};
+
+&mdss {
+	status = "okay";
+};
+
+&pm6150l_gpio {
+	panel_reset_pin: panel-reset-state {
+		pins = "gpio9";
+		function = "func1";
+		qcom,drive-strength = <0x02>;
+		power-source = <0x01>;
+		bias-disable;
+		output-low;
+	};
+};
+
 &sdhc_2 {
 	status = "okay";
 
@@ -372,6 +419,13 @@
 		drive-strength = <2>;
 		bias-disable;
 		input-enable;
+	};
+
+	te_gpio: te-default-state {
+		pins = "gpio23";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-pull-down;
 	};
 };
 
