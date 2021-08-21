@@ -4604,6 +4604,36 @@ static const struct panel_desc_dsi sofef03m = {
 	.lanes = 4,
 };
 
+static const struct drm_display_mode pdx213_amoled_fhd_mode = {
+        .clock = (1080 + 8 + 8 + 8) * (2520 + 8 + 8 + 8) * 60 / 1000,
+        .hdisplay = 1080,
+        .hsync_start = 1080 + 8,
+        .hsync_end = 1080 + 8 + 8,
+        .htotal = 1080 + 8 + 8 + 8,
+        .vdisplay = 2520,
+        .vsync_start = 2520 + 8,
+        .vsync_end = 2520 + 8 + 8,
+        .vtotal = 2520 + 8 + 8 + 8,
+        .width_mm = 60,
+        .height_mm = 139,
+};
+
+static const struct panel_desc_dsi pdx213_amoled_fhd = {
+	.desc = {
+		.modes = &pdx213_amoled_fhd_mode,
+		.num_modes = 1,
+		.bpc = 8,
+		.size = {
+			.width = 60,
+			.height = 139,
+		},
+		.connector_type = DRM_MODE_CONNECTOR_DSI,
+	},
+	.flags = MIPI_DSI_CLOCK_NON_CONTINUOUS | MIPI_DSI_MODE_LPM,
+	.format = MIPI_DSI_FMT_RGB888,
+	.lanes = 4,
+};
+
 static const struct of_device_id dsi_of_match[] = {
 	{
 		.compatible = "auo,b080uan01",
@@ -4629,6 +4659,9 @@ static const struct of_device_id dsi_of_match[] = {
 	}, {
 		.compatible = "samsung,sofef03m",
 		.data = &sofef03m
+	}, {
+		.compatible = "sony,pdx213panel",
+		.data = &pdx213_amoled_fhd
 	}, {
 		/* sentinel */
 	}
