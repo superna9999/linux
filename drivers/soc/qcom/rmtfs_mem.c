@@ -171,12 +171,13 @@ static void qcom_rmtfs_mem_release_device(struct device *dev)
 static int qcom_rmtfs_mem_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
-	struct qcom_scm_vmperm perms[2];
+	struct qcom_scm_vmperm perms[3];
 	struct reserved_mem *rmem;
 	struct qcom_rmtfs_mem *rmtfs_mem;
+	bool assign_to_nav;
 	u32 client_id;
 	u32 vmid;
-	int ret;
+	int ret, cnt = 0;
 
 	rmem = of_reserved_mem_lookup(node);
 	if (!rmem) {
@@ -190,6 +191,8 @@ static int qcom_rmtfs_mem_probe(struct platform_device *pdev)
 		return ret;
 
 	}
+
+	assign_to_nav = of_property_read_bool(node, "qcom,assign-to-nav");
 
 	rmtfs_mem = kzalloc(sizeof(*rmtfs_mem), GFP_KERNEL);
 	if (!rmtfs_mem)
@@ -236,14 +239,19 @@ static int qcom_rmtfs_mem_probe(struct platform_device *pdev)
 			goto remove_cdev;
 		}
 
-		perms[0].vmid = QCOM_SCM_VMID_HLOS;
-		perms[0].perm = QCOM_SCM_PERM_RW;
-		perms[1].vmid = vmid;
-		perms[1].perm = QCOM_SCM_PERM_RW;
+		perms[cnt].vmid = QCOM_SCM_VMID_HLOS;
+		perms[cnt++].perm = QCOM_SCM_PERM_RW;
+		perms[cnt].vmid = vmid;
+		perms[cnt++].perm = QCOM_SCM_PERM_RW;
+
+		if (assign_to_nav) {
+			perms[cnt].vmid = QCOM_SCM_VMID_NAV;
+			perms[cnt++].perm = QCOM_SCM_PERM_RW;
+		}
 
 		rmtfs_mem->perms = BIT(QCOM_SCM_VMID_HLOS);
 		ret = qcom_scm_assign_mem(rmtfs_mem->addr, rmtfs_mem->size,
-					  &rmtfs_mem->perms, perms, 2);
+					  &rmtfs_mem->perms, perms, cnt);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "assign memory failed\n");
 			goto remove_cdev;
