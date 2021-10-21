@@ -103,6 +103,15 @@ force_gpt_fn(char *str)
 }
 __setup("gpt", force_gpt_fn);
 
+static int alternate_gpt_okay;
+static int __init
+alternate_gpt_okay_fn(char *str)
+{
+	alternate_gpt_okay = 1;
+	force_gpt = 1;
+	return 1;
+}
+__setup("alternate-gpt-okay", alternate_gpt_okay_fn);
 
 /**
  * efi_crc32() - EFI version of crc32 function
@@ -618,6 +627,7 @@ static int find_valid_gpt(struct parsed_partitions *state, gpt_header **gpt,
 		good_agpt = is_gpt_valid(state,
 					 le64_to_cpu(pgpt->alternate_lba),
 					 &agpt, &aptes);
+
         if (!good_agpt && force_gpt)
                 good_agpt = is_gpt_valid(state, lastlba, &agpt, &aptes);
 
@@ -652,7 +662,8 @@ static int find_valid_gpt(struct parsed_partitions *state, gpt_header **gpt,
                 *ptes = aptes;
                 kfree(pgpt);
                 kfree(pptes);
-		pr_warn("Primary GPT is invalid, using alternate GPT.\n");
+		if (!alternate_gpt_okay)
+			pr_warn("Primary GPT is invalid, using alternate GPT.\n");
                 return 1;
         }
 
