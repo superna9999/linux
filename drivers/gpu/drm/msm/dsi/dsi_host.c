@@ -1568,9 +1568,21 @@ static irqreturn_t dsi_host_irq(int irq, void *ptr)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t disp_te_irq(int irq, void *ptr)
+{
+	// struct msm_dsi_host *msm_host = ptr;
+	// u32 isr;
+	// unsigned long flags;
+
+	pr_err_ratelimited("GOT THE DISP TE\n");
+
+	return IRQ_HANDLED;
+}
+
 static int dsi_host_init_panel_gpios(struct msm_dsi_host *msm_host,
 			struct device *panel_device)
 {
+	int ret;
 	msm_host->disp_en_gpio = devm_gpiod_get_optional(panel_device,
 							 "disp-enable",
 							 GPIOD_OUT_LOW);
@@ -1585,6 +1597,18 @@ static int dsi_host_init_panel_gpios(struct msm_dsi_host *msm_host,
 	if (IS_ERR(msm_host->te_gpio)) {
 		DBG("cannot get disp-te-gpios %ld", PTR_ERR(msm_host->te_gpio));
 		return PTR_ERR(msm_host->te_gpio);
+	}
+
+	if (msm_host->te_gpio) {
+		DRM_DEV_INFO(panel_device, "disp-te-gpio IRQ is %d\n", gpiod_to_irq(msm_host->te_gpio));
+		ret = devm_request_irq(panel_device, gpiod_to_irq(msm_host->te_gpio),
+				disp_te_irq, IRQF_TRIGGER_RISING,
+				"dsi_tear", msm_host);
+		if (ret < 0) {
+			DRM_DEV_ERROR(panel_device, "failed to request IRQ%u: %d\n",
+					gpiod_to_irq(msm_host->te_gpio), ret);
+			// return ret;
+		}
 	}
 
 	return 0;
