@@ -34,6 +34,7 @@
 #include "meson_registers.h"
 #include "meson_encoder_cvbs.h"
 #include "meson_encoder_hdmi.h"
+#include "meson_encoder_dsi.h"
 #include "meson_viu.h"
 #include "meson_vpp.h"
 #include "meson_rdma.h"
@@ -326,6 +327,12 @@ static int meson_drv_bind_master(struct device *dev, bool has_components)
 	ret = meson_encoder_hdmi_init(priv);
 	if (ret)
 		goto exit_afbcd;
+
+	if (meson_vpu_is_compatible(priv, VPU_COMPATIBLE_G12A)) {
+		ret = meson_encoder_dsi_init(priv);
+		if (ret)
+			goto free_drm;
+	}
 
 	ret = meson_plane_create(priv);
 	if (ret)
