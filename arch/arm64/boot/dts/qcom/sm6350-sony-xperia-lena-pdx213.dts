@@ -379,6 +379,18 @@
 	status = "okay";
 };
 
+&gmu {
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		firmware-name = "qcom/sm6350/Sony/lena/a615_zap.mbn";
+	};
+};
+
 &mdss {
 	status = "okay";
 };
