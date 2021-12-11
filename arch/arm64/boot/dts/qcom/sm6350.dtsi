@@ -470,6 +470,18 @@
 			#mbox-cells = <2>;
 		};
 
+		qfprom: qfprom@780000 {
+			compatible = "qcom,sm6350-qfprom", "qcom,qfprom";
+			reg = <0 0x00780000 0 0x7000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			gpu_speed_bin: gpu_speed_bin@6015 {
+				reg = <0x6015 0x1>;
+				bits = <0 8>;
+			};
+		};
+
 		rng: rng@793000 {
 			compatible = "qcom,prng-ee";
 			reg = <0 0x00793000 0 0x1000>;
