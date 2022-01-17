@@ -2674,6 +2674,25 @@ static u32 *dw_hdmi_bridge_atomic_get_input_bus_fmts(struct drm_bridge *bridge,
 	if (!input_fmts)
 		return NULL;
 
+	/* If dw-hdmi is the first bridge make sure it only takes RGB24 as input */
+	if (list_is_first(&bridge->chain_node, &bridge->encoder->bridge_chain)) {
+		switch (output_fmt) {
+		case MEDIA_BUS_FMT_FIXED:
+		case MEDIA_BUS_FMT_RGB888_1X24:
+		case MEDIA_BUS_FMT_YUV8_1X24:
+		case MEDIA_BUS_FMT_UYVY8_1X16:
+			input_fmts[i++] = MEDIA_BUS_FMT_RGB888_1X24;
+			break;
+		default:
+			kfree(input_fmts);
+			input_fmts = NULL;
+		}
+
+		*num_input_fmts = i;
+
+		return input_fmts;
+	}
+
 	switch (output_fmt) {
 	/* If MEDIA_BUS_FMT_FIXED is tested, return default bus format */
 	case MEDIA_BUS_FMT_FIXED:
