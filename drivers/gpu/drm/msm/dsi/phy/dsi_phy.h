@@ -110,6 +110,7 @@ struct msm_dsi_phy {
 	enum msm_dsi_phy_usecase usecase;
 	bool regulator_ldo_mode;
 	bool cphy_mode;
+	bool no_byte_intf_clk_div;
 
 	struct clk_hw *vco_hw;
 	bool pll_on;

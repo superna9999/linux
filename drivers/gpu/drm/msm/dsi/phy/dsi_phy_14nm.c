@@ -897,6 +897,10 @@ static int dsi_pll_14nm_init(struct msm_dsi_phy *phy)
 
 	phy->vco_hw = &pll_14nm->clk_hw;
 
+	/* For PHY version <= 2.0 (14nm), byte_intf_clk = byte_clk */
+	phy->no_byte_intf_clk_div = true;
+
+
 	return 0;
 }
 

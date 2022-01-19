@@ -176,6 +176,8 @@ struct msm_dsi_host {
 	/* from phy DT */
 	bool cphy_mode;
 
+	bool phy_no_byte_intf_clk_div;
+	
 	u32 dma_cmd_ctrl_restore;
 
 	bool registered;
@@ -419,7 +421,7 @@ int dsi_link_clk_set_rate_6g(struct msm_dsi_host *msm_host)
 
 	if (msm_host->byte_intf_clk) {
 		/* For CPHY, byte_intf_clk is same as byte_clk */
-		if (msm_host->cphy_mode)
+		if (msm_host->cphy_mode || msm_host->phy_no_byte_intf_clk_div)
 			byte_intf_rate = msm_host->byte_clk_rate;
 		else
 			byte_intf_rate = msm_host->byte_clk_rate / 2;
@@ -2272,6 +2274,7 @@ void msm_dsi_host_set_phy_mode(struct mipi_dsi_host *host,
 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
 
 	msm_host->cphy_mode = src_phy->cphy_mode;
+	msm_host->phy_no_byte_intf_clk_div = src_phy->no_byte_intf_clk_div;
 }
 
 void msm_dsi_host_reset_phy(struct mipi_dsi_host *host)
