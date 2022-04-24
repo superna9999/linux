@@ -537,6 +537,7 @@ static const struct freq_tbl ftbl_cci_clk_src[] = {
 
 static struct clk_rcg2 cci_clk_src = {
 	.cmd_rcgr = 0x3300,
+	.mnd_width = 8,
 	.hid_width = 5,
 	.parent_map = mmss_xo_mmpll0_mmpll7_mmpll10_gpll0_gpll0_div_map,
 	.freq_tbl = ftbl_cci_clk_src,
@@ -928,6 +929,7 @@ static const struct freq_tbl ftbl_mclk_clk_src[] = {
 
 static struct clk_rcg2 mclk0_clk_src = {
 	.cmd_rcgr = 0x3360,
+	.mnd_width = 8,
 	.hid_width = 5,
 	.parent_map = mmss_xo_mmpll4_mmpll7_mmpll10_gpll0_gpll0_div_map,
 	.freq_tbl = ftbl_mclk_clk_src,
@@ -941,6 +943,7 @@ static struct clk_rcg2 mclk0_clk_src = {
 
 static struct clk_rcg2 mclk1_clk_src = {
 	.cmd_rcgr = 0x3390,
+	.mnd_width = 8,
 	.hid_width = 5,
 	.parent_map = mmss_xo_mmpll4_mmpll7_mmpll10_gpll0_gpll0_div_map,
 	.freq_tbl = ftbl_mclk_clk_src,
@@ -954,6 +957,7 @@ static struct clk_rcg2 mclk1_clk_src = {
 
 static struct clk_rcg2 mclk2_clk_src = {
 	.cmd_rcgr = 0x33c0,
+	.mnd_width = 8,
 	.hid_width = 5,
 	.parent_map = mmss_xo_mmpll4_mmpll7_mmpll10_gpll0_gpll0_div_map,
 	.freq_tbl = ftbl_mclk_clk_src,
@@ -967,6 +971,7 @@ static struct clk_rcg2 mclk2_clk_src = {
 
 static struct clk_rcg2 mclk3_clk_src = {
 	.cmd_rcgr = 0x33f0,
+	.mnd_width = 8,
 	.hid_width = 5,
 	.parent_map = mmss_xo_mmpll4_mmpll7_mmpll10_gpll0_gpll0_div_map,
 	.freq_tbl = ftbl_mclk_clk_src,
@@ -1031,6 +1036,7 @@ static const struct freq_tbl ftbl_ahb_clk_src[] = {
 
 static struct clk_rcg2 ahb_clk_src = {
 	.cmd_rcgr = 0x5000,
+	.mnd_width = 0,
 	.hid_width = 5,
 	.parent_map = mmss_xo_mmpll0_gpll0_gpll0_div_map,
 	.freq_tbl = ftbl_ahb_clk_src,
@@ -1956,6 +1962,7 @@ static struct clk_branch camss_cci_clk = {
 
 static struct clk_branch camss_cci_ahb_clk = {
 	.halt_reg = 0x3348,
+	.halt_check = BRANCH_HALT,
 	.clkr = {
 		.enable_reg = 0x3348,
 		.enable_mask = BIT(0),
@@ -2039,13 +2046,16 @@ static struct clk_branch camss_top_ahb_clk = {
 			.parent_hws = (const struct clk_hw *[]){ &ahb_clk_src.clkr.hw },
 			.num_parents = 1,
 			.ops = &clk_branch2_ops,
-			.flags = CLK_SET_RATE_PARENT,
+			//.flags = CLK_SET_RATE_PARENT,
 		},
 	},
 };
 
 static struct clk_branch camss_ahb_clk = {
 	.halt_reg = 0x348c,
+	.halt_check = BRANCH_HALT,
+	.hwcg_reg = 0x348c,
+	.hwcg_bit = 1,
 	.clkr = {
 		.enable_reg = 0x348c,
 		.enable_mask = BIT(0),
@@ -2054,7 +2064,6 @@ static struct clk_branch camss_ahb_clk = {
 			.parent_hws = (const struct clk_hw *[]){ &ahb_clk_src.clkr.hw },
 			.num_parents = 1,
 			.ops = &clk_branch2_ops,
-			.flags = CLK_SET_RATE_PARENT,
 		},
 	},
 };
@@ -2493,6 +2502,7 @@ static struct clk_branch mnoc_ahb_clk = {
 
 static struct clk_branch bimc_smmu_ahb_clk = {
 	.halt_reg = 0xe004,
+	.halt_check = BRANCH_VOTED,
 	.hwcg_reg = 0xe004,
 	.hwcg_bit = 1,
 	.clkr = {
@@ -2510,6 +2520,7 @@ static struct clk_branch bimc_smmu_ahb_clk = {
 
 static struct clk_branch bimc_smmu_axi_clk = {
 	.halt_reg = 0xe008,
+	.halt_check = BRANCH_VOTED,
 	.hwcg_reg = 0xe008,
 	.hwcg_bit = 1,
 	.clkr = {
@@ -2611,9 +2622,6 @@ static struct gdsc mdss_gdsc = {
 
 static struct gdsc camss_top_gdsc = {
 	.gdscr = 0x34a0,
-	.cxcs = (unsigned int []){ 0x35b8, 0x36c4, 0x3704, 0x3714, 0x3494,
-				   0x35a8, 0x3868 },
-	.cxc_count = 7,
 	.pd = {
 		.name = "camss_top",
 	},
@@ -2650,11 +2658,13 @@ static struct gdsc camss_cpp_gdsc = {
 static struct gdsc bimc_smmu_gdsc = {
 	.gdscr = 0xe020,
 	.gds_hw_ctrl = 0xe024,
+	.cxcs = (unsigned int []){ 0xe008 },
+	.cxc_count = 1,
 	.pd = {
 		.name = "bimc_smmu",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
-	.flags = HW_CTRL | ALWAYS_ON,
+	.flags = HW_CTRL | ALWAYS_ON | VOTABLE,
 };
 
 static struct clk_regmap *mmcc_msm8998_clocks[] = {
