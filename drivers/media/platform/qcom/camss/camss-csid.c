@@ -573,6 +573,7 @@ int msm_csid_subdev_init(struct camss *camss, struct csid_device *csid,
 	if (camss->version == CAMSS_8x16) {
 		csid->ops = &csid_ops_4_1;
 	} else if (camss->version == CAMSS_8x96 ||
+		   camss->version == CAMSS_8x98 ||
 		   camss->version == CAMSS_660) {
 		csid->ops = &csid_ops_4_7;
 	} else if (camss->version == CAMSS_845 ||

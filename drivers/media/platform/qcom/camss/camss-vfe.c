@@ -219,6 +219,7 @@ static u32 vfe_src_pad_code(struct vfe_line *line, u32 sink_code,
 			return sink_code;
 		}
 	else if (vfe->camss->version == CAMSS_8x96 ||
+		 vfe->camss->version == CAMSS_8x98 ||
 		 vfe->camss->version == CAMSS_660 ||
 		 vfe->camss->version == CAMSS_845 ||
 		 vfe->camss->version == CAMSS_8250)
@@ -1292,6 +1293,7 @@ int msm_vfe_subdev_init(struct camss *camss, struct vfe_device *vfe,
 		vfe->ops = &vfe_ops_4_7;
 		break;
 	case CAMSS_660:
+	case CAMSS_8x98:
 		vfe->ops = &vfe_ops_4_8;
 		break;
 	case CAMSS_845:
@@ -1399,6 +1401,7 @@ int msm_vfe_subdev_init(struct camss *camss, struct vfe_device *vfe,
 				l->nformats = ARRAY_SIZE(formats_rdi_8x16);
 			}
 		} else if (camss->version == CAMSS_8x96 ||
+			   camss->version == CAMSS_8x98 ||
 			   camss->version == CAMSS_660) {
 			if (i == VFE_LINE_PIX) {
 				l->formats = formats_pix_8x96;

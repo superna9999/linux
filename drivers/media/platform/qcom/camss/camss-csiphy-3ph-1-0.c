@@ -42,6 +42,7 @@
 #define CSIPHY_3PH_LNn_CSI_LANE_CTRL15(n)	(0x03c + 0x100 * (n))
 #define CSIPHY_3PH_LNn_CSI_LANE_CTRL15_SWI_SOT_SYMBOL	0xb8
 
+#define CSIPHY_3PH_CMN_CSI_LNn_CTRLm(n, m)	(0x100 + 0x200 * n + 0x4 * (m))
 #define CSIPHY_3PH_CMN_CSI_COMMON_CTRLn(n)	(0x800 + 0x4 * (n))
 #define CSIPHY_3PH_CMN_CSI_COMMON_CTRL5_CLK_ENABLE	BIT(7)
 #define CSIPHY_3PH_CMN_CSI_COMMON_CTRL6_COMMON_PWRDN_B	BIT(0)
@@ -364,40 +365,87 @@ static void csiphy_gen1_config_lanes(struct csiphy_device *csiphy,
 		else
 			l = c->data[i].pos * 2;
 
-		val = CSIPHY_3PH_LNn_CFG1_SWI_REC_DLY_PRG;
-		val |= 0x17;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG1(l));
+		/* HW version v5.0.1 (v5.0 on preproduction msm8998v1, unsupported) */
+		if (csiphy->camss->version == CAMSS_8x98) {
+			writel_relaxed(0x63, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 23));
 
-		val = CSIPHY_3PH_LNn_CFG2_LP_REC_EN_INT;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG2(l));
+			writel_relaxed(0xac, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 26));
 
-		val = settle_cnt;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG3(l));
+			writel_relaxed(0xa5, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 27));
 
-		val = CSIPHY_3PH_LNn_CFG5_T_HS_DTERM |
-			CSIPHY_3PH_LNn_CFG5_HS_REC_EQ_FQ_INT;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG5(l));
+			writel_relaxed(0x6, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 1));
 
-		val = CSIPHY_3PH_LNn_CFG6_SWI_FORCE_INIT_EXIT;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG6(l));
+			writel_relaxed(0x12, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 3));
 
-		val = CSIPHY_3PH_LNn_CFG7_SWI_T_INIT;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG7(l));
+			val = (settle_cnt >> 8) & 0xff;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 2));
 
-		val = CSIPHY_3PH_LNn_CFG8_SWI_SKIP_WAKEUP |
-			CSIPHY_3PH_LNn_CFG8_SKEW_FILTER_ENABLE;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG8(l));
+			writel_relaxed(0x20, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 5));
 
-		val = CSIPHY_3PH_LNn_CFG9_SWI_T_WAKEUP;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG9(l));
+			/*
+			 * This identical reassignment is intentional to prevent mistakes when
+			 * the rest of the values are (hopefully) open-coded at some point.
+			 */
+			val = (settle_cnt >> 8) & 0xff;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 20));
 
-		val = CSIPHY_3PH_LNn_TEST_IMP_HS_TERM_IMP;
-		writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_TEST_IMP(l));
+			writel_relaxed(0x3e, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 6));
 
-		val = CSIPHY_3PH_LNn_CSI_LANE_CTRL15_SWI_SOT_SYMBOL;
-		writel_relaxed(val, csiphy->base +
-				    CSIPHY_3PH_LNn_CSI_LANE_CTRL15(l));
+			writel_relaxed(0x41, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 7));
+
+			writel_relaxed(0x41, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 8));
+
+			writel_relaxed(0x7f, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 9));
+
+			writel_relaxed(0x0, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 10));
+
+			writel_relaxed(0x0, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 11));
+
+			writel_relaxed(0x12, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 17));
+
+			writel_relaxed(0x2, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 24));
+
+			writel_relaxed(0x0, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 25));
+
+			writel_relaxed(0x51, csiphy->base + CSIPHY_3PH_CMN_CSI_LNn_CTRLm(i, 55));
+		} else {
+			val = CSIPHY_3PH_LNn_CFG1_SWI_REC_DLY_PRG;
+			val |= 0x17;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG1(l));
+
+			val = CSIPHY_3PH_LNn_CFG2_LP_REC_EN_INT;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG2(l));
+
+			val = settle_cnt;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG3(l));
+
+			val = CSIPHY_3PH_LNn_CFG5_T_HS_DTERM |
+				CSIPHY_3PH_LNn_CFG5_HS_REC_EQ_FQ_INT;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG5(l));
+
+			val = CSIPHY_3PH_LNn_CFG6_SWI_FORCE_INIT_EXIT;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG6(l));
+
+			val = CSIPHY_3PH_LNn_CFG7_SWI_T_INIT;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG7(l));
+
+			val = CSIPHY_3PH_LNn_CFG8_SWI_SKIP_WAKEUP |
+				CSIPHY_3PH_LNn_CFG8_SKEW_FILTER_ENABLE;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG8(l));
+
+			val = CSIPHY_3PH_LNn_CFG9_SWI_T_WAKEUP;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG9(l));
+
+			val = CSIPHY_3PH_LNn_TEST_IMP_HS_TERM_IMP;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_TEST_IMP(l));
+
+			val = CSIPHY_3PH_LNn_CSI_LANE_CTRL15_SWI_SOT_SYMBOL;
+			writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CSI_LANE_CTRL15(l));
+		}
 	}
+
+	if (csiphy->camss->version == CAMSS_8x98)
+		return;
 
 	val = CSIPHY_3PH_LNn_CFG1_SWI_REC_DLY_PRG;
 	writel_relaxed(val, csiphy->base + CSIPHY_3PH_LNn_CFG1(l));
