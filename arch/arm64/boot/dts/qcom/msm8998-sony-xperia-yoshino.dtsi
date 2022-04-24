@@ -52,23 +52,28 @@
 	cam1_vdig_vreg: cam1-vdig {
 		compatible = "regulator-fixed";
 		regulator-name = "cam1_vdig";
-		startup-delay-us = <0>;
-		enable-active-high;
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
 		gpio = <&tlmm 25 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam1_vdig_default>;
 		vin-supply = <&vreg_s3a_1p35>;
+		enable-active-high;
+
 	};
 
 	cam_vio_vreg: cam-vio-vreg {
 		compatible = "regulator-fixed";
 		regulator-name = "cam_vio_vreg";
-		startup-delay-us = <0>;
-		enable-active-high;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
 		gpio = <&pmi8998_gpio 1 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam_vio_default>;
 		vin-supply = <&vreg_lvs1a_1p8>;
+		enable-active-high;
 	};
 
 	touch_vddio_vreg: touch-vddio-vreg {
@@ -233,7 +238,7 @@
 	status = "okay";
 
 	bluetooth {
-		compatible = "qcom,wcn3990-bt";
+		//compatible = "qcom,wcn3990-bt";
 
 		vddio-supply = <&vreg_s4a_1p8>;
 		vddxo-supply = <&vreg_l7a_1p8>;
@@ -265,6 +270,66 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&tof_int &tof_reset>;
 	};
+};
+
+&camss {
+	status = "okay";
+
+	vdda-supply = <&vreg_l2a_1p2>;
+	vdd_sec-supply = <&vreg_l1a_0p875>;
+};
+
+&cci {
+	status = "okay";
+};
+
+&cci_i2c0 {
+	/* IMX400 */
+};
+
+&cci_i2c1 {
+	/* IMX258 on Poplar & Maple, IMX219 on Lilac */
+	sensor@6c {
+		// compatible = "sony,imx258";
+		reg = <0x6c>;
+
+		clocks = <&xo>;
+		assigned-clocks = <&mmcc CAMSS_MCLK1_CLK>;
+		assigned-clock-rates = <24000000>;
+
+		vana-supply = <&vreg_l22a_2p85>;
+		vdig-supply = <&cam1_vdig_vreg>;
+		vif-supply = <&cam_vio_vreg>;
+
+		/* Driver limitation.. */
+		rotation = <180>;
+
+		reset-gpios = <&tlmm 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&mclk1_on>, <&front_cam_reset>;
+		pinctrl-1 = <&mclk1_off>, <&front_cam_reset>;
+
+		port {
+			front_cam_ep: endpoint {
+				remote-endpoint = <&csiphy2_ep>;
+				data-lanes = <0 1 2 3>;
+				// link-frequencies = /bits/ 64 <633600000>;
+				// link-frequencies = /bits/ 64 <780000000 480000000>;
+				clock-noncontinuous;
+			};
+		};
+	};
+};
+
+&camss {
+	status = "okay";
+	vdda-supply = <&vreg_l1a_0p875>;
+};
+
+&csiphy2_ep {
+	clock-lanes = <7>;
+	data-lanes = <0 1 2 3>;
+	remote-endpoint = <&front_cam_ep>;
 };
 
 &ibb {
@@ -659,6 +724,14 @@
 		function = "gpio";
 		bias-disable;
 		drive-strength = <2>;
+	};
+
+	front_cam_reset: front-cam-reset {
+		pins = "gpio28";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+		output-low;
 	};
 
 	usb_extcon_active: usb-extcon-active-state {
