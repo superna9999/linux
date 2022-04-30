@@ -98,7 +98,7 @@ static inline void dpu_hw_ctl_trigger_start(struct dpu_hw_ctl *ctx)
 
 static inline bool dpu_hw_ctl_is_started(struct dpu_hw_ctl *ctx)
 {
-	return !!(DPU_REG_READ(&ctx->hw, CTL_START) & BIT(0));
+	return !!(DPU_REG_READ(&ctx->hw, CTL_START) & BIT(0)) || 1;
 }
 
 static inline void dpu_hw_ctl_trigger_pending(struct dpu_hw_ctl *ctx)
