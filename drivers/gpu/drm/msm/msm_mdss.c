@@ -508,6 +508,7 @@ static int mdss_remove(struct platform_device *pdev)
 
 static const struct of_device_id mdss_dt_match[] = {
 	{ .compatible = "qcom,mdss" },
+	{ .compatible = "qcom,msm8996-mdss" },
 	{ .compatible = "qcom,msm8998-mdss" },
 	{ .compatible = "qcom,qcm2290-mdss" },
 	{ .compatible = "qcom,sdm845-mdss" },
