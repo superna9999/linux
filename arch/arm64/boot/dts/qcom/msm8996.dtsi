@@ -492,28 +492,24 @@
 				rpmpd_opp_table: opp-table {
 					compatible = "operating-points-v2";
 
-					rpmpd_opp1: opp1 {
+					rpmpd_opp_ret: opp1 {
 						opp-level = <1>;
 					};
 
-					rpmpd_opp2: opp2 {
+					rpmpd_opp_svs2: opp2 {
 						opp-level = <2>;
 					};
 
-					rpmpd_opp3: opp3 {
+					rpmpd_opp_svs: opp3 {
 						opp-level = <3>;
 					};
 
-					rpmpd_opp4: opp4 {
+					rpmpd_opp_nom: opp4 {
 						opp-level = <4>;
 					};
 
-					rpmpd_opp5: opp5 {
+					rpmpd_opp_turbo: opp5 {
 						opp-level = <5>;
-					};
-
-					rpmpd_opp6: opp6 {
-						opp-level = <6>;
 					};
 				};
 			};
@@ -904,25 +900,24 @@
 					       <825000000>;
 		};
 
-		mdss: mdss@900000 {
-			compatible = "qcom,mdss";
-
-			reg = <0x00900000 0x1000>,
-			      <0x009b0000 0x1040>,
-			      <0x009b8000 0x1040>;
-			reg-names = "mdss_phys",
-				    "vbif_phys",
-				    "vbif_nrt_phys";
+		mdss: display-subsystem@900000 {
+			compatible = "qcom,msm8996-mdss";
+			reg = <0x00900000 0x1000>;
+			reg-names = "mdss";
 
 			power-domains = <&mmcc MDSS_GDSC>;
-			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
 
+			clocks = <&mmcc MDSS_AHB_CLK>, <&mmcc MDSS_MDP_CLK>;
+			clock-names = "iface", "core";
+
+			assigned-clocks = <&mmcc MDSS_MDP_CLK>;
+			assigned-clock-rates = <300000000>;
+
+			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-controller;
 			#interrupt-cells = <1>;
 
-			clocks = <&mmcc MDSS_AHB_CLK>,
-				 <&mmcc MDSS_MDP_CLK>;
-			clock-names = "iface", "core";
+			iommus = <&mdp_smmu 0>;
 
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -930,31 +925,29 @@
 
 			status = "disabled";
 
-			mdp: mdp@901000 {
-				compatible = "qcom,mdp5";
-				reg = <0x00901000 0x90000>;
-				reg-names = "mdp_phys";
-
-				interrupt-parent = <&mdss>;
-				interrupts = <0>;
+			mdp: display-controller@901000 {
+				compatible = "qcom,msm8996-dpu";
+				reg = <0x00901000 0x90000>,
+				      <0x009b0000 0x1040>,
+				      <0x009b8000 0x1040>;
+				reg-names = "mdp", "vbif", "vbif_nrt";
 
 				clocks = <&mmcc MDSS_AHB_CLK>,
 					 <&mmcc MDSS_AXI_CLK>,
 					 <&mmcc MDSS_MDP_CLK>,
 					 <&mmcc SMMU_MDP_AXI_CLK>,
 					 <&mmcc MDSS_VSYNC_CLK>;
-				clock-names = "iface",
-					      "bus",
-					      "core",
-					      "iommu",
-					      "vsync";
-
-				iommus = <&mdp_smmu 0>;
+				clock-names = "iface", "bus", "core", "iommu", "vsync";
 
 				assigned-clocks = <&mmcc MDSS_MDP_CLK>,
-					 <&mmcc MDSS_VSYNC_CLK>;
-				assigned-clock-rates = <300000000>,
-					 <19200000>;
+						  <&mmcc MDSS_VSYNC_CLK>;
+				assigned-clock-rates = <412500000>, <19200000>;
+
+				operating-points-v2 = <&mdp_opp_table>;
+				power-domains = <&rpmpd MSM8996_VDDMX>;
+
+				interrupt-parent = <&mdss>;
+				interrupts = <0>;
 
 				interconnects = <&mnoc MASTER_MDP_PORT0 &bimc SLAVE_EBI_CH0>,
 						<&mnoc MASTER_MDP_PORT1 &bimc SLAVE_EBI_CH0>,
@@ -967,14 +960,14 @@
 
 					port@0 {
 						reg = <0>;
-						mdp5_intf3_out: endpoint {
+						dpu_intf3_out: endpoint {
 							remote-endpoint = <&hdmi_in>;
 						};
 					};
 
 					port@1 {
 						reg = <1>;
-						mdp5_intf1_out: endpoint {
+						dpu_intf1_out: endpoint {
 							remote-endpoint = <&dsi0_in>;
 						};
 					};
@@ -984,6 +977,30 @@
 						mdp5_intf2_out: endpoint {
 							remote-endpoint = <&dsi1_in>;
 						};
+					};
+				};
+
+				mdp_opp_table: mdp-opp-table {
+					compatible = "operating-points-v2";
+
+					opp-171430000 {
+						opp-hz = /bits/ 64 <171430000>;
+						required-opps = <&rpmpd_opp_svs2>;
+					};
+
+					opp-275000000 {
+						opp-hz = /bits/ 64 <275000000>;
+						required-opps = <&rpmpd_opp_svs>;
+					};
+
+					opp-330000000 {
+						opp-hz = /bits/ 64 <330000000>;
+						required-opps = <&rpmpd_opp_nom>;
+					};
+
+					opp-412500000 {
+						opp-hz = /bits/ 64 <412500000>;
+						required-opps = <&rpmpd_opp_turbo>;
 					};
 				};
 			};
@@ -1026,7 +1043,7 @@
 					port@0 {
 						reg = <0>;
 						dsi0_in: endpoint {
-							remote-endpoint = <&mdp5_intf1_out>;
+							remote-endpoint = <&dpu_intf1_out>;
 						};
 					};
 
@@ -1122,7 +1139,7 @@
 				status = "disabled";
 			};
 
-			hdmi: hdmi-tx@9a0000 {
+			hdmi: hdmi@9a0000 {
 				compatible = "qcom,hdmi-tx-8996";
 				reg =	<0x009a0000 0x50c>,
 					<0x00070000 0x6158>,
@@ -1158,7 +1175,7 @@
 					port@0 {
 						reg = <0>;
 						hdmi_in: endpoint {
-							remote-endpoint = <&mdp5_intf3_out>;
+							remote-endpoint = <&dpu_intf3_out>;
 						};
 					};
 				};
