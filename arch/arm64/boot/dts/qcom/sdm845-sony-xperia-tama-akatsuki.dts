@@ -25,6 +25,29 @@
 		gpio = <&tlmm 133 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 		regulator-boot-on;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts_vddio_en>;
+	};
+};
+
+&i2c5 {
+	status = "okay";
+
+	touchscreen: touchscreen@4a {
+		compatible = "atmel,maxtouch";
+		reg = <0x4a>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <125 IRQ_TYPE_LEVEL_LOW>;
+
+		reset-gpios = <&tlmm 99 GPIO_ACTIVE_LOW>;
+		vdda-supply = <&vreg_l28a_2p8>;
+		vdd-supply = <&ts_vddio_supply>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&ts_default>;
+		pinctrl-1 = <&ts_sleep>;
 	};
 };
 
