@@ -68,6 +68,11 @@
 	};
 };
 
+&adsp_pas {
+	firmware-name = "qcom/sdm845/Sony/tama/adsp.mbn";
+	status = "okay";
+};
+
 &apps_rsc {
 	pm8998-rpmh-regulators {
 		compatible = "qcom,pm8998-rpmh-regulators";
@@ -328,6 +333,11 @@
 	};
 };
 
+&cdsp_pas {
+	firmware-name = "qcom/sdm845/Sony/tama/cdsp.mbn";
+	status = "okay";
+};
+
 &dsi0 {
 	vdda-supply = <&vreg_l26a_1p2>;
 	status = "okay";
@@ -444,6 +454,12 @@
 	regulator-pull-down;
 };
 
+&ipa {
+	memory-region = <&ipa_fw_mem>;
+	firmware-name = "qcom/sdm845/Sony/tama/ipa_fws.mbn";
+	status = "okay";
+};
+
 &lab {
 	regulator-min-microvolt = <5500000>;
 	regulator-max-microvolt = <5700000>;
@@ -455,6 +471,11 @@
 };
 
 &mdss {
+	status = "okay";
+};
+
+&mss_pil {
+	firmware-name = "qcom/sdm845/Sony/tama/mba.mbn", "qcom/sdm845/Sony/tama/modem.mbn";
 	status = "okay";
 };
 
@@ -598,4 +619,9 @@
 	vdd-supply = <&vreg_l1a_0p9>;
 	vdda-pll-supply = <&vreg_l12a_1p8>;
 	vdda-phy-dpdm-supply = <&vreg_l24a_3p1>;
+};
+
+&venus {
+	firmware-name = "qcom/sdm845/Sony/tama/venus.mbn";
+	status = "okay";
 };
