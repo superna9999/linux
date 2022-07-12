@@ -63,6 +63,7 @@
 };
 
 &panel {
+	compatible = "sony,lgd-akatsuki";
 	/* Akatsuki uses an OLED panel. */
 	/delete-property/ backlight;
 	/delete-property/ vsp-supply;
