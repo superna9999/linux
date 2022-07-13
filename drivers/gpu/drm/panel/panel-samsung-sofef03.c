@@ -351,7 +351,8 @@ static int sofef03_m_probe(struct mipi_dsi_device *dsi)
 	dsc->slice_width = 540;
 	dsc->slice_count = 2;
 	dsc->bits_per_component = 8;
-	dsc->bits_per_pixel = 8;
+	/* 4 fractional bits */
+	dsc->bits_per_pixel = 8 << 4;
 	dsc->block_pred_enable = true;
 
 	ctx->dsi->dsc = dsc;
