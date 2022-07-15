@@ -4083,7 +4083,7 @@
 					 <&dispcc DISP_CC_MDSS_PCLK0_CLK>,
 					 <&dispcc DISP_CC_MDSS_ESC0_CLK>,
 					 <&dispcc DISP_CC_MDSS_AHB_CLK>,
-					<&gcc GCC_DISP_HF_AXI_CLK>;
+					 <&gcc GCC_DISP_HF_AXI_CLK>;
 				clock-names = "byte",
 					      "byte_intf",
 					      "pixel",
