@@ -99,9 +99,8 @@ static int sofef03_m_on(struct sofef03_m *ctx)
 	mipi_dsi_dcs_write_seq(dsi, 0xc2, 0x2d, 0x27);
 	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	mipi_dsi_dcs_write_seq(dsi, 0x60, 0x00);
+	mipi_dsi_dcs_write_seq(dsi, 0x60, 0x00); // 0x10 for 120hz!
 	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-
 	msleep(60);
 
 	ret = mipi_dsi_dcs_set_display_on(dsi);
@@ -218,6 +217,20 @@ static const struct drm_display_mode sofef03_m_mode = {
 	.vsync_start = 2520 + 2393,
 	.vsync_end = 2520 + 2393 + 8,
 	.vtotal = 2520 + 2393 + 8 + 8,
+	.width_mm = 61,
+	.height_mm = 142,
+};
+
+static const struct drm_display_mode sofef03_m_120hz_mode = {
+	.clock = (1080 + 56 + 8 + 8) * (2520 + 499 + 8 + 8) * 120 / 1000,
+	.hdisplay = 1080,
+	.hsync_start = 1080 + 56,
+	.hsync_end = 1080 + 56 + 8,
+	.htotal = 1080 + 56 + 8 + 8,
+	.vdisplay = 2520,
+	.vsync_start = 2520 + 499,
+	.vsync_end = 2520 + 499 + 8,
+	.vtotal = 2520 + 499 + 8 + 8,
 	.width_mm = 61,
 	.height_mm = 142,
 };
