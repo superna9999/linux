@@ -1743,7 +1743,7 @@ static u32 dsi_dsc_rc_buf_thresh[DSC_NUM_BUF_RANGES - 1] = {
 
 /* only 8bpc, 8bpp added */
 static char min_qp[DSC_NUM_BUF_RANGES] = {
-	0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7, 13
+	0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7, 12
 };
 
 static char max_qp[DSC_NUM_BUF_RANGES] = {
