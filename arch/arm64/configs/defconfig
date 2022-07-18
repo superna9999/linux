@@ -132,8 +132,8 @@ CONFIG_DEVTMPFS_MOUNT=y
 # qcom/adsp.mbn qcom/cdsp.mbn qcom/ipa_fws.mbn qcom/mba.mbn qcom/slpi.mbn qcom/venus.mbn
 CONFIG_EXTRA_FIRMWARE="qcom/a630_gmu.bin qcom/a619_gmu.bin qcom/a630_sqe.fw qcom/sdm845/Sony/tama/a630_zap.mbn qcom/sm6350/Sony/lena/a615_zap.mbn qcom/sm6350/Sony/lena/a615_zap.mdt qcom/sm6350/Sony/lena/a615_zap.b00 qcom/sm6350/Sony/lena/a615_zap.b01 qcom/sm6350/Sony/lena/a615_zap.b02 qcom/sm6350/Sony/lena/a615_zap.elf"
 CONFIG_EXTRA_FIRMWARE_DIR="../firmware/"
-CONFIG_FW_LOADER_USER_HELPER=y
-CONFIG_FW_LOADER_USER_HELPER_FALLBACK=y
+CONFIG_FW_LOADER_USER_HELPER=n
+CONFIG_FW_LOADER_USER_HELPER_FALLBACK=n
 CONFIG_FW_LOADER_COMPRESS=y
 # CONFIG_QCOM_EBI2 is not set
 CONFIG_MHI_BUS_DEBUG=y
