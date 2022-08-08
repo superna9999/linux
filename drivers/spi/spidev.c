@@ -691,6 +691,7 @@ static const struct spi_device_id spidev_spi_ids[] = {
 	{ .name = "m53cpld" },
 	{ .name = "spi-petra" },
 	{ .name = "spi-authenta" },
+	{ .name = "spidev" },
 	{},
 };
 MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
@@ -701,14 +702,11 @@ MODULE_DEVICE_TABLE(spi, spidev_spi_ids);
  */
 static int spidev_of_check(struct device *dev)
 {
-	if (device_property_match_string(dev, "compatible", "spidev") < 0)
-		return 0;
-
-	dev_err(dev, "spidev listed directly in DT is not supported\n");
-	return -EINVAL;
+	return 0;
 }
 
 static const struct of_device_id spidev_dt_ids[] = {
+	{ .compatible = "linux,spidev", .data = &spidev_of_check },
 	{ .compatible = "rohm,dh2228fv", .data = &spidev_of_check },
 	{ .compatible = "lineartechnology,ltc2488", .data = &spidev_of_check },
 	{ .compatible = "semtech,sx1301", .data = &spidev_of_check },
