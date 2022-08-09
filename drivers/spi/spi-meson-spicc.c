@@ -166,6 +166,7 @@ struct meson_spicc_device {
 	unsigned long			tx_remain;
 	unsigned long			rx_remain;
 	unsigned long			xfer_remain;
+	unsigned int			pow2_datarate;
 };
 
 static void meson_spicc_oen_enable(struct meson_spicc_device *spicc)
@@ -458,7 +459,8 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 	/* Select CS */
 	conf |= FIELD_PREP(SPICC_CS_MASK, spi->chip_select);
 
-	/* Default Clock rate core/4 */
+	/* Saved pow2 Clock rate core */
+	conf |= FIELD_PREP(SPICC_DATARATE_MASK, spicc->pow2_datarate);
 
 	/* Default 8bit word */
 	conf |= FIELD_PREP(SPICC_BITLENGTH_MASK, 8 - 1);
@@ -479,6 +481,10 @@ static int meson_spicc_unprepare_transfer(struct spi_master *master)
 
 	/* Disable all IRQs */
 	writel(0, spicc->base + SPICC_INTREG);
+
+	/* Save last pow2 datarate before HW reset */
+	spicc->pow2_datarate = FIELD_GET(SPICC_DATARATE_MASK,
+					 readl_relaxed(spicc->base + SPICC_CONREG));
 
 	device_reset_optional(&spicc->pdev->dev);
 
