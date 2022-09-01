@@ -56,10 +56,34 @@
 #define R_C4		0x04
 #define R_C5		0x06
 
-#define CH348_NW  16
-#define CH348_NR  32
+#define CH348_RX_PORTNUM_OFF		0
+#define CH348_RX_LENGTH_OFF		1
+#define CH348_RX_DATA_OFF		2
+
+#define CH348_RX_PORT_CHUNK_LENGTH	32
+#define CH348_RX_PORT_MAX_LENGTH	30
+
+#define CH348_TX_PORTNUM_OFF		0
+#define CH348_TX_LENGTH0_OFF		1
+#define CH348_TX_LENGTH1_OFF		2
+#define CH348_TX_DATA_OFF		3
 
 #define MAXPORT 8
+
+/*
+ * The Ch348 multiplexes rx & tx into a pair of Bulk USB endpoints for
+ * the 8 serial ports, and anothe pair of Bulk USB endpoints to
+ * set port settings and receive port status events.
+ *
+ * The USB serial cores ties every Bulk endpoints pair to each port,
+ * but in our case it will set port 0 with the rx/tx endpoints
+ * and port 1 with the settup/status endpoints.
+ *
+ * To still take advantage of the generic code, we (re-)initialize
+ * the USb serial port structure with the correct USB endpoint
+ * for read and write, and write proper process_read_urb()
+ * and prepare_write_buffer() to correctly (de-)multiplex data.
+ */
 
 struct ch348_ttyport {
 	u8 uartmode;
@@ -70,18 +94,12 @@ struct ch348 {
 	struct usb_device *dev;
 	struct ch348_ttyport ttyport[MAXPORT];
 
-	struct urb              *read_urbs[CH348_NR];
-	unsigned char           *bulk_in_buffers[CH348_NR];
-
-	struct urb              *write_urbs[CH348_NW];
-	unsigned char           *bulk_out_buffers[CH348_NW];
-	unsigned long write_urbs_free;
-	int write_port[CH348_NW];
-
+	int rx_endpoint;
 	int tx_endpoint;
 	int cmdtx_endpoint;
 
 	spinlock_t write_lock;
+	int readsize;
 	int writesize;
 };
 
@@ -125,127 +143,55 @@ static int ch348_configure(struct ch348 *ch348, int portnum)
 
 static void ch348_process_read_urb(struct urb *urb)
 {
-	struct ch348 *ch348 = urb->context;
-	int size;
-	int i = 0;
-	int portnum;
-	u8 usblen;
-	char *buf = urb->transfer_buffer;
-
-	if (!urb->actual_length)
-		return;
-	size = urb->actual_length;
-
-	for (i = 0; i < size; i += 32) {
-		portnum = *(buf + i);
-		if (portnum < 0 || portnum >= 8)
-			break;
-		usblen = *(buf + i + 1);
-		if (usblen > 30)
-			break;
-		tty_insert_flip_string(&ch348->ttyport[portnum].port->port,
-				       buf + i + 2, usblen);
-		tty_flip_buffer_push(&ch348->ttyport[portnum].port->port);
-	}
-}
-
-static void ch348_read_bulk_callback(struct urb *urb)
-{
-	struct ch348 *ch348 = urb->context;
-	int status = urb->status;
-	int ret;
-
-	if (status == -ESHUTDOWN)
-		return;
-
-	if (status) {
-		dev_err(&ch348->dev->dev, "%s - non-zero urb status: %d\n",
-			__func__, status);
-		return;
-	}
-
-	ch348_process_read_urb(urb);
-	ret = usb_submit_urb(urb, GFP_ATOMIC);
-	if (ret)
-		dev_err(&ch348->dev->dev, "%s fail to submit URB err=%d\n", __func__, ret);
-}
-
-static void ch348_write_bulk_callback(struct urb *urb)
-{
-	struct ch348 *ch348 = urb->context;
-	unsigned long flags;
-	int i, portnum;
-
-	for (i = 0; i < ARRAY_SIZE(ch348->write_urbs); ++i) {
-		if (urb == ch348->write_urbs[i])
-			break;
-	}
-	portnum = ch348->write_port[i];
-
-	spin_lock_irqsave(&ch348->write_lock, flags);
-	set_bit(i, &ch348->write_urbs_free);
-	tty_port_tty_wakeup(&ch348->ttyport[portnum].port->port);
-	spin_unlock_irqrestore(&ch348->write_lock, flags);
-}
-
-static int ch348_write(struct tty_struct *tty, struct usb_serial_port *port,
-		       const unsigned char *buf, int count)
-{
+	struct usb_serial_port *port = urb->context;
 	struct ch348 *ch348 = usb_get_serial_data(port->serial);
-	int portnum = port->port_number;
-	unsigned long flags;
-	int i;
-	unsigned char *ubuf;
-	int ret;
-	struct urb *urb;
+	u8 *buffer = urb->transfer_buffer, *end;
+	unsigned int portnum, usblen;
 
-	if (!count)
-		return 0;
-
-	spin_lock_irqsave(&ch348->write_lock, flags);
-	i = find_first_bit(&ch348->write_urbs_free,
-			   ARRAY_SIZE(ch348->write_urbs));
-	clear_bit(i, &ch348->write_urbs_free);
-	if (i < 0) {
-		spin_unlock_irqrestore(&ch348->write_lock, flags);
-		return -ENOSPC;
-	}
-	spin_unlock_irqrestore(&ch348->write_lock, flags);
-	ubuf = ch348->bulk_out_buffers[i];
-
-	*ubuf = portnum;
-	*(ubuf + 1) = count;
-	*(ubuf + 2) = count >> 8;
-	memcpy(ubuf + 3, buf, count);
-	ch348->write_port[i] = portnum;
-
-	urb = ch348->write_urbs[i];
-	urb->transfer_buffer = ubuf;
-	urb->transfer_buffer_length = count + 3;
-	ret = usb_submit_urb(ch348->write_urbs[i], GFP_ATOMIC);
-	if (ret < 0) {
-		dev_err(&ch348->dev->dev, "%s - usb_submit_urb err=%d\n",
-			__func__, ret);
-		return ret;
+	if (!urb->actual_length) {
+		dev_warn(&port->dev, "%s:%d empty rx buffer\n", __func__, __LINE__);
+		return;
 	}
 
-	return count;
+	end = buffer + urb->actual_length;
+
+	for (; buffer < end; buffer += CH348_RX_PORT_CHUNK_LENGTH) {
+		portnum = buffer[CH348_RX_PORTNUM_OFF];
+		if (portnum < 0 || portnum >= 8) {
+			dev_warn(&port->dev, "%s:%d invalid port %d\n",
+				 __func__, __LINE__, portnum);
+			break;
+		}
+
+		usblen = buffer[CH348_RX_LENGTH_OFF];
+		if (usblen > 30) {
+			dev_warn(&port->dev, "%s:%d invalid length %d for port %d\n",
+				 __func__, __LINE__, usblen, portnum);
+			break;
+		}
+
+		port = ch348->ttyport[portnum].port;
+		tty_insert_flip_string(&port->port, &buffer[CH348_RX_DATA_OFF], usblen);
+		tty_flip_buffer_push(&port->port);
+		port->icount.rx += usblen;
+		usb_serial_debug_data(&port->dev, __func__, usblen, &buffer[CH348_RX_DATA_OFF]);
+	}
 }
 
-static unsigned int ch348_write_room(struct tty_struct *tty)
+static int ch348_prepare_write_buffer(struct usb_serial_port *port, void *dest, size_t size)
 {
-	struct usb_serial_port *port = tty->driver_data;
-	struct ch348 *ch348 = usb_get_serial_data(port->serial);
-	unsigned int n = CH348_NW;
-	unsigned long flags;
-	int i;
+	u8 *buf = dest;
+	int count;
 
-	spin_lock_irqsave(&ch348->write_lock, flags);
-	for (i = 0; i < CH348_NW; i++)
-		if (!test_bit(i, &ch348->write_urbs_free))
-			n--;
-	spin_unlock_irqrestore(&ch348->write_lock, flags);
-	return n;
+	count = kfifo_out_locked(&port->write_fifo, buf + CH348_TX_DATA_OFF,
+				size - CH348_TX_DATA_OFF,
+				&port->lock);
+
+	buf[CH348_TX_PORTNUM_OFF] = port->port_number;
+	buf[CH348_TX_LENGTH0_OFF] = count;
+	buf[CH348_TX_LENGTH1_OFF] = count >> 8;
+
+	return count + CH348_TX_DATA_OFF;
 }
 
 static int ch348_set_uartmode(struct ch348 *ch348, int portnum, u8 index, u8 mode)
@@ -381,76 +327,100 @@ static int ch348_open(struct tty_struct *tty, struct usb_serial_port *port)
 	return rv;
 }
 
-static int ch348_allocate_write(struct ch348 *ch348, struct usb_endpoint_descriptor *epd)
-{
-	int buffer_size = usb_endpoint_maxp(epd);
-	int i;
-
-	for (i = 0; i < CH348_NW; i++) {
-		set_bit(i, &ch348->write_urbs_free);
-		ch348->write_urbs[i] = usb_alloc_urb(0, GFP_KERNEL);
-		if (!ch348->write_urbs[i])
-			return -ENOMEM;
-		ch348->bulk_out_buffers[i] = devm_kmalloc(&ch348->dev->dev,
-							  buffer_size,
-							  GFP_KERNEL);
-		if (!ch348->bulk_in_buffers[i])
-			return -ENOMEM;
-		usb_fill_bulk_urb(ch348->write_urbs[i], ch348->dev,
-				  ch348->tx_endpoint,
-				  NULL, buffer_size,
-				  ch348_write_bulk_callback, ch348);
-	}
-	return 0;
-}
-
-static int ch348_free_write(struct ch348 *ch348)
+static int ch348_fixup_port_bulk_in(struct ch348 *ch348, struct usb_serial_port *port)
 {
 	int i;
 
-	for (i = 0; i < CH348_NW; i++) {
-		if (ch348->write_urbs[i]) {
-			usb_kill_urb(ch348->write_urbs[i]);
-			usb_free_urb(ch348->write_urbs[i]);
+	/* Already Initialized */
+	if (port->bulk_in_size) {
+		port->bulk_in_endpointAddress = usb_pipeendpoint(ch348->rx_endpoint);
+
+		for (i = 0; i < ARRAY_SIZE(port->read_urbs); ++i)
+			usb_fill_bulk_urb(port->read_urbs[i], port->serial->dev,
+					  ch348->rx_endpoint,
+					  port->bulk_in_buffers[i], port->bulk_in_size,
+					  usb_serial_generic_read_bulk_callback, port);
+	} else {
+		port->bulk_in_size = ch348->readsize;
+		port->bulk_in_endpointAddress = usb_pipeendpoint(ch348->rx_endpoint);
+
+		for (i = 0; i < ARRAY_SIZE(port->read_urbs); ++i) {
+			set_bit(i, &port->read_urbs_free);
+			port->read_urbs[i] = usb_alloc_urb(0, GFP_KERNEL);
+			if (!port->read_urbs[i])
+				return -ENOMEM;
+			port->bulk_in_buffers[i] = kmalloc(port->bulk_in_size, GFP_KERNEL);
+			if (!port->bulk_in_buffers[i])
+				return -ENOMEM;
+			usb_fill_bulk_urb(port->read_urbs[i], port->serial->dev,
+					  ch348->rx_endpoint,
+					  port->bulk_in_buffers[i], port->bulk_in_size,
+					  usb_serial_generic_read_bulk_callback, port);
 		}
+
+		port->read_urb = port->read_urbs[0];
+		port->bulk_in_buffer = port->bulk_in_buffers[0];
 	}
+
 	return 0;
 }
 
-static int ch348_allocate_read(struct ch348 *ch348, struct usb_endpoint_descriptor *epd)
+static int ch348_fixup_port_bulk_out(struct ch348 *ch348, struct usb_serial_port *port)
 {
-	int buffer_size = usb_endpoint_maxp(epd);
+	int i;
+
+	/* Already Initialized */
+	if (port->bulk_out_size) {
+		port->bulk_out_endpointAddress = usb_pipeendpoint(ch348->tx_endpoint);
+
+		for (i = 0; i < ARRAY_SIZE(port->write_urbs); ++i)
+			usb_fill_bulk_urb(port->write_urbs[i], port->serial->dev,
+					  ch348->tx_endpoint,
+					  port->bulk_out_buffers[i], port->bulk_out_size,
+					  usb_serial_generic_write_bulk_callback, port);
+	} else {
+		if (kfifo_alloc(&port->write_fifo, PAGE_SIZE, GFP_KERNEL))
+			return -ENOMEM;
+
+		port->bulk_out_size = ch348->writesize;
+		port->bulk_out_endpointAddress = usb_pipeendpoint(ch348->tx_endpoint);
+
+		for (i = 0; i < ARRAY_SIZE(port->write_urbs); ++i) {
+			set_bit(i, &port->write_urbs_free);
+			port->write_urbs[i] = usb_alloc_urb(0, GFP_KERNEL);
+			if (!port->write_urbs[i])
+				return -ENOMEM;
+			port->bulk_out_buffers[i] = kmalloc(port->bulk_out_size, GFP_KERNEL);
+			if (!port->bulk_out_buffers[i])
+				return -ENOMEM;
+			usb_fill_bulk_urb(port->write_urbs[i], port->serial->dev,
+					  ch348->tx_endpoint,
+					  port->bulk_out_buffers[i], port->bulk_out_size,
+					  usb_serial_generic_write_bulk_callback, port);
+		}
+
+		port->write_urb = port->write_urbs[0];
+		port->bulk_out_buffer = port->bulk_out_buffers[0];
+	}
+
+	return 0;
+}
+
+static int ch348_attach(struct usb_serial *serial)
+{
+	struct ch348 *ch348 = usb_get_serial_data(serial);
 	int i, ret;
 
-	for (i = 0; i < CH348_NR; i++) {
-		ch348->read_urbs[i] = usb_alloc_urb(0, GFP_KERNEL);
-		if (!ch348->read_urbs[i])
-			return -ENOMEM;
-		ch348->bulk_in_buffers[i] = devm_kmalloc(&ch348->dev->dev,
-							 buffer_size, GFP_KERNEL);
-		if (!ch348->bulk_in_buffers[i])
-			return -ENOMEM;
-		usb_fill_bulk_urb(ch348->read_urbs[i], ch348->dev,
-				  usb_rcvbulkpipe(ch348->dev, epd->bEndpointAddress),
-				  ch348->bulk_in_buffers[i], buffer_size,
-				  ch348_read_bulk_callback, ch348);
-		ret = usb_submit_urb(ch348->read_urbs[i], GFP_KERNEL);
+	/* Fixup Bulk OUT and IN endpoints */
+	for (i = 0; i < serial->num_port_pointers; ++i) {
+		ret = ch348_fixup_port_bulk_out(ch348, serial->port[i]);
+		if (ret)
+			return ret;
+		ret = ch348_fixup_port_bulk_in(ch348, serial->port[i]);
 		if (ret)
 			return ret;
 	}
-	return 0;
-}
 
-static int ch348_free_read(struct ch348 *ch348)
-{
-	int i;
-
-	for (i = 0; i < CH348_NR; i++) {
-		if (ch348->read_urbs[i]) {
-			usb_kill_urb(ch348->read_urbs[i]);
-			usb_free_urb(ch348->read_urbs[i]);
-		}
-	}
 	return 0;
 }
 
@@ -462,7 +432,6 @@ static int ch348_probe(struct usb_serial *serial, const struct usb_device_id *id
 	struct usb_endpoint_descriptor *epwrite = NULL;
 	struct usb_device *usb_dev = serial->dev;
 	struct ch348 *ch348;
-	int ret = -ENOMEM;
 
 	data_interface = usb_ifnum_to_if(usb_dev, 0);
 
@@ -472,43 +441,23 @@ static int ch348_probe(struct usb_serial *serial, const struct usb_device_id *id
 
 	ch348 = devm_kzalloc(&serial->dev->dev, sizeof(*ch348), GFP_KERNEL);
 	if (!ch348)
-		goto alloc_fail;
+		return -ENOMEM;
 
 	usb_set_serial_data(serial, ch348);
 
+	ch348->readsize = usb_endpoint_maxp(epread);
 	ch348->writesize = usb_endpoint_maxp(epwrite);
 	ch348->dev = serial->dev;
 
 	spin_lock_init(&ch348->write_lock);
 
+	ch348->rx_endpoint = usb_rcvbulkpipe(usb_dev, epread->bEndpointAddress);
 	ch348->tx_endpoint = usb_sndbulkpipe(usb_dev, epwrite->bEndpointAddress);
 	ch348->cmdtx_endpoint = usb_sndbulkpipe(usb_dev, epcmdwrite->bEndpointAddress);
 
-	ret = ch348_allocate_read(ch348, epread);
-	if (ret)
-		goto err_read;
-	ret = ch348_allocate_write(ch348, epwrite);
-	if (ret)
-		goto err_write;
-
-	dev_info(&serial->dev->dev, "ch348 device attached. Vr0.7\n");
+	dev_info(&serial->interface->dev, "ch348 device attached. Vr0.7\n");
 
 	return 0;
-
-err_write:
-	ch348_free_write(ch348);
-err_read:
-	ch348_free_read(ch348);
-alloc_fail:
-	return ret;
-}
-
-static void ch348_release(struct usb_serial *serial)
-{
-	struct ch348 *ch348 = usb_get_serial_data(serial);
-
-	ch348_free_write(ch348);
-	ch348_free_read(ch348);
 }
 
 static int ch348_port_probe(struct usb_serial_port *port)
@@ -518,41 +467,6 @@ static int ch348_port_probe(struct usb_serial_port *port)
 	ch348->ttyport[port->port_number].port = port;
 
 	return 0;
-}
-
-static void ch348_process_read_urbnew(struct urb *urb)
-{
-	struct usb_serial_port *port = urb->context;
-	struct ch348 *ch348 = usb_get_serial_data(port->serial);
-	int size;
-	char buffer[512];
-	int i = 0;
-	int portnum;
-	u8 usblen;
-
-	if (!urb->actual_length)
-		return;
-	size = urb->actual_length;
-/*	pr_info("%s size=%d\n", __func__, size);*/
-
-	if (size > 512)
-		return;
-
-	memcpy(buffer, urb->transfer_buffer, urb->actual_length);
-
-	for (i = 0; i < size; i += 32) {
-		portnum = *(buffer + i);
-		if (portnum < 0 || portnum >= 8)
-			break;
-		usblen = *(buffer + i + 1);
-		if (usblen > 30)
-			break;
-		port = ch348->ttyport[portnum].port;
-		tty_insert_flip_string(&port->port, buffer + i + 2, usblen);
-		tty_flip_buffer_push(&port->port);
-		port->icount.rx += usblen;
-		usb_serial_debug_data(&port->dev, __func__, usblen, buffer + i + 2);
-	}
 }
 
 static const struct usb_device_id ch348_ids[] = {
@@ -570,12 +484,11 @@ static struct usb_serial_driver ch348_device = {
 	.id_table =		ch348_ids,
 	.num_ports =		8,
 	.open =			ch348_open,
-	.write =		ch348_write,
-	.write_room =		ch348_write_room,
 	.set_termios =		ch348_set_termios,
-	.process_read_urb =	ch348_process_read_urbnew,
+	.process_read_urb =	ch348_process_read_urb,
+	.prepare_write_buffer =	ch348_prepare_write_buffer,
 	.probe =		ch348_probe,
-	.release =		ch348_release,
+	.attach =		ch348_attach,
 	.port_probe =		ch348_port_probe,
 };
 
