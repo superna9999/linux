@@ -27,34 +27,43 @@
 #define DEFAULT_BAUD_RATE 9600
 #define DEFAULT_TIMEOUT   2000
 
-#define CH348_CTO_D		0x01
-#define CH348_CTO_R		0x02
-#define CH348_CTI_C		0x01
-#define CH348_CTI_DSR		0x02
-#define CH348_CTI_R		0x04
-#define CH348_CTI_DCD		0x08
+#define CH348_CTO_D	0x01
+#define CH348_CTO_R	0x02
 
-#define CH348_LO			0x10
-#define CH348_LP			0x20
-#define CH348_LF			0x40
-#define CH348_LB			0x80
+#define CH348_CTI_C	0x10
+#define CH348_CTI_DSR	0x20
+#define CH348_CTI_R	0x40
+#define CH348_CTI_DCD	0x80
 
-#define CMD_W_R				0xC0
-#define CMD_W_BR			0x80
+#define CH348_LO	0x02
+#define CH348_LP	0x04
+#define CH348_LF	0x08
+#define CH348_LB	0x10
 
-#define CMD_WB_E		0x90
-#define CMD_RB_E		0xC0
+#define CMD_W_R		0xC0
+#define CMD_W_BR	0x80
+
+#define CMD_WB_E	0x90
+#define CMD_RB_E	0xC0
 
 #define M_NOR		0x00
 #define M_HF		0x03
 
 #define R_MOD		0x97
+#define R_IO_D  	0x98
+#define R_IO_O  	0x99
+#define R_IO_I   	0x9b
+#define R_TM_O		0x9c
 #define R_INIT		0xa1
 
 #define R_C1		0x01
 #define R_C2		0x02
 #define R_C4		0x04
 #define R_C5		0x06
+
+#define R_II_B1 	0x06
+#define R_II_B2 	0x02
+#define R_II_B3		0x00
 
 #define CH348_RX_PORTNUM_OFF		0
 #define CH348_RX_LENGTH_OFF		1
@@ -88,6 +97,8 @@
 struct ch348_ttyport {
 	u8 uartmode;
 	struct usb_serial_port *port;
+	unsigned int io_status;
+	unsigned int modem_status;
 };
 
 struct ch348 {
@@ -96,9 +107,13 @@ struct ch348 {
 
 	int rx_endpoint;
 	int tx_endpoint;
+	int statusrx_endpoint;
 	int cmdtx_endpoint;
 
-	spinlock_t write_lock;
+	struct urb *status_read_urb;
+	u8 *status_read_buffer;
+
+	spinlock_t status_lock;
 	int readsize;
 	int writesize;
 };
@@ -421,22 +436,201 @@ static int ch348_attach(struct usb_serial *serial)
 			return ret;
 	}
 
+	return usb_submit_urb(ch348->status_read_urb, GFP_KERNEL);
+}
+
+static void ch348_update_io_status(struct ch348 *ch348, unsigned int portnum, u8 data)
+{
+	u8 diff;
+
+	if (portnum > 8)
+		return;
+
+	data &= (CH348_LO | CH348_LP | CH348_LF | CH348_LB);
+
+	spin_lock(&ch348->status_lock);
+	diff = data ^ ch348->ttyport[portnum].io_status;
+	ch348->ttyport[portnum].io_status = data;
+	spin_unlock(&ch348->status_lock);
+
+	if (!diff)
+		return;
+
+	if (diff & CH348_LO)
+		ch348->ttyport[portnum].port->icount.overrun++;
+	if (diff & CH348_LP)
+		ch348->ttyport[portnum].port->icount.parity++;
+	if (diff & CH348_LF)
+		ch348->ttyport[portnum].port->icount.frame++;
+	if (diff & CH348_LB)
+		ch348->ttyport[portnum].port->icount.brk++;
+
+	wake_up_interruptible(&ch348->ttyport[portnum].port->port.delta_msr_wait);
+}
+
+static void ch348_update_modem_status(struct ch348 *ch348, unsigned int portnum, u8 data)
+{
+	struct tty_struct *tty;
+	u8 diff;
+
+	if (portnum > 8)
+		return;
+
+	data &= (CH348_CTI_C | CH348_CTI_DSR | CH348_CTI_R | CH348_CTI_DCD);
+
+	spin_lock(&ch348->status_lock);
+	diff = data ^ ch348->ttyport[portnum].modem_status;
+	ch348->ttyport[portnum].modem_status = data;
+	spin_unlock(&ch348->status_lock);
+
+	if (!diff)
+		return;
+
+	if (diff & CH348_CTI_C)
+		ch348->ttyport[portnum].port->icount.cts++;
+	if (diff & CH348_CTI_DSR)
+		ch348->ttyport[portnum].port->icount.dsr++;
+	if (diff & CH348_CTI_R)
+		ch348->ttyport[portnum].port->icount.rng++;
+	if (diff & CH348_CTI_DCD) {
+		ch348->ttyport[portnum].port->icount.dcd++;
+
+		tty = tty_port_tty_get(&ch348->ttyport[portnum].port->port);
+		if (tty) {
+			usb_serial_handle_dcd_change(ch348->ttyport[portnum].port, tty,
+						     data & CH348_CTI_DCD);
+			tty_kref_put(tty);
+		}
+	}
+
+	wake_up_interruptible(&ch348->ttyport[portnum].port->port.delta_msr_wait);
+}
+
+static void ch348_update_status(struct ch348 *ch348, u8 *data, unsigned int len)
+{
+	u8 *end = data + len;
+	unsigned int portnum, reg;
+
+	for (; data < end; ) {
+		portnum = data[0] & 0xf;
+		reg = data[1];
+
+		if (reg == R_INIT) {
+			data += 12;
+			continue;
+		}
+
+		if (reg >= R_MOD && reg <= R_IO_I) {
+			/* This signal is used by vendor driver to handle GPIO Interrupts */
+			dev_dbg(&ch348->dev->dev, "port%d: unhandled status %02x%02x\n",
+				portnum, data[2], data[3]);
+			data += 4;
+			continue;
+		}
+
+		if ((reg & 0xf) == R_II_B1) {
+			dev_dbg(&ch348->dev->dev, "port%d: uart io state %02x\n", portnum, data[2]);
+			ch348_update_io_status(ch348, portnum, data[2]);
+			data += 3;
+			continue;
+		}
+
+		if ((reg & 0xf) == R_II_B2) {
+			/* This signal is used by vendor driver to aggregate multiple port TX */
+			dev_dbg(&ch348->dev->dev, "port%d: unhandled Write Empty status\n", portnum);
+			data += 3;
+			continue;
+		}
+
+		if ((reg & 0xf) == R_II_B3) {
+			dev_dbg(&ch348->dev->dev, "port%d: modem status %02x\n", portnum, data[2]);
+			ch348_update_modem_status(ch348, portnum, data[2]);
+			data += 3;
+			continue;
+		}
+
+		dev_dbg(&ch348->dev->dev, "port%d: unknown status %02x\n", portnum, reg);
+		data += 3;
+	}
+}
+
+static void ch348_status_read_bulk_callback(struct urb *urb)
+{
+	struct ch348 *ch348 = urb->context;
+	u8 *data = urb->transfer_buffer;
+	unsigned int len = urb->actual_length;
+	int ret;
+
+	switch (urb->status) {
+	case 0:
+		/* success */
+		break;
+	case -ECONNRESET:
+	case -ENOENT:
+	case -ESHUTDOWN:
+		/* this urb is terminated, clean up */
+		dev_dbg(&ch348->dev->dev, "%s - urb shutting down: %d\n",
+			__func__, urb->status);
+		return;
+	default:
+		dev_dbg(&ch348->dev->dev, "%s - nonzero urb status: %d\n",
+			__func__, urb->status);
+		goto exit;
+	}
+
+	usb_serial_debug_data(&ch348->dev->dev, __func__, len, data);
+	ch348_update_status(ch348, data, len);
+
+exit:
+	ret = usb_submit_urb(urb, GFP_ATOMIC);
+	if (ret && urb->status == 0) {
+		dev_err(&ch348->dev->dev, "%s - usb_submit_urb failed: %d\n",
+			__func__, ret);
+	}
+}
+
+static int ch348_allocate_status_read(struct ch348 *ch348, struct usb_endpoint_descriptor *epd)
+{
+	int buffer_size = usb_endpoint_maxp(epd);
+
+	ch348->status_read_urb = usb_alloc_urb(0, GFP_KERNEL);
+	if (!ch348->status_read_urb)
+		return -ENOMEM;
+	ch348->status_read_buffer = kmalloc(buffer_size, GFP_KERNEL);
+	if (!ch348->status_read_buffer)
+		return -ENOMEM;
+
+	usb_fill_bulk_urb(ch348->status_read_urb, ch348->dev,
+			  ch348->statusrx_endpoint, ch348->status_read_buffer,
+			  buffer_size, ch348_status_read_bulk_callback, ch348);
+
 	return 0;
+}
+
+static void ch348_release(struct usb_serial *serial)
+{
+	struct ch348 *ch348 = usb_get_serial_data(serial);
+
+	usb_kill_urb(ch348->status_read_urb);
+	usb_free_urb(ch348->status_read_urb);
 }
 
 static int ch348_probe(struct usb_serial *serial, const struct usb_device_id *id)
 {
 	struct usb_interface *data_interface;
 	struct usb_endpoint_descriptor *epcmdwrite = NULL;
+	struct usb_endpoint_descriptor *epstatusread = NULL;
 	struct usb_endpoint_descriptor *epread = NULL;
 	struct usb_endpoint_descriptor *epwrite = NULL;
 	struct usb_device *usb_dev = serial->dev;
 	struct ch348 *ch348;
+	int ret;
 
 	data_interface = usb_ifnum_to_if(usb_dev, 0);
 
 	epread = &data_interface->cur_altsetting->endpoint[0].desc;
 	epwrite = &data_interface->cur_altsetting->endpoint[1].desc;
+	epstatusread = &data_interface->cur_altsetting->endpoint[2].desc;
 	epcmdwrite = &data_interface->cur_altsetting->endpoint[3].desc;
 
 	ch348 = devm_kzalloc(&serial->dev->dev, sizeof(*ch348), GFP_KERNEL);
@@ -449,11 +643,16 @@ static int ch348_probe(struct usb_serial *serial, const struct usb_device_id *id
 	ch348->writesize = usb_endpoint_maxp(epwrite);
 	ch348->dev = serial->dev;
 
-	spin_lock_init(&ch348->write_lock);
+	spin_lock_init(&ch348->status_lock);
 
 	ch348->rx_endpoint = usb_rcvbulkpipe(usb_dev, epread->bEndpointAddress);
 	ch348->tx_endpoint = usb_sndbulkpipe(usb_dev, epwrite->bEndpointAddress);
 	ch348->cmdtx_endpoint = usb_sndbulkpipe(usb_dev, epcmdwrite->bEndpointAddress);
+	ch348->statusrx_endpoint = usb_rcvbulkpipe(usb_dev, epstatusread->bEndpointAddress);
+
+	ret = ch348_allocate_status_read(ch348, epstatusread);
+	if (ret)
+		return ret;
 
 	dev_info(&serial->interface->dev, "ch348 device attached. Vr0.7\n");
 
@@ -489,6 +688,7 @@ static struct usb_serial_driver ch348_device = {
 	.prepare_write_buffer =	ch348_prepare_write_buffer,
 	.probe =		ch348_probe,
 	.attach =		ch348_attach,
+	.release =		ch348_release,
 	.port_probe =		ch348_port_probe,
 };
 
