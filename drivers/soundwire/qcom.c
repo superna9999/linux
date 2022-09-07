@@ -939,6 +939,13 @@ static enum sdw_command_response qcom_swrm_xfer_msg(struct sdw_bus *bus,
 	return SDW_CMD_OK;
 }
 
+static int qcom_swrm_post_bank_switch(struct sdw_bus *bus)
+{
+	usleep_range(500, 510);
+
+	return 0;
+}
+
 static int qcom_swrm_pre_bank_switch(struct sdw_bus *bus)
 {
 	u32 reg = SWRM_MCP_FRAME_CTRL_BANK_ADDR(bus->params.next_bank);
@@ -1058,6 +1065,7 @@ static const struct sdw_master_port_ops qcom_swrm_port_ops = {
 static const struct sdw_master_ops qcom_swrm_ops = {
 	.xfer_msg = qcom_swrm_xfer_msg,
 	.pre_bank_switch = qcom_swrm_pre_bank_switch,
+	.post_bank_switch = qcom_swrm_post_bank_switch,
 };
 
 static int qcom_swrm_compute_params(struct sdw_bus *bus)
