@@ -11,6 +11,7 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/device.h>
+#include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -33,6 +34,11 @@
  * - CS management is dumb, and goes UP between every burst, so is really a
  *   "Data Valid" signal than a Chip Select, GPIO link should be used instead
  *   to have a CS go down over the full transfer
+ * DMA support:
+ * - the DMA can only load FIFO at each multiple of 8 bytes, thus only 64 bits
+ *   per words transfers would work as expected.
+ * - the DMA loads the FIFO in little-endian, producing little-endian bus output,
+ *   and it doesn't seem this can be changed
  */
 
 #define SPICC_MAX_BURST	128
@@ -128,6 +134,14 @@
 
 #define SPICC_DWADDR	0x24	/* Write Address of DMA */
 
+#define SPICC_LD_CNTL0	0x28
+#define DMA_READ_COUNTER_EN		BIT(4)
+#define DMA_WRITE_COUNTER_EN		BIT(5)
+
+#define SPICC_LD_CNTL1	0x2c
+#define DMA_READ_COUNTER		GENMASK(15, 0)
+#define DMA_WRITE_COUNTER		GENMASK(31, 16)
+
 #define SPICC_ENH_CTL0	0x38	/* Enhanced Feature */
 #define SPICC_ENH_CLK_CS_DELAY_MASK	GENMASK(15, 0)
 #define SPICC_ENH_DATARATE_MASK		GENMASK(23, 16)
@@ -158,6 +172,8 @@ struct meson_spicc_device {
 	struct clk			*pclk;
 	struct clk_divider		pow2_div;
 	struct clk			*clk;
+	bool				using_dma;
+	bool				is_dma_mapped;
 	struct spi_message		*message;
 	struct spi_transfer		*xfer;
 	const struct meson_spicc_data	*data;
@@ -170,6 +186,96 @@ struct meson_spicc_device {
 };
 
 #define pow2_clk_to_spicc(_div) container_of(_div, struct meson_spicc_device, pow2_div)
+
+static int meson_spicc_dma_map(struct meson_spicc_device *spicc,
+			       struct spi_transfer *t)
+{
+	struct device *dev = spicc->master->dev.parent;
+
+	if (t->tx_buf) {
+		t->tx_dma = dma_map_single(dev, (void *)t->tx_buf, t->len,
+					   DMA_TO_DEVICE);
+		if (dma_mapping_error(dev, t->tx_dma)) {
+			dev_err(dev, "tx_dma map failed\n");
+			return -ENOMEM;
+		}
+	}
+
+	if (t->rx_buf) {
+		t->rx_dma = dma_map_single(dev, t->rx_buf, t->len,
+					   DMA_FROM_DEVICE);
+		if (dma_mapping_error(dev, t->rx_dma)) {
+			if (t->tx_buf)
+				dma_unmap_single(dev, t->tx_dma, t->len,
+						 DMA_TO_DEVICE);
+			dev_err(dev, "rx_dma map failed\n");
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
+static void meson_spicc_dma_unmap(struct meson_spicc_device *spicc,
+				  struct spi_transfer *t)
+{
+	struct device *dev = spicc->master->dev.parent;
+
+	if (t->tx_buf)
+		dma_unmap_single(dev, t->tx_dma, t->len, DMA_TO_DEVICE);
+	if (t->rx_buf)
+		dma_unmap_single(dev, t->rx_dma, t->len, DMA_FROM_DEVICE);
+}
+
+static void meson_spicc_setup_dma_burst(struct meson_spicc_device *spicc)
+{
+	unsigned int words;
+	unsigned int count_en = 0;
+	unsigned int txfifo_thres = 0;
+	unsigned int read_req = 1;
+	unsigned int rxfifo_thres = 31;
+	unsigned int write_req = 1;
+	unsigned int ld_ctr1 = 0;
+
+	words = min_t(unsigned int,
+		      spicc->xfer_remain / spicc->bytes_per_word,
+		      spicc->data->fifo_size);
+
+	writel_bits_relaxed(SPICC_BURSTLENGTH_MASK,
+			FIELD_PREP(SPICC_BURSTLENGTH_MASK,
+				words - 1),
+			spicc->base + SPICC_CONREG);
+
+	/* Setup Xfer variables */
+	spicc->xfer_remain -= words * spicc->bytes_per_word;
+
+	if (spicc->tx_buf) {
+		count_en |= DMA_WRITE_COUNTER_EN;
+		txfifo_thres = spicc->bytes_per_word - 1;
+		write_req = words - 1;
+		ld_ctr1 |= FIELD_PREP(DMA_WRITE_COUNTER, 1);
+	}
+
+	if (spicc->rx_buf) {
+		count_en |= DMA_READ_COUNTER_EN;
+		rxfifo_thres = words - 1;
+		read_req = words - 1;
+		ld_ctr1 |= FIELD_PREP(DMA_READ_COUNTER, 1);
+	}
+
+	/* Enable DMA write/read counter */
+	writel_relaxed(count_en, spicc->base + SPICC_LD_CNTL0);
+
+	/* Setup burst length */
+	writel_relaxed(ld_ctr1, spicc->base + SPICC_LD_CNTL1);
+
+	writel_relaxed(SPICC_DMA_ENABLE | SPICC_DMA_URGENT |
+		       FIELD_PREP(SPICC_TXFIFO_THRESHOLD_MASK, txfifo_thres) |
+		       FIELD_PREP(SPICC_READ_BURST_MASK, read_req) |
+		       FIELD_PREP(SPICC_RXFIFO_THRESHOLD_MASK, rxfifo_thres) |
+		       FIELD_PREP(SPICC_WRITE_BURST_MASK, write_req),
+		       spicc->base + SPICC_DMAREG);
+}
 
 static void meson_spicc_oen_enable(struct meson_spicc_device *spicc)
 {
@@ -273,25 +379,52 @@ static irqreturn_t meson_spicc_irq(int irq, void *data)
 {
 	struct meson_spicc_device *spicc = (void *) data;
 
-	writel_bits_relaxed(SPICC_TC, SPICC_TC, spicc->base + SPICC_STATREG);
+	/* Sometimes, TC gets triggered while the RX fifo isn't fully flushed */
+	if (spicc->using_dma) {
+		unsigned int rxfifo_count = FIELD_GET(SPICC_RXCNT_MASK,
+				readl_relaxed(spicc->base + SPICC_TESTREG));
+
+		if (rxfifo_count)
+			return IRQ_HANDLED;
+	}
+
+	writel_relaxed(SPICC_TC, spicc->base + SPICC_STATREG);
 
 	/* Empty RX FIFO */
-	meson_spicc_rx(spicc);
+	if (!spicc->using_dma)
+		meson_spicc_rx(spicc);
 
 	if (!spicc->xfer_remain) {
 		/* Disable all IRQs */
 		writel(0, spicc->base + SPICC_INTREG);
+
+		if (spicc->using_dma) {
+			/* Disable DMA transfer */
+			spicc->using_dma = 0;
+			writel_relaxed(0, spicc->base + SPICC_DMAREG);
+			writel_relaxed(0, spicc->base + SPICC_LD_CNTL0);
+			writel_relaxed(0, spicc->base + SPICC_LD_CNTL1);
+
+			/* Unmap DMA if was locally remapped */
+			if (!spicc->is_dma_mapped)
+				meson_spicc_dma_unmap(spicc, spicc->xfer);
+		}
 
 		spi_finalize_current_transfer(spicc->master);
 
 		return IRQ_HANDLED;
 	}
 
-	/* Setup burst */
-	meson_spicc_setup_burst(spicc);
+	if (spicc->using_dma) {
+		/* Setup burst */
+		meson_spicc_setup_dma_burst(spicc);
+	} else {
+		/* Setup burst */
+		meson_spicc_setup_burst(spicc);
 
-	/* Start burst */
-	writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
+		/* Start burst */
+		writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -387,6 +520,9 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 {
 	struct meson_spicc_device *spicc = spi_master_get_devdata(master);
 
+	if (xfer->bits_per_word % 8 || xfer->bits_per_word > 64)
+		return -EINVAL;
+
 	/* Store current transfer */
 	spicc->xfer = xfer;
 
@@ -407,11 +543,40 @@ static int meson_spicc_transfer_one(struct spi_master *master,
 
 	meson_spicc_reset_fifo(spicc);
 
-	/* Setup burst */
-	meson_spicc_setup_burst(spicc);
+	/* By default, disable DMA transfer */
+	spicc->using_dma = 0;
+	writel_relaxed(0, spicc->base + SPICC_DMAREG);
+	writel_relaxed(0, spicc->base + SPICC_LD_CNTL0);
+	writel_relaxed(0, spicc->base + SPICC_LD_CNTL1);
 
-	/* Start burst */
-	writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
+	/* DMA transfer can only operate 64bits words in Little-Endian */
+	if (xfer->bits_per_word == 64 &&
+	    (spi->mode & SPI_LSB_FIRST) == SPI_LSB_FIRST &&
+	    (spicc->is_dma_mapped || !meson_spicc_dma_map(spicc, xfer))) {
+		spicc->using_dma = 1;
+
+		/* Write DMA addresses */
+		writel_relaxed(xfer->tx_dma, spicc->base + SPICC_DRADDR);
+		writel_relaxed(xfer->rx_dma, spicc->base + SPICC_DWADDR);
+
+		/* Setup DMA period */
+		writel_relaxed(xfer->speed_hz >> 25,
+			       spicc->base + SPICC_PERIODREG);
+
+		/* Setup burst */
+		meson_spicc_setup_dma_burst(spicc);
+
+		/* Enable DMA transfers */
+		writel_bits_relaxed(SPICC_SMC, SPICC_SMC,
+				    spicc->base + SPICC_CONREG);
+	} else if(xfer->bits_per_word < 64 && !(spi->mode & SPI_LSB_FIRST)) {
+		/* Setup burst */
+		meson_spicc_setup_burst(spicc);
+
+		/* Start burst */
+		writel_bits_relaxed(SPICC_XCH, SPICC_XCH, spicc->base + SPICC_CONREG);
+	} else
+		return -EINVAL;
 
 	/* Enable interrupts */
 	writel_relaxed(SPICC_TC_EN, spicc->base + SPICC_INTREG);
@@ -470,6 +635,9 @@ static int meson_spicc_prepare_message(struct spi_master *master,
 	writel_relaxed(0, spicc->base + SPICC_PERIODREG);
 
 	writel_bits_relaxed(SPICC_LBC_W1, 0, spicc->base + SPICC_TESTREG);
+
+	/* Store current message */
+	spicc->is_dma_mapped = message->is_dma_mapped;
 
 	return 0;
 }
@@ -802,11 +970,8 @@ static int meson_spicc_probe(struct platform_device *pdev)
 
 	master->num_chipselect = 4;
 	master->dev.of_node = pdev->dev.of_node;
-	master->mode_bits = SPI_CPHA | SPI_CPOL | SPI_CS_HIGH;
-	master->bits_per_word_mask = SPI_BPW_MASK(32) |
-				     SPI_BPW_MASK(24) |
-				     SPI_BPW_MASK(16) |
-				     SPI_BPW_MASK(8);
+	/* SPI_LSB_FIRST is for DMA mode only */
+	master->mode_bits = SPI_CPHA | SPI_CPOL | SPI_CS_HIGH | SPI_LSB_FIRST;
 	master->flags = (SPI_MASTER_MUST_RX | SPI_MASTER_MUST_TX);
 	master->min_speed_hz = spicc->data->min_speed_hz;
 	master->max_speed_hz = spicc->data->max_speed_hz;
