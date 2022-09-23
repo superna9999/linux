@@ -111,6 +111,12 @@ static int sofef03_m_on(struct sofef03_m *ctx)
 	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 	msleep(60);
 
+	ret = mipi_dsi_dcs_set_display_on(dsi);
+	if (ret < 0) {
+		dev_err(dev, "Failed to set display on: %d\n", ret);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -168,13 +174,13 @@ static int sofef03_m_prepare(struct drm_panel *panel)
 	if (ctx->dsi->dsc) {
 		/* this panel uses DSC so send the pps */
 		drm_dsc_pps_payload_pack(&pps, ctx->dsi->dsc);
-		// print_hex_dump(KERN_DEBUG, "DSC params:", DUMP_PREFIX_NONE,
-                //                16, 1, &pps, sizeof(pps), false);
+		print_hex_dump(KERN_DEBUG, "DSC params:", DUMP_PREFIX_NONE,
+			       16, 1, &pps, sizeof(pps), false);
 
-		// ret = mipi_dsi_picture_parameter_set(ctx->dsi, &pps);
-		// if (ret < 0) {
-		// 	return ret;
-		// }
+		ret = mipi_dsi_picture_parameter_set(ctx->dsi, &pps);
+		if (ret < 0) {
+			return ret;
+		}
 	}
 
 	ctx->prepared = true;
