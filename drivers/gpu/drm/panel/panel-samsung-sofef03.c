@@ -33,7 +33,7 @@ static inline struct sofef03_m *to_sofef03_m(struct drm_panel *panel)
 
 static void sofef03_m_reset(struct sofef03_m *ctx)
 {
-	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
+	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
 	usleep_range(10000, 11000);
 }
 
@@ -164,7 +164,7 @@ static int sofef03_m_prepare(struct drm_panel *panel)
 	ret = sofef03_m_on(ctx);
 	if (ret < 0) {
 		dev_err(dev, "Failed to initialize panel: %d\n", ret);
-		gpiod_set_value_cansleep(ctx->reset_gpio, 1);
+		gpiod_set_value_cansleep(ctx->reset_gpio, 0);
 		regulator_disable(ctx->vddio);
 		regulator_disable(ctx->vci);
 		return ret;
@@ -207,7 +207,7 @@ static int sofef03_m_unprepare(struct drm_panel *panel)
 	if (ret < 0)
 		dev_err(dev, "Failed to un-initialize panel: %d\n", ret);
 
-	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
+	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
 	regulator_disable(ctx->vddio);
 	regulator_disable(ctx->vci);
 
@@ -346,7 +346,7 @@ static int sofef03_m_probe(struct mipi_dsi_device *dsi)
 		return dev_err_probe(dev, PTR_ERR(ctx->vci),
 				     "Failed to get vci regulator\n");
 
-	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->reset_gpio))
 		return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio),
 				     "Failed to get reset-gpios\n");
