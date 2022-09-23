@@ -21,7 +21,7 @@
 struct sofef03_m {
 	struct drm_panel panel;
 	struct mipi_dsi_device *dsi;
-	struct regulator *supply;
+	struct regulator *vddio, *vci;
 	struct gpio_desc *reset_gpio;
 	bool prepared;
 };
@@ -147,7 +147,13 @@ static int sofef03_m_prepare(struct drm_panel *panel)
 	if (ctx->prepared)
 		return 0;
 
-	ret = regulator_enable(ctx->supply);
+	ret = regulator_enable(ctx->vddio);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable regulator: %d\n", ret);
+		return ret;
+	}
+
+	ret = regulator_enable(ctx->vci);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable regulator: %d\n", ret);
 		return ret;
@@ -159,7 +165,8 @@ static int sofef03_m_prepare(struct drm_panel *panel)
 	if (ret < 0) {
 		dev_err(dev, "Failed to initialize panel: %d\n", ret);
 		gpiod_set_value_cansleep(ctx->reset_gpio, 1);
-		regulator_disable(ctx->supply);
+		regulator_disable(ctx->vddio);
+		regulator_disable(ctx->vci);
 		return ret;
 	}
 
@@ -201,7 +208,8 @@ static int sofef03_m_unprepare(struct drm_panel *panel)
 		dev_err(dev, "Failed to un-initialize panel: %d\n", ret);
 
 	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
-	regulator_disable(ctx->supply);
+	regulator_disable(ctx->vddio);
+	regulator_disable(ctx->vci);
 
 	ctx->prepared = false;
 	return 0;
@@ -328,10 +336,15 @@ static int sofef03_m_probe(struct mipi_dsi_device *dsi)
 	if (!ctx)
 		return -ENOMEM;
 
-	ctx->supply = devm_regulator_get(dev, "oled");
-	if (IS_ERR(ctx->supply))
-		return dev_err_probe(dev, PTR_ERR(ctx->supply),
-				     "Failed to get oled regulator\n");
+	ctx->vddio = devm_regulator_get(dev, "vddio");
+	if (IS_ERR(ctx->vddio))
+		return dev_err_probe(dev, PTR_ERR(ctx->vddio),
+				     "Failed to get vddio regulator\n");
+
+	ctx->vci = devm_regulator_get(dev, "vci");
+	if (IS_ERR(ctx->vci))
+		return dev_err_probe(dev, PTR_ERR(ctx->vci),
+				     "Failed to get vci regulator\n");
 
 	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(ctx->reset_gpio))

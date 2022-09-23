@@ -435,6 +435,9 @@
 
 		reset-gpios = <&tlmm 75 GPIO_ACTIVE_HIGH>;
 
+		vddio-supply = <&vreg_l14a_1p8>;
+		vci-supply = <&vreg_l11c_3p0>;
+
 		port {
 			panel_in: endpoint {
 				remote-endpoint = <&dsi0_out>;
