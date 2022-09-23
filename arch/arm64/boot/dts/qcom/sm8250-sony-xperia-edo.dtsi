@@ -434,6 +434,11 @@
 		#size-cells = <0>;
 
 		reset-gpios = <&tlmm 75 GPIO_ACTIVE_HIGH>;
+		// enable-gpios = <&tlmm 75 GPIO_ACTIVE_LOW>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&sde_dsi_active &sde_te_active_sleep>;
+		pinctrl-1 = <&sde_dsi_sleep &sde_te_active_sleep>;
 
 		vddio-supply = <&vreg_l14a_1p8>;
 		vci-supply = <&vreg_l11c_3p0>;
@@ -709,6 +714,27 @@
 		function = "gpio";
 		bias-pull-up;
 		drive-strength = <2>;
+	};
+
+	sde_dsi_active: sde-dsi-active {
+		pins = "gpio75"/* , "gpio60" */;
+		function = "gpio";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
+	sde_dsi_sleep: sde-dsi-sleep {
+		pins = "gpio75"/* , "gpio60" */;
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	sde_te_active_sleep: sde-te-active-sleep {
+		pins = "gpio66";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-pull-down;
 	};
 };
 
