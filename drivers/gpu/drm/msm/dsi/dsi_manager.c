@@ -652,6 +652,8 @@ int msm_dsi_manager_register(struct msm_dsi *msm_dsi)
 		goto fail;
 	}
 
+	msm_dsi_manager_tpg_enable();
+
 	return 0;
 
 fail:
