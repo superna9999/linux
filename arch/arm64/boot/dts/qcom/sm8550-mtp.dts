@@ -376,6 +376,24 @@
 	status = "okay";
 };
 
+&remoteproc_adsp {
+	status = "okay";
+	firmware-name = "qcom/sm8550/adsp.mbn";
+	qcom,dtb-firmware-name = "qcom/sm8550/adsp_dtb.mbn";
+};
+
+&remoteproc_cdsp {
+	status = "okay";
+	firmware-name = "qcom/sm8550/cdsp.mbn";
+	qcom,dtb-firmware-name = "qcom/sm8550/cdsp_dtb.mbn";
+};
+
+&remoteproc_mpss {
+	status = "okay";
+	firmware-name = "qcom/sm8550/modem.mbn";
+	qcom,dtb-firmware-name = "qcom/sm8550/modem_dtb.mbn";
+};
+
 &sdhc_2 {
 	status = "okay";
 
