@@ -247,7 +247,7 @@
 			qcom,controller-type = "pmic-arbiter";
 
 			pmicintc: pmic@0 {
-				compatible = "qcom,pm8018", "qcom,pm8921";
+				compatible = "qcom,pm8018";
 				interrupts = <GIC_PPI 226 IRQ_TYPE_LEVEL_HIGH>;
 				#interrupt-cells = <2>;
 				interrupt-controller;
@@ -255,7 +255,7 @@
 				#size-cells = <0>;
 
 				pwrkey@1c {
-					compatible = "qcom,pm8018-pwrkey", "qcom,pm8921-pwrkey";
+					compatible = "qcom,pm8921-pwrkey";
 					reg = <0x1c>;
 					interrupt-parent = <&pmicintc>;
 					interrupts = <50 IRQ_TYPE_EDGE_RISING>,
@@ -275,7 +275,7 @@
 				};
 
 				rtc@11d {
-					compatible = "qcom,pm8018-rtc", "qcom,pm8921-rtc";
+					compatible = "qcom,pm8018-rtc";
 					interrupt-parent = <&pmicintc>;
 					interrupts = <39 IRQ_TYPE_EDGE_RISING>;
 					reg = <0x11d>;
