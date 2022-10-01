@@ -6,6 +6,7 @@
 /dts-v1/;
 
 #include "sdm845-sony-xperia-tama.dtsi"
+#include <dt-bindings/input/atmel-maxtouch.h>
 
 /* XZ3 uses an Atmel touchscreen instead. */
 /delete-node/ &touchscreen;
@@ -48,6 +49,8 @@
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&ts_default>;
 		pinctrl-1 = <&ts_sleep>;
+
+		// atmel,wakeup-method = <ATMEL_MXT_WAKEUP_I2C_SCL>;
 	};
 };
 
