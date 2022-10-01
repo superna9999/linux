@@ -434,6 +434,13 @@
 		#size-cells = <0>;
 
 		reset-gpios = <&tlmm 75 GPIO_ACTIVE_HIGH>;
+		/*
+		 * This GPIO is intentionally omitted because we already
+		 * have pinctrl to set the desired bias.  Requesting this
+		 * as GPIOD_IN makes it so that vsync interrupts are not
+		 * received over the hardware MDP interrupt anymore.
+		 */
+		/* disp-te-gpios = <&tlmm 66 GPIO_ACTIVE_HIGH>; */
 		// enable-gpios = <&tlmm 75 GPIO_ACTIVE_LOW>;
 
 		pinctrl-names = "default", "sleep";
