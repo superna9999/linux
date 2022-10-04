@@ -89,7 +89,7 @@ struct drm_dsc_config {
 	 */
 	bool convert_rgb;
 	/**
-	 * @slice_count: Number fo slices per line used by the DSC encoder
+	 * @slice_count: Number of slices per line used by the DSC encoder
 	 */
 	u8 slice_count;
 	/**
