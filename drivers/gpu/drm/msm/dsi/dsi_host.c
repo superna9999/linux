@@ -1231,6 +1231,10 @@ static int dsi_cmd_dma_add(struct msm_dsi_host *msm_host,
 	if (packet.size < len)
 		memset(data + packet.size, 0xff, len - packet.size);
 
+	if (msg->type == MIPI_DSI_PICTURE_PARAMETER_SET)
+		print_hex_dump(KERN_DEBUG, "ALL:", DUMP_PREFIX_NONE,
+				16, 1, data, len, false);
+
 	if (cfg_hnd->ops->tx_buf_put)
 		cfg_hnd->ops->tx_buf_put(msm_host);
 
