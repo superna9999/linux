@@ -1205,6 +1205,28 @@ static struct snd_soc_dai_driver tx_macro_dai[] = {
 	},
 };
 
+/* Cutoff frequency for high pass filter */
+static const char * const cf_text[] = {
+	"CF_NEG_3DB_4HZ", "CF_NEG_3DB_75HZ", "CF_NEG_3DB_150HZ"
+};
+
+static SOC_ENUM_SINGLE_DECL(cf_dec0_enum, CDC_TX0_TX_PATH_CFG0, 5,
+							cf_text);
+static SOC_ENUM_SINGLE_DECL(cf_dec1_enum, CDC_TX1_TX_PATH_CFG0, 5,
+							cf_text);
+static SOC_ENUM_SINGLE_DECL(cf_dec2_enum, CDC_TX2_TX_PATH_CFG0, 5,
+							cf_text);
+static SOC_ENUM_SINGLE_DECL(cf_dec3_enum, CDC_TX3_TX_PATH_CFG0, 5,
+							cf_text);
+static SOC_ENUM_SINGLE_DECL(cf_dec4_enum, CDC_TX4_TX_PATH_CFG0, 5,
+							cf_text);
+static SOC_ENUM_SINGLE_DECL(cf_dec5_enum, CDC_TX5_TX_PATH_CFG0, 5,
+							cf_text);
+static SOC_ENUM_SINGLE_DECL(cf_dec6_enum, CDC_TX6_TX_PATH_CFG0, 5,
+							cf_text);
+static SOC_ENUM_SINGLE_DECL(cf_dec7_enum, CDC_TX7_TX_PATH_CFG0, 5,
+							cf_text);
+
 static const char * const adc_mux_text[] = {
 	"MSM_DMIC", "SWR_MIC", "ANC_FB_TUNE1"
 };
@@ -1819,6 +1841,21 @@ static const struct snd_kcontrol_new tx_macro_snd_controls[] = {
 	SOC_ENUM_EXT("DEC7 MODE", dec_mode_mux_enum[7],
 			tx_macro_dec_mode_get, tx_macro_dec_mode_put),
 
+	SOC_ENUM("TX0 HPF cut off", cf_dec0_enum),
+
+	SOC_ENUM("TX1 HPF cut off", cf_dec1_enum),
+
+	SOC_ENUM("TX2 HPF cut off", cf_dec2_enum),
+
+	SOC_ENUM("TX3 HPF cut off", cf_dec3_enum),
+
+	SOC_ENUM("TX4 HPF cut off", cf_dec4_enum),
+
+	SOC_ENUM("TX5 HPF cut off", cf_dec5_enum),
+
+	SOC_ENUM("TX6 HPF cut off", cf_dec6_enum),
+
+	SOC_ENUM("TX7 HPF cut off", cf_dec7_enum),
 	SOC_SINGLE_EXT("DEC0_BCS Switch", SND_SOC_NOPM, 0, 1, 0,
 		       tx_macro_get_bcs, tx_macro_set_bcs),
 };
