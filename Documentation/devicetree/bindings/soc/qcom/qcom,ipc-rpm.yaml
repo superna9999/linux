@@ -47,7 +47,7 @@ properties:
 
   regulators:
     type: object
-    $ref: /schemas/regulator/regulator.yaml#
+    $ref: /schemas/regulator/qcom,ipc-rpm-regulator.yaml#
 
 required:
   - compatible
