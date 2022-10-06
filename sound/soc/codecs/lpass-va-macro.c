@@ -205,6 +205,7 @@ struct va_macro {
 	int dec_mode[VA_MACRO_NUM_DECIMATORS];
 	struct regmap *regmap;
 	struct clk *mclk;
+	struct clk *npl;
 	struct clk *macro;
 	struct clk *dcodec;
 	struct clk *fsgen;
@@ -1332,6 +1333,9 @@ static int fsgen_gate_enable(struct clk_hw *hw)
 	struct regmap *regmap = va->regmap;
 	int ret;
 
+	if (va->has_swr_master)
+		clk_prepare_enable(va->mclk);
+
 	ret = va_macro_mclk_enable(va, true);
 	if (va->has_swr_master)
 		regmap_update_bits(regmap, CDC_VA_CLK_RST_CTRL_SWR_CONTROL,
@@ -1350,6 +1354,8 @@ static void fsgen_gate_disable(struct clk_hw *hw)
 			   CDC_VA_SWR_CLK_EN_MASK, 0x0);
 
 	va_macro_mclk_enable(va, false);
+	if (va->has_swr_master)
+		clk_disable_unprepare(va->mclk);
 }
 
 static int fsgen_gate_is_enabled(struct clk_hw *hw)
@@ -1377,6 +1383,9 @@ static int va_macro_register_fsgen_output(struct va_macro *va)
 	const char *clk_name = "fsgen";
 	struct clk_init_data init;
 	int ret;
+
+	if (va->has_swr_master)
+		parent = va->npl;
 
 	parent_clk_name = __clk_get_name(parent);
 
@@ -1504,6 +1513,14 @@ static int va_macro_probe(struct platform_device *pdev)
 	/* mclk rate */
 	clk_set_rate(va->mclk, 2 * VA_MACRO_MCLK_FREQ);
 
+	if (va->has_swr_master) {
+		va->npl = devm_clk_get(dev, "npl");
+		if (IS_ERR(va->npl))
+			goto err;
+
+		clk_set_rate(va->npl, 2 * VA_MACRO_MCLK_FREQ);
+	}
+
 	ret = clk_prepare_enable(va->macro);
 	if (ret)
 		goto err;
@@ -1515,6 +1532,12 @@ static int va_macro_probe(struct platform_device *pdev)
 	ret = clk_prepare_enable(va->mclk);
 	if (ret)
 		goto err_mclk;
+
+	if (va->has_swr_master) {
+		ret = clk_prepare_enable(va->npl);
+		if (ret)
+			goto err_npl;
+	}
 
 	if (va->has_swr_master) {
 		/* Set default CLK div to 1 */
@@ -1564,6 +1587,9 @@ static int va_macro_probe(struct platform_device *pdev)
 	return 0;
 
 err_clkout:
+	if (va->has_swr_master)
+		clk_disable_unprepare(va->npl);
+err_npl:
 	clk_disable_unprepare(va->mclk);
 err_mclk:
 	clk_disable_unprepare(va->dcodec);
@@ -1579,6 +1605,9 @@ static void va_macro_remove(struct platform_device *pdev)
 {
 	struct va_macro *va = dev_get_drvdata(&pdev->dev);
 
+	if (va->has_swr_master)
+		clk_disable_unprepare(va->npl);
+
 	clk_disable_unprepare(va->mclk);
 	clk_disable_unprepare(va->dcodec);
 	clk_disable_unprepare(va->macro);
@@ -1592,6 +1621,9 @@ static int __maybe_unused va_macro_runtime_suspend(struct device *dev)
 
 	regcache_cache_only(va->regmap, true);
 	regcache_mark_dirty(va->regmap);
+
+	if (va->has_swr_master)
+		clk_disable_unprepare(va->npl);
 
 	clk_disable_unprepare(va->mclk);
 
@@ -1607,6 +1639,15 @@ static int __maybe_unused va_macro_runtime_resume(struct device *dev)
 	if (ret) {
 		dev_err(va->dev, "unable to prepare mclk\n");
 		return ret;
+	}
+
+	if (va->has_swr_master) {
+		ret = clk_prepare_enable(va->npl);
+		if (ret) {
+			clk_disable_unprepare(va->mclk);
+			dev_err(va->dev, "unable to prepare npl\n");
+			return ret;
+		}
 	}
 
 	regcache_cache_only(va->regmap, false);
