@@ -57,50 +57,47 @@ static int samsung_pdx213_amoled_on(struct samsung_pdx213_amoled *ctx)
 	}
 	msleep(120);
 
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
 	ret = mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set tear on: %d\n", ret);
 		return ret;
 	}
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xdf, 0x03);
+	mipi_dsi_dcs_write_seq(dsi, 0xe0, 0x01);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
 	ret = mipi_dsi_dcs_set_column_address(dsi, 0, 1079);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set column address: %d\n", ret);
 		return ret;
 	}
-
 	ret = mipi_dsi_dcs_set_page_address(dsi, 0, 2519);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set page address: %d\n", ret);
 		return ret;
 	}
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 
 	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x27, 0xf2);
-	mipi_dsi_dcs_write_seq(dsi, 0xf2, 0x80);
-	mipi_dsi_dcs_write_seq(dsi, 0xf7, 0x07);
-	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	mipi_dsi_dcs_write_seq(dsi, 0xe5, 0x15);
-	mipi_dsi_dcs_write_seq(dsi, 0xed, 0x04, 0x4c, 0x20);
-	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x02, 0x8f);
-	mipi_dsi_dcs_write_seq(dsi, 0x8f, 0x27, 0x05);
-	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x92, 0x63);
-	mipi_dsi_dcs_write_seq(dsi, 0x63, 0x05);
-	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 	mipi_dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_CONTROL_DISPLAY, 0x28);
+	// mipi_dsi_dcs_set_display_brightness(dsi, 200);
+	mipi_dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_POWER_SAVE, 0);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 
-	ret = mipi_dsi_dcs_set_display_brightness(dsi, 0x0000);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set display brightness: %d\n", ret);
-		return ret;
-	}
-
-	mipi_dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_POWER_SAVE, 0x00);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xbe, 0x92, 0x09);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x06);
+	mipi_dsi_dcs_write_seq(dsi, 0xb6, 0x90);
+	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x0a);
+	mipi_dsi_dcs_write_seq(dsi, 0xb6, 0x18, 0, 0, 0x18);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 
 	ret = mipi_dsi_dcs_set_display_on(dsi);
 	if (ret < 0) {
