@@ -77,13 +77,13 @@ static int sofef03_m_on(struct sofef03_m *ctx)
 		return ret;
 	}
 
-	ret = mipi_dsi_dcs_set_column_address(dsi, 0x0000, 0x0437);
+	ret = mipi_dsi_dcs_set_column_address(dsi, 0, 1079);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set column address: %d\n", ret);
 		return ret;
 	}
 
-	ret = mipi_dsi_dcs_set_page_address(dsi, 0x0000, 0x09d7);
+	ret = mipi_dsi_dcs_set_page_address(dsi, 0, 2519);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set page address: %d\n", ret);
 		return ret;
