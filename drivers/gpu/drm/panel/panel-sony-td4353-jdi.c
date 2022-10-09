@@ -54,19 +54,19 @@ static int sony_td4353_jdi_on(struct sony_td4353_jdi *ctx)
 
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
-	ret = mipi_dsi_dcs_set_column_address(dsi, 0x0000, 0x0437);
+	ret = mipi_dsi_dcs_set_column_address(dsi, 0, 1079);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set column address: %d\n", ret);
 		return ret;
 	}
 
-	ret = mipi_dsi_dcs_set_page_address(dsi, 0x0000, 0x086f);
+	ret = mipi_dsi_dcs_set_page_address(dsi, 0, 2159);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set page address: %d\n", ret);
 		return ret;
 	}
 
-	ret = mipi_dsi_dcs_set_tear_scanline(dsi, 0x0000);
+	ret = mipi_dsi_dcs_set_tear_scanline(dsi, 0);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set tear scanline: %d\n", ret);
 		return ret;
