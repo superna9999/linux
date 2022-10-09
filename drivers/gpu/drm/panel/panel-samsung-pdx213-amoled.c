@@ -63,13 +63,13 @@ static int samsung_pdx213_amoled_on(struct samsung_pdx213_amoled *ctx)
 		return ret;
 	}
 
-	ret = mipi_dsi_dcs_set_column_address(dsi, 0x0000, 0x0437);
+	ret = mipi_dsi_dcs_set_column_address(dsi, 0, 1079);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set column address: %d\n", ret);
 		return ret;
 	}
 
-	ret = mipi_dsi_dcs_set_page_address(dsi, 0x0000, 0x09d7);
+	ret = mipi_dsi_dcs_set_page_address(dsi, 0, 2519);
 	if (ret < 0) {
 		dev_err(dev, "Failed to set page address: %d\n", ret);
 		return ret;
@@ -215,7 +215,6 @@ static const struct drm_panel_funcs samsung_pdx213_amoled_panel_funcs = {
 	.get_modes = samsung_pdx213_amoled_get_modes,
 };
 
-/* Sadly, this panel expects BE brightness data.. */
 static int samsung_pdx213_amoled_bl_update_status(struct backlight_device *bl)
 {
 	struct mipi_dsi_device *dsi = bl_get_data(bl);
@@ -263,7 +262,7 @@ samsung_pdx213_amoled_create_backlight(struct mipi_dsi_device *dsi)
 	struct device *dev = &dsi->dev;
 	const struct backlight_properties props = {
 		.type = BACKLIGHT_RAW,
-		.brightness = 4095,
+		.brightness = 200,
 		.max_brightness = 4095,
 	};
 
