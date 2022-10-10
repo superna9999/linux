@@ -274,14 +274,16 @@ static int dpu_hw_pp_setup_dsc(struct dpu_hw_pingpong *pp)
 static void _setup_pingpong_ops(struct dpu_hw_pingpong *c,
 				unsigned long features)
 {
-	c->ops.setup_tearcheck = dpu_hw_pp_setup_te_config;
-	c->ops.enable_tearcheck = dpu_hw_pp_enable_te;
-	c->ops.connect_external_te = dpu_hw_pp_connect_external_te;
-	c->ops.get_vsync_info = dpu_hw_pp_get_vsync_info;
-	c->ops.setup_autorefresh = dpu_hw_pp_setup_autorefresh_config;
-	c->ops.get_autorefresh = dpu_hw_pp_get_autorefresh_config;
-	c->ops.poll_timeout_wr_ptr = dpu_hw_pp_poll_timeout_wr_ptr;
-	c->ops.get_line_count = dpu_hw_pp_get_line_count;
+	if (test_bit(DPU_PINGPONG_TE, &features)) {
+		c->ops.setup_tearcheck = dpu_hw_pp_setup_te_config;
+		c->ops.enable_tearcheck = dpu_hw_pp_enable_te;
+		c->ops.connect_external_te = dpu_hw_pp_connect_external_te;
+		c->ops.get_vsync_info = dpu_hw_pp_get_vsync_info;
+		c->ops.setup_autorefresh = dpu_hw_pp_setup_autorefresh_config;
+		c->ops.get_autorefresh = dpu_hw_pp_get_autorefresh_config;
+		c->ops.poll_timeout_wr_ptr = dpu_hw_pp_poll_timeout_wr_ptr;
+		c->ops.get_line_count = dpu_hw_pp_get_line_count;
+	}
 	c->ops.setup_dsc = dpu_hw_pp_setup_dsc;
 	c->ops.enable_dsc = dpu_hw_pp_dsc_enable;
 	c->ops.disable_dsc = dpu_hw_pp_dsc_disable;

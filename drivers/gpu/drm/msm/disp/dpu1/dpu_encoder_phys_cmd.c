@@ -586,7 +586,7 @@ static bool dpu_encoder_phys_cmd_is_ongoing_pptx(
 {
 	struct dpu_hw_pp_vsync_info info;
 
-	if (!phys_enc)
+	if (!phys_enc || !phys_enc->hw_pp->ops.get_vsync_info)
 		return false;
 
 	phys_enc->hw_pp->ops.get_vsync_info(phys_enc->hw_pp, &info);
@@ -609,6 +609,9 @@ static void dpu_encoder_phys_cmd_prepare_commit(
 	if (!phys_enc->hw_pp)
 		return;
 	if (!dpu_encoder_phys_cmd_is_master(phys_enc))
+		return;
+
+	if (!phys_enc->hw_pp->ops.get_autorefresh || !phys_enc->hw_pp->ops.setup_autorefresh)
 		return;
 
 	/* If autorefresh is already disabled, we have nothing to do */
