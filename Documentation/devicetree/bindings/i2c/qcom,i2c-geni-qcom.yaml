@@ -15,13 +15,13 @@ allOf:
 
 properties:
   compatible:
-    const: qcom,geni-i2c
+    enum:
+      - qcom,geni-i2c
+      - qcom,geni-i2c-master-hub
 
-  clocks:
-    maxItems: 1
+  clocks: true
 
-  clock-names:
-    const: se
+  clock-names: true
 
   clock-frequency:
     default: 100000
@@ -34,14 +34,9 @@ properties:
       - const: tx
       - const: rx
 
-  interconnects:
-    maxItems: 3
+  interconnects: true
 
-  interconnect-names:
-    items:
-      - const: qup-core
-      - const: qup-config
-      - const: qup-memory
+  interconnect-names: true
 
   interrupts:
     maxItems: 1
@@ -70,6 +65,48 @@ required:
   - clocks
   - clock-names
   - reg
+
+if:
+  properties:
+    compatible:
+      contains:
+        const: qcom,geni-i2c-master-hub
+then:
+  properties:
+    clock-names:
+      items:
+        - const: se
+        - const: core
+
+    clocks:
+      maxItems: 2
+
+    dmas: false
+    dma-names: false
+
+    interconnects:
+      maxItems: 2
+
+    interconnect-names:
+      items:
+        - const: qup-core
+        - const: qup-config
+else:
+  properties:
+    clocks:
+      maxItems: 1
+
+    clock-names:
+      const: se
+
+    interconnects:
+      maxItems: 3
+
+    interconnect-names:
+      items:
+        - const: qup-core
+        - const: qup-config
+        - const: qup-memory
 
 unevaluatedProperties: false
 
