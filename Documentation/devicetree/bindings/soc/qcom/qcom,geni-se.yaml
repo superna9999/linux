@@ -21,20 +21,15 @@ properties:
   compatible:
     enum:
       - qcom,geni-se-qup
+      - qcom,geni-se-i2c-master-hub
 
   reg:
     description: QUP wrapper common register address and length.
     maxItems: 1
 
-  clock-names:
-    items:
-      - const: m-ahb
-      - const: s-ahb
+  clock-names: true
 
-  clocks:
-    items:
-      - description: Master AHB Clock
-      - description: Slave AHB Clock
+  clocks: true
 
   "#address-cells":
     const: 2
@@ -80,6 +75,38 @@ patternProperties:
     type: object
     description: GENI Serial Engine based UART Controller.
     $ref: /schemas/serial/qcom,serial-geni-qcom.yaml#
+
+if:
+  properties:
+    compatible:
+      contains:
+        const: qcom,geni-se-i2c-master-hub
+then:
+  properties:
+    clock-names:
+      items:
+        - const: s-ahb
+
+    clocks:
+      items:
+        - description: Slave AHB Clock
+
+    iommus: false
+
+  patternProperties:
+    "spi@[0-9a-f]+$": false
+    "serial@[0-9a-f]+$": false
+else:
+  properties:
+    clock-names:
+      items:
+        - const: m-ahb
+        - const: s-ahb
+
+    clocks:
+      items:
+        - description: Master AHB Clock
+        - description: Slave AHB Clock
 
 additionalProperties: false
 
