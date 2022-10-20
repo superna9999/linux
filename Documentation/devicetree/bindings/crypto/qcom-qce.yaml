@@ -24,6 +24,7 @@ properties:
       - qcom,sm8150-qce
       - qcom,sm8250-qce
       - qcom,sm8350-qce
+      - qcom,sm8550-qce
 
   reg:
     maxItems: 1
