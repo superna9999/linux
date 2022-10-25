@@ -519,17 +519,17 @@ static const struct drm_panel_funcs st7701_funcs = {
 };
 
 static const struct drm_display_mode ts8550b_mode = {
-	.clock		= 27500,
+	.clock		= 28748,
 
 	.hdisplay	= 480,
-	.hsync_start	= 480 + 38,
-	.hsync_end	= 480 + 38 + 12,
-	.htotal		= 480 + 38 + 12 + 12,
+	.hsync_start	= 480 + 12,
+	.hsync_end	= 480 + 12 + 38,
+	.htotal		= 480 + 12 + 38 + 12,
 
 	.vdisplay	= 854,
-	.vsync_start	= 854 + 2,
-	.vsync_end	= 854 + 2 + 11,
-	.vtotal		= 854 + 2 + 11 + 17,
+	.vsync_start	= 854 + 7,
+	.vsync_end	= 854 + 7 + 9,
+	.vtotal		= 854 + 7 + 9 + 14,
 
 	.width_mm	= 69,
 	.height_mm	= 139,
