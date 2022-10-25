@@ -145,6 +145,9 @@ dw_mipi_dsi_get_lane_mbps(void *priv_data, const struct drm_display_mode *mode,
 					 bpp, mipi_dsi->dsi_device->lanes,
 					 &mipi_dsi->phy_opts.mipi_dphy);
 
+	pr_info("%s: mode clock %d\n", __func__, mode->clock * 1000);
+	pr_info("%s: hs_clk_rate %d\n", __func__, mipi_dsi->phy_opts.mipi_dphy.hs_clk_rate);
+
 	*lane_mbps = mipi_dsi->phy_opts.mipi_dphy.hs_clk_rate / 1000000;
 
 	return 0;
