@@ -4,3 +4,4 @@
 #
 
 obj-$(CONFIG_USB_REPEATER)		+= repeater.o
+obj-$(CONFIG_QCOM_PMIC_EUSB2_REPEATER)	+= repeater-qcom-pmic-eusb2.o

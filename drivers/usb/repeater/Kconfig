@@ -7,3 +7,14 @@ config USB_REPEATER
 	  driver to bind together and to provide the USB driver ways to perform
 	  set of operations with repeater for USB2 functionality using PHY and
 	  controller driver.
+
+config QCOM_PMIC_EUSB2_REPEATER
+	tristate "USB eUSB2 Repeater driver"
+	select USB_REPEATER
+	help
+	  Enable this to support the USB eUSB2 repeater on Qualcomm PMIC chips.
+	  This driver provides support to reset, initialize, power up and configure
+	  the eUSB2 repeater for USB HS/FS/LS functionality where eUSB2 repeater
+	  is used.
+
+	  To compile the driver as a module, choose M here.
