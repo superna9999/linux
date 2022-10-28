@@ -28,7 +28,7 @@
 #define   CTL_INTF_ACTIVE               0x0F4
 #define   CTL_MERGE_3D_FLUSH            0x100
 #define   CTL_DSC_ACTIVE                0x0E8
-#define   CTL_DSC_FLUSH                0x104
+#define   CTL_DSC_FLUSH                 0x104
 #define   CTL_WB_FLUSH                  0x108
 #define   CTL_INTF_FLUSH                0x110
 #define   CTL_INTF_MASTER               0x134
@@ -41,9 +41,9 @@
 #define  MERGE_3D_IDX   23
 #define  DSC_IDX        22
 #define  INTF_IDX       31
-#define WB_IDX          16
+#define  WB_IDX         16
 #define CTL_INVALID_BIT                 0xffff
-#define CTL_DEFAULT_GROUP_ID		0xf
+#define CTL_DEFAULT_GROUP_ID            0xf
 
 static const u32 fetch_tbl[SSPP_MAX] = {CTL_INVALID_BIT, 16, 17, 18, 19,
 	CTL_INVALID_BIT, CTL_INVALID_BIT, CTL_INVALID_BIT, CTL_INVALID_BIT, 0,
