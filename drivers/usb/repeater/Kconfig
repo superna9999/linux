@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0
+
+config USB_REPEATER
+	tristate "USB Repeater Framework"
+	help
+	  Enable this to allow the USB PHY drivers and the connected repeater
+	  driver to bind together and to provide the USB driver ways to perform
+	  set of operations with repeater for USB2 functionality using PHY and
+	  controller driver.
