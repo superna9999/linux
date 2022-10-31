@@ -281,6 +281,9 @@ static int ufs_qcom_host_reset(struct ufs_hba *hba)
 static u32 ufs_qcom_get_hs_gear(struct ufs_hba *hba, u32 hs_gear)
 {
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
+	struct device *dev = hba->dev;
+	u32 max_device_gear, max_hcd_gear, reg;
+	int ret;
 
 	if (host->hw_ver.major == 0x1) {
 		/*
@@ -292,8 +295,29 @@ static u32 ufs_qcom_get_hs_gear(struct ufs_hba *hba, u32 hs_gear)
 		 */
 		if (hs_gear > UFS_HS_G2)
 			return UFS_HS_G2;
+	} else if (host->hw_ver.major > 0x3) {
+		/*
+		 * Starting from UFS controller v4, Qcom supports dual gear mode (i.e., the
+		 * controller/PHY can be configured to run in two gear speeds). But that
+		 * requires an agreement between the UFS controller and the device. Below
+		 * code tries to find the max gear of both and decides which gear to use.
+		 *
+		 * First get the max gear supported by the UFS device if available.
+		 * If the property is not defined in devicetree, then use the default gear.
+		 */
+		ret = of_property_read_u32(dev->of_node, "max-device-gear", &max_device_gear);
+		if (ret)
+			goto err_out;
+
+		/* Next get the max gear supported by the UFS controller */
+		reg = ufshcd_readl(hba, REG_UFS_PARAM0);
+		max_hcd_gear = UFS_QCOM_MAX_GEAR(reg);
+
+		/* Now return the minimum of both gears */
+		return min(max_device_gear, max_hcd_gear);
 	}
 
+err_out:
 	/* Default is HS-G3 */
 	return UFS_HS_G3;
 }
@@ -303,7 +327,7 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
 	struct phy *phy = host->generic_phy;
 	int ret;
-	bool is_rate_B = UFS_QCOM_LIMIT_HS_RATE == PA_HS_MODE_B;
+	u32 hs_gear;
 
 	/* Reset UFS Host Controller and PHY */
 	ret = ufs_qcom_host_reset(hba);
@@ -311,8 +335,9 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 		dev_warn(hba->dev, "%s: host reset returned %d\n",
 				  __func__, ret);
 
-	if (is_rate_B)
-		phy_set_mode(phy, PHY_MODE_UFS_HS_B);
+	/* UFS_HS_G2 is used here since that's the least gear supported by legacy Qcom platforms */
+	hs_gear = ufs_qcom_get_hs_gear(hba, UFS_HS_G2);
+	phy_set_mode_ext(phy, PHY_MODE_UFS_HS_B, hs_gear);
 
 	/* phy initialization - calibrate the phy */
 	ret = phy_init(phy);
