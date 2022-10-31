@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/reset/hardkernel,odroid-go-ultra-poweroff.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Hardkernel Odroid Go Ultra poweroff
+
+maintainers:
+  - Neil Armstrong <neil.armstrong@linaro.org>
+
+description:
+  The Hardkernel Odroid Go Ultra poweroff scheme requires requesting a poweroff
+  to its two PMICs in order, this represents the poweroff scheme needed to complete
+  a clean poeroff of the system.
+
+properties:
+  compatible:
+    const: hardkernel,odroid-go-ultra-poweroff
+
+  hardkernel,rk817-pmic:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: Phandle to the RK817 PMIC node
+
+  hardkernel,rk818-pmic:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: Phandle to the RK818 PMIC node
+
+required:
+  - compatible
+  - hardkernel,rk817-pmic
+  - hardkernel,rk818-pmic
+
+additionalProperties: false
+
+examples:
+  - |
+    poweroff {
+        compatible = "hardkernel,odroid-go-ultra-poweroff";
+        hardkernel,rk817-pmic = <&rk817>;
+        hardkernel,rk818-pmic = <&rk818>;
+    };
