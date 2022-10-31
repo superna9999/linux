@@ -83,6 +83,12 @@ struct msm_pinctrl {
 	u32 phys_base[MAX_NR_TILES];
 };
 
+#define PIN_CONFIG_QCOM_I2C_PULL	(PIN_CONFIG_END + 1)
+
+static const struct pinconf_generic_params msm_pinconf_custom_bindings[] = {
+	{"qcom,i2c-pull", PIN_CONFIG_END + 1, 0},
+};
+
 #define MSM_ACCESSOR(name) \
 static u32 msm_readl_##name(struct msm_pinctrl *pctrl, \
 			    const struct msm_pingroup *g) \
@@ -324,6 +330,12 @@ static int msm_config_reg(struct msm_pinctrl *pctrl,
 		*bit = g->oe_bit;
 		*mask = 1;
 		break;
+	case PIN_CONFIG_QCOM_I2C_PULL:
+		if (g->i2c_pull_bit == 0)
+			return -EOPNOTSUPP;
+		*bit = g->i2c_pull_bit;
+		*mask = 1;
+		break;
 	default:
 		return -ENOTSUPP;
 	}
@@ -415,6 +427,9 @@ static int msm_config_group_get(struct pinctrl_dev *pctldev,
 			return -EINVAL;
 		arg = 1;
 		break;
+	case PIN_CONFIG_QCOM_I2C_PULL:
+		arg = 1;
+		break;
 	default:
 		return -ENOTSUPP;
 	}
@@ -497,6 +512,9 @@ static int msm_config_group_set(struct pinctrl_dev *pctldev,
 		case PIN_CONFIG_INPUT_ENABLE:
 			/* disable output */
 			arg = 0;
+			break;
+		case PIN_CONFIG_QCOM_I2C_PULL:
+			arg = 1;
 			break;
 		default:
 			dev_err(pctrl->dev, "Unsupported config parameter: %x\n",
@@ -1495,6 +1513,8 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 	pctrl->desc.name = dev_name(&pdev->dev);
 	pctrl->desc.pins = pctrl->soc->pins;
 	pctrl->desc.npins = pctrl->soc->npins;
+	pctrl->desc.custom_params = msm_pinconf_custom_bindings;
+	pctrl->desc.num_custom_params = ARRAY_SIZE(msm_pinconf_custom_bindings);
 
 	pctrl->pctrl = devm_pinctrl_register(&pdev->dev, &pctrl->desc, pctrl);
 	if (IS_ERR(pctrl->pctrl)) {
