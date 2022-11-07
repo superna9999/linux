@@ -423,6 +423,18 @@
 	};
 };
 
+&camcc {
+	status = "okay";
+};
+
+&cci0 {
+	status = "okay";
+};
+
+&cci1 {
+	status = "okay";
+};
+
 &gpi_dma0 {
 	status = "okay";
 };
