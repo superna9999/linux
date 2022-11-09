@@ -9,6 +9,7 @@
 #define PMK8350_SID 6
 
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 #include "sm6375.dtsi"
 #include "pm6125.dtsi"
 #include "pmk8350.dtsi"
@@ -63,6 +64,21 @@
 		};
 	};
 
+	display_avdd_regulator: display-panel-avdd-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "display_avdd_regulator";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		regulator-enable-ramp-delay = <233>;
+		gpio = <&tlmm 24 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;//HACK
+		regulator-boot-on;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&display_panel_avdd>;
+	};
+
 	vph_pwr: vph-pwr-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "vph_pwr";
@@ -71,33 +87,6 @@
 		regulator-always-on;
 		regulator-boot-on;
 	};
-};
-
-&sdc2_off_state {
-	sd-cd-pins {
-		pins = "gpio94";
-		function = "gpio";
-		drive-strength = <2>;
-		bias-disable;
-	};
-};
-
-&sdc2_on_state {
-	sd-cd-pins {
-		pins = "gpio94";
-		function = "gpio";
-		drive-strength = <2>;
-		bias-pull-up;
-	};
-};
-
-&sdhc_2 {
-	status = "okay";
-
-	vmmc-supply = <&pm6125_l22>;
-	vqmmc-supply = <&pm6125_l5>;
-
-	cd-gpios = <&tlmm 94 GPIO_ACTIVE_HIGH>;
 };
 
 &gpi_dma0 {
@@ -120,9 +109,50 @@
 
 		vdd-supply = <&pm6125_l13>;
 
-		pinctrl-names = "default";
-		pinctrl-0 = <&ts_int_default &ts_avdd_default>;
+		// pinctrl-names = "default";
+		// pinctrl-0 = <&ts_int_default &ts_avdd_default>;
 	};
+};
+
+&mdss {
+	status = "okay";
+};
+
+&mdss_dsi0 {
+	vdda-supply = <&pm6125_l4>;
+	status = "okay";
+
+	panel: panel@0 {
+		compatible = "samsung,amoled";
+		reg = <0>;
+
+		disp-te-gpios = <&tlmm 23 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pmr735a_gpios 2 GPIO_ACTIVE_LOW>;
+
+		// avdd-supply = <&display_avdd_regulator>;
+		// vdd-supply = <&pm6125_l8>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&panel_reset_pin &te_pin_default &ts_avdd_default>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&mdss_dsi0_out>;
+			};
+		};
+	};
+};
+
+&mdss_dsi0_out {
+	remote-endpoint = <&panel_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&mdss_dsi0_phy {
+	status = "okay";
 };
 
 &pmk8350_adc_tm {
@@ -131,6 +161,17 @@
 
 &pmk8350_rtc {
 	status = "okay";
+};
+
+&pmr735a_gpios {
+	panel_reset_pin: panel-reset-state {
+		pins = "gpio2";
+		function = "func1";
+		qcom,drive-strength = <PMIC_GPIO_STRENGTH_HIGH>;
+		power-source = <1>;
+		bias-disable;
+		output-low;
+	};
 };
 
 &pon_pwrkey {
@@ -195,8 +236,9 @@
 		};
 
 		pm6125_l4: l4 {
-			regulator-min-microvolt = <1100000>;
-			regulator-max-microvolt = <1300000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-allow-set-load;
 		};
 
 		pm6125_l5: l5 {
@@ -218,6 +260,7 @@
 		pm6125_l8: l8 {
 			regulator-min-microvolt = <1100000>;
 			regulator-max-microvolt = <1304000>;
+			regulator-always-on;
 		};
 
 		pm6125_l9: l9 {
@@ -243,6 +286,7 @@
 		pm6125_l13: l13 {
 			regulator-min-microvolt = <1650000>;
 			regulator-max-microvolt = <1980000>;
+			regulator-always-on;
 		};
 
 		pm6125_l14: l14 {
@@ -379,6 +423,21 @@
 		function = "gpio";
 		drive-strength = <8>;
 		bias-pull-up;
+	};
+
+	te_pin_default: te-pin-default {
+		pins = "gpio23";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	display_panel_avdd: display-panel-avdd-state {
+		pins = "gpio24";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-disable;
+		output-high;
 	};
 
 	ts_avdd_default: ts-avdd-default-state {
