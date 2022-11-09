@@ -27,6 +27,7 @@ properties:
           - enum:
               - qcom,sm6375-cpufreq-epss
               - qcom,sm8250-cpufreq-epss
+              - qcom,sm8550-cpufreq-epss
           - const: qcom,cpufreq-epss
 
   reg:
@@ -52,6 +53,12 @@ properties:
     items:
       - const: xo
       - const: alternate
+
+  interrupts:
+    maxItems: 3
+
+  interrupt-names:
+    maxItems: 3
 
   '#freq-domain-cells':
     const: 1
