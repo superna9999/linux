@@ -29,6 +29,7 @@ properties:
       - qcom,sm8250-qmp-ufs-phy
       - qcom,sm8350-qmp-ufs-phy
       - qcom,sm8450-qmp-ufs-phy
+      - qcom,sm8550-qmp-ufs-phy
 
   reg:
     items:
@@ -65,6 +66,9 @@ properties:
   vdda-pll-supply: true
 
   vddp-ref-clk-supply: true
+
+  vdda-phy-max-microamp: true
+  vdda-pll-max-microamp: true
 
 patternProperties:
   "^phy@[0-9a-f]+$":
@@ -141,6 +145,7 @@ allOf:
           contains:
             enum:
               - qcom,sm8450-qmp-ufs-phy
+              - qcom,sm8550-qmp-ufs-phy
     then:
       properties:
         clocks:
@@ -163,6 +168,7 @@ allOf:
               - qcom,sm8250-qmp-ufs-phy
               - qcom,sm8350-qmp-ufs-phy
               - qcom,sm8450-qmp-ufs-phy
+              - qcom,sm8550-qmp-ufs-phy
     then:
       patternProperties:
         "^phy@[0-9a-f]+$":
@@ -208,6 +214,24 @@ allOf:
                 - description: TX
                 - description: RX
                 - description: PCS
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,sm8550-qmp-ufs-phy
+    then:
+      patternProperties:
+        "^phy@[0-9a-f]+$":
+          properties:
+            vdda-phy-max-microamp:
+              description:
+                Specifies max. load that can be drawn from VDDA PHY supply.
+
+            vdda-pll-max-microamp:
+              description:
+                Specifies max. load that can be drawn from VDDA PLL supply.
 
 examples:
   - |
