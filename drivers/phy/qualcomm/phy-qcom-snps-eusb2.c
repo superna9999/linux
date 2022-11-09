@@ -16,6 +16,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
+#include <linux/usb/repeater.h>
+
 
 #define USB_PHY_UTMI_CTRL0		(0x3c)
 #define SLEEPM				BIT(0)
@@ -135,6 +137,8 @@ struct qcom_snps_eusb2_hsphy {
 	struct regulator_bulk_data vregs[EUSB2_NUM_VREGS];
 
 	enum phy_mode mode;
+
+	struct usb_repeater *repeater;
 };
 
 static int qcom_snps_eusb2_hsphy_set_mode(struct phy *p, enum phy_mode mode, int submode)
@@ -231,6 +235,28 @@ static int qcom_eusb2_ref_clk_init(struct qcom_snps_eusb2_hsphy *phy)
 	return 0;
 }
 
+static int qcom_snps_eusb2_hsphy_repeater_reset_and_init(struct qcom_snps_eusb2_hsphy *phy)
+{
+	struct device *dev = &phy->phy->dev;
+	int ret;
+
+	/* TOFIX set mode, default to device */
+
+	ret = usb_repeater_power_on(phy->repeater);
+	if (ret)
+		dev_err(dev, "repeater power on failed.\n");
+
+	ret = usb_repeater_reset(phy->repeater, true);
+	if (ret)
+		dev_err(dev, "repeater reset failed.\n");
+
+	ret = usb_repeater_init(phy->repeater);
+	if (ret)
+		dev_err(dev, "repeater init failed.\n");
+
+	return ret;
+}
+
 static int qcom_snps_eusb2_hsphy_init(struct phy *p)
 {
 	struct qcom_snps_eusb2_hsphy *phy = phy_get_drvdata(p);
@@ -239,6 +265,11 @@ static int qcom_snps_eusb2_hsphy_init(struct phy *p)
 	ret = regulator_bulk_enable(ARRAY_SIZE(phy->vregs), phy->vregs);
 	if (ret)
 		return ret;
+
+	/* Bring eUSB2 repeater out of reset and initialized before eUSB2 PHY */
+	ret = qcom_snps_eusb2_hsphy_repeater_reset_and_init(phy);
+	if (ret)
+		goto disable_vreg;
 
 	ret = clk_prepare_enable(phy->ref_clk);
 	if (ret) {
@@ -347,6 +378,8 @@ static int qcom_snps_eusb2_hsphy_exit(struct phy *p)
 
 	regulator_bulk_disable(ARRAY_SIZE(phy->vregs), phy->vregs);
 
+	usb_repeater_power_off(phy->repeater);
+
 	return 0;
 }
 
@@ -391,6 +424,12 @@ static int qcom_snps_eusb2_hsphy_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret,
 				     "failed to get regulator supplies\n");
+
+	phy->repeater = devm_usb_get_repeater_by_phandle(dev, "usb-repeater", 0);
+	if (IS_ERR(phy->repeater))
+		return dev_err_probe(dev, PTR_ERR(phy->repeater),
+				     "failed to get repeater\n");
+
 	generic_phy = devm_phy_create(dev, NULL, &qcom_snps_eusb2_hsphy_ops);
 	if (IS_ERR(generic_phy)) {
 		dev_err(dev, "failed to create phy %d\n", ret);
