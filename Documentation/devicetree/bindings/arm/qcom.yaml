@@ -70,6 +70,7 @@ description: |
         sm8250
         sm8350
         sm8450
+        sm8550
 
   The 'board' element must be one of the following strings:
 
@@ -844,6 +845,11 @@ properties:
               - sony,pdx223
               - sony,pdx224
           - const: qcom,sm8450
+
+      - items:
+          - enum:
+              - qcom,sm8550-mtp
+          - const: qcom,sm8550
 
   # Board compatibles go above
 
