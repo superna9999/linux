@@ -177,14 +177,14 @@
 
 		pm8350_s11: smps11 {
 			regulator-name = "pm8350_s11";
-			regulator-min-microvolt = <848000>;
+			regulator-min-microvolt = <966000>;
 			regulator-max-microvolt = <1104000>;
 			regulator-always-on;
 		};
 
 		pm8350_s12: smps12 {
 			regulator-name = "pm8350_s12";
-			regulator-min-microvolt = <1224000>;
+			regulator-min-microvolt = <1350000>;
 			regulator-max-microvolt = <1400000>;
 			regulator-always-on;
 		};
@@ -271,7 +271,7 @@
 
 		pm8350c_s1: smps1 {
 			regulator-name = "pm8350c_s1";
-			regulator-min-microvolt = <1800000>;
+			regulator-min-microvolt = <1900000>;
 			regulator-max-microvolt = <2024000>;
 			regulator-always-on;
 		};
@@ -442,7 +442,7 @@
 
 		pmr735a_s2: smps2 {
 			regulator-name = "pmr735a_s2";
-			regulator-min-microvolt = <500000>;
+			regulator-min-microvolt = <1012000>;
 			regulator-max-microvolt = <1040000>;
 			regulator-always-on;
 		};
