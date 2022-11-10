@@ -595,22 +595,22 @@
 
 &remoteproc_adsp {
 	status = "okay";
-	firmware-name = "qcom/sm8450/adsp.mbn";
+	firmware-name = "qcom/sm8450/adsp.mdt";
 };
 
 &remoteproc_cdsp {
 	status = "okay";
-	firmware-name = "qcom/sm8450/cdsp.mbn";
+	firmware-name = "qcom/sm8450/cdsp.mdt";
 };
 
 &remoteproc_mpss {
 	status = "okay";
-	firmware-name = "qcom/sm8450/modem.mbn";
+	firmware-name = "qcom/sm8450/modem.mdt";
 };
 
 &remoteproc_slpi {
 	status = "okay";
-	firmware-name = "qcom/sm8450/slpi.mbn";
+	firmware-name = "qcom/sm8450/slpi.mdt";
 };
 
 &qupv3_id_0 {
