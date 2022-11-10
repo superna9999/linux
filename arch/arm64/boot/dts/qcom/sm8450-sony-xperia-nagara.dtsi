@@ -104,6 +104,30 @@
 		pinctrl-0 = <&telec_pwr_en>;
 	};
 
+	wlan_clk_regulator: wlan-clk-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "xo-clk-regulator";
+		gpio = <&tlmm 204 GPIO_ACTIVE_HIGH>;
+		/* WLAN card specific delay */
+		startup-delay-us = <1000>;
+		enable-active-high;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&hstp_clk_cfg_sel>;
+		vin-supply = <&pm8350c_s1>;
+	};
+
+	vreg_wlan: wlan-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_wlan";
+		gpio = <&tlmm 80 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&wlan_reg_en>;
+		vin-supply = <&wlan_clk_regulator>;
+	};
+
 	vph_pwr: vph-pwr-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "vph_pwr";
@@ -148,18 +172,21 @@
 			regulator-name = "pm8350_s10";
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
 		};
 
 		pm8350_s11: smps11 {
 			regulator-name = "pm8350_s11";
 			regulator-min-microvolt = <848000>;
 			regulator-max-microvolt = <1104000>;
+			regulator-always-on;
 		};
 
 		pm8350_s12: smps12 {
 			regulator-name = "pm8350_s12";
 			regulator-min-microvolt = <1224000>;
 			regulator-max-microvolt = <1400000>;
+			regulator-always-on;
 		};
 
 		pm8350_l1: ldo1 {
@@ -246,6 +273,7 @@
 			regulator-name = "pm8350c_s1";
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <2024000>;
+			regulator-always-on;
 		};
 
 		pm8350c_s10: smps10 {
@@ -416,6 +444,7 @@
 			regulator-name = "pmr735a_s2";
 			regulator-min-microvolt = <500000>;
 			regulator-max-microvolt = <1040000>;
+			regulator-always-on;
 		};
 
 		pmr735a_s3: smps3 {
@@ -464,6 +493,7 @@
 			regulator-name = "pmr735a_l7";
 			regulator-min-microvolt = <2800000>;
 			regulator-max-microvolt = <2800000>;
+			regulator-always-on;
 		};
 	};
 };
@@ -632,6 +662,9 @@
 
 &pcie0 {
 	max-link-speed = <2>;
+
+	vddpe-3v3-supply = <&vreg_wlan>;
+
 	status = "okay";
 };
 
@@ -784,11 +817,27 @@
 		output-low;
 	};
 
+	wlan_reg_en: wlan-reg-en-state {
+		pins = "gpio80";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-pull-up;
+		output-high;
+	};
+
 	sdc2_card_det_n: sd-card-det-n-state {
 		pins = "gpio92";
 		function = "gpio";
 		drive-strength = <2>;
 		bias-pull-up;
+	};
+
+	hstp_clk_cfg_sel: hstp-clk-cfg-sel-state {
+		pins = "gpio204";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-pull-down;
+		output-low;
 	};
 };
 
