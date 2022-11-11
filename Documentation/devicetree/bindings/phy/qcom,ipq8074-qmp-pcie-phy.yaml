@@ -32,6 +32,8 @@ properties:
       - qcom,sm8250-qmp-modem-pcie-phy
       - qcom,sm8450-qmp-gen3x1-pcie-phy
       - qcom,sm8450-qmp-gen4x2-pcie-phy
+      - qcom,sm8550-qmp-gen3x2-pcie-phy
+      - qcom,sm8550-qmp-gen4x2-pcie-phy
 
   reg:
     items:
@@ -47,11 +49,17 @@ properties:
 
   clocks:
     minItems: 2
-    maxItems: 4
+    maxItems: 5
 
   clock-names:
     minItems: 2
-    maxItems: 4
+    maxItems: 5
+
+  power-domains:
+    maxItems: 1
+
+  power-domain-names:
+    maxItems: 1
 
   resets:
     minItems: 1
@@ -65,6 +73,8 @@ properties:
 
   vdda-pll-supply: true
 
+  vdda-qref-supply: true
+
   vddp-ref-clk-supply: true
 
 patternProperties:
@@ -74,7 +84,7 @@ patternProperties:
     properties:
       reg:
         minItems: 3
-        maxItems: 6
+        maxItems: 7
 
       clocks:
         items:
@@ -206,6 +216,7 @@ allOf:
               - qcom,sm8250-qmp-gen3x2-pcie-phy
               - qcom,sm8250-qmp-modem-pcie-phy
               - qcom,sm8450-qmp-gen4x2-pcie-phy
+              - qcom,sm8550-qmp-gen3x2-pcie-phy
     then:
       patternProperties:
         "^phy@[0-9a-f]+$":
@@ -218,6 +229,27 @@ allOf:
                 - description: TX lane 2
                 - description: RX lane 2
                 - description: PCS_MISC
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,sm8550-qmp-gen4x2-pcie-phy
+    then:
+      patternProperties:
+        "^phy@[0-9a-f]+$":
+          properties:
+            reg:
+              items:
+                - description: TX lane 1
+                - description: RX lane 1
+                - description: PCS
+                - description: TX lane 2
+                - description: RX lane 2
+                - description: PCS_MISC
+                - description: LN_SHRD
+            vdda-qref-supply: true
 
   - if:
       properties:
