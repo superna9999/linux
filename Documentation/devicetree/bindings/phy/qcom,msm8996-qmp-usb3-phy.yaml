@@ -37,6 +37,7 @@ properties:
       - qcom,sm8350-qmp-usb3-phy
       - qcom,sm8350-qmp-usb3-uni-phy
       - qcom,sm8450-qmp-usb3-phy
+      - qcom,sm8550-qmp-usb3-phy
 
   reg:
     minItems: 1
