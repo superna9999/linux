@@ -436,18 +436,6 @@
 	firmware-name = "qcom/sm8350/Sony/sagami/cdsp.mbn";
 };
 
-&gpi_dma0 {
-	status = "okay";
-};
-
-&gpi_dma1 {
-	status = "okay";
-};
-
-&gpi_dma2 {
-	status = "okay";
-};
-
 &i2c1 {
 	status = "okay";
 	clock-frequency = <1000000>;
