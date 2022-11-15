@@ -158,13 +158,19 @@ static int q6apm_get_apm_state(struct q6apm *apm)
 
 	kfree(pkt);
 
+	dev_err(apm->dev, "SPF State %s\n", apm->state ? "UP" : "Down");
+
 	return apm->state;
 }
 
 bool q6apm_is_adsp_ready(void)
 {
-	if (g_apm)
+	if (g_apm) {
+		if (g_apm->state)
+			return true;
+
 		return q6apm_get_apm_state(g_apm);
+	}
 
 	return false;
 }
