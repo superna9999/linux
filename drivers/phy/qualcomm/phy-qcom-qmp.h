@@ -21,6 +21,12 @@
 #include "phy-qcom-qmp-qserdes-txrx-v5_20.h"
 #include "phy-qcom-qmp-qserdes-txrx-v5_5nm.h"
 
+#include "phy-qcom-qmp-qserdes-com-v6.h"
+#include "phy-qcom-qmp-qserdes-ln-shrd-v6.h"
+#include "phy-qcom-qmp-qserdes-txrx-v6.h"
+#include "phy-qcom-qmp-qserdes-txrx-v6_20.h"
+#include "phy-qcom-qmp-qserdes-txrx-ufs-v6.h"
+
 #include "phy-qcom-qmp-qserdes-pll.h"
 
 #include "phy-qcom-qmp-pcs-v2.h"
@@ -44,6 +50,13 @@
 #include "phy-qcom-qmp-pcs-ufs-v5.h"
 
 #include "phy-qcom-qmp-pcs-pcie-v5_20.h"
+
+#include "phy-qcom-qmp-pcs-v6.h"
+#include "phy-qcom-qmp-pcs-v6_20.h"
+#include "phy-qcom-qmp-pcs-pcie-v6.h"
+#include "phy-qcom-qmp-pcs-pcie-v6_20.h"
+#include "phy-qcom-qmp-pcs-ufs-v6.h"
+#include "phy-qcom-qmp-pcs-usb-v6.h"
 
 #include "phy-qcom-qmp-pcie-qhp.h"
 
