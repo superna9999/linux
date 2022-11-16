@@ -107,7 +107,7 @@ static int gdsc_poll_status(struct gdsc *sc, enum gdsc_status status)
 	do {
 		if (gdsc_check_status(sc, status))
 			return 0;
-	} while (ktime_us_delta(ktime_get(), start) < TIMEOUT_US);
+	} while (ktime_us_delta(ktime_get(), start) < sc->poll_timeout);
 
 	if (gdsc_check_status(sc, status))
 		return 0;
@@ -453,6 +453,9 @@ static int gdsc_init(struct gdsc *sc)
 	ret = pm_genpd_init(&sc->pd, NULL, !on);
 	if (ret)
 		goto err_disable_supply;
+
+	if (!sc->poll_timeout)
+		sc->poll_timeout = 500;
 
 	return 0;
 
