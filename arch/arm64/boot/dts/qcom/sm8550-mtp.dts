@@ -439,6 +439,11 @@
 	status = "okay";
 };
 
+&pm8550b_eusb2_repeater {
+	vdd18-supply = <&vreg_l15b_1p8>;
+	vdd3-supply = <&vreg_l5b_3p1>;
+};
+
 &uart7 {
 	status = "okay";
 };
@@ -463,4 +468,28 @@
 	vdda-phy-max-microamp = <188000>;
 	vdda-pll-supply = <&vreg_l3e_1p2>;
 	vdda-pll-max-microamp = <18300>;
+};
+
+&usb_1 {
+	status = "okay";
+};
+
+&usb_1_dwc3 {
+	dr_mode = "peripheral";
+};
+
+&usb_1_hsphy {
+	status = "okay";
+
+	usb-repeater = <&pm8550b_eusb2_repeater>;
+
+	vdd-supply = <&vreg_l1e_0p88>;
+	vdda12-supply = <&vreg_l3e_1p2>;
+};
+
+&usb_1_qmpphy {
+	status = "okay";
+
+	vdda-phy-supply = <&vreg_l3e_1p2>;
+	vdda-pll-supply = <&vreg_l3f_0p91>;
 };
