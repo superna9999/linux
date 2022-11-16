@@ -132,12 +132,29 @@ properties:
       - qcom,sm8450-nsp-noc
       - qcom,sm8450-pcie-anoc
       - qcom,sm8450-system-noc
+      - qcom,sm8550-aggre1-noc
+      - qcom,sm8550-aggre2-noc
+      - qcom,sm8550-clk-virt
+      - qcom,sm8550-config-noc
+      - qcom,sm8550-cnoc-main
+      - qcom,sm8550-gem-noc
+      - qcom,sm8550-lpass-ag-noc
+      - qcom,sm8550-lpass-lpiaon-noc
+      - qcom,sm8550-lpass-lpicx-noc
+      - qcom,sm8550-mc-virt
+      - qcom,sm8550-mmss-noc
+      - qcom,sm8550-nsp-noc
+      - qcom,sm8550-pcie-anoc
+      - qcom,sm8550-system-noc
+
+  clocks:
+    minItems: 1
+    maxItems: 2
 
   '#interconnect-cells': true
 
 required:
   - compatible
-  - reg
 
 unevaluatedProperties: false
 
