@@ -55,6 +55,9 @@ properties:
       - qcom,sm8450-cdsp-pas
       - qcom,sm8450-mpss-pas
       - qcom,sm8450-slpi-pas
+      - qcom,sm8550-adsp-pas
+      - qcom,sm8550-cdsp-pas
+      - qcom,sm8550-mpss-pas
 
   reg:
     maxItems: 1
@@ -116,8 +119,13 @@ properties:
     $ref: /schemas/types.yaml#/definitions/string
     description: Firmware name for the Hexagon core
 
+  qcom,dtb-firmware-name:
+    $ref: /schemas/types.yaml#/definitions/string
+    description: Devicetree Firmware name for the Hexagon core
+
   memory-region:
-    maxItems: 1
+    minItems: 1
+    maxItems: 2
     description: Reference to the reserved-memory for the Hexagon core
 
   qcom,qmp:
@@ -212,6 +220,9 @@ allOf:
               - qcom,sm8450-cdsp-pas
               - qcom,sm8450-slpi-pas
               - qcom,sm8450-mpss-pas
+              - qcom,sm8550-adsp-pas
+              - qcom,sm8550-cdsp-pas
+              - qcom,sm8550-mpss-pas
     then:
       properties:
         clocks:
@@ -327,6 +338,8 @@ allOf:
               - qcom,sm8450-adsp-pas
               - qcom,sm8450-cdsp-pas
               - qcom,sm8450-slpi-pas
+              - qcom,sm8550-adsp-pas
+              - qcom,sm8550-cdsp-pas
     then:
       properties:
         interrupts:
@@ -347,6 +360,7 @@ allOf:
               - qcom,sm8150-mpss-pas
               - qcom,sm8350-mpss-pas
               - qcom,sm8450-mpss-pas
+              - qcom,sm8550-mpss-pas
     then:
       properties:
         interrupts:
@@ -448,6 +462,7 @@ allOf:
               - qcom,sm8150-mpss-pas
               - qcom,sm8350-mpss-pas
               - qcom,sm8450-mpss-pas
+              - qcom,sm8550-mpss-pas
     then:
       properties:
         power-domains:
@@ -475,6 +490,7 @@ allOf:
               - qcom,sm8350-slpi-pas
               - qcom,sm8450-adsp-pas
               - qcom,sm8450-slpi-pas
+              - qcom,sm8550-adsp-pas
     then:
       properties:
         power-domains:
@@ -503,6 +519,25 @@ allOf:
           items:
             - const: cx
             - const: mxc
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,sm8550-cdsp-pas
+    then:
+      properties:
+        power-domains:
+          items:
+            - description: CX power domain
+            - description: MXC power domain
+            - description: NSP power domain
+        power-domain-names:
+          items:
+            - const: cx
+            - const: mxc
+            - const: nsp
 
   - if:
       properties:
@@ -572,6 +607,29 @@ allOf:
     then:
       properties:
         qcom,qmp: false
+
+  - if:
+      properties:
+        compatible:
+          contains:
+            enum:
+              - qcom,sm8550-adsp-pas
+              - qcom,sm8550-cdsp-pas
+              - qcom,sm8550-mpss-pas
+    then:
+      properties:
+        memory-region:
+          minItems: 2
+          description:
+            First entry is a phandle for a reserved memory area that holds
+            the main Firmware for authentication, and second entry a phandle for a
+            reserved memory area that holds the Devicetree Firmware for authentication.
+    else:
+      properties:
+        qcom,dtb-firmware-name: false
+
+        memory-region:
+          maxItems: 1
 
 examples:
   - |
