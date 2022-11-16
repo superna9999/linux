@@ -36,6 +36,14 @@ properties:
   interrupts:
     maxItems: 1
 
+  interconnects:
+    maxItems: 1
+    description:
+      Interconnect path between bam and main memory.
+
+  interconnect-names:
+    const: memory
+
   iommus:
     minItems: 1
     maxItems: 4
