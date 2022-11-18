@@ -42,11 +42,11 @@
 	cam0_vdig_vreg: cam0-vdig {
 		compatible = "regulator-fixed";
 		regulator-name = "cam0_vdig";
-		startup-delay-us = <0>;
-		enable-active-high;
 		gpio = <&tlmm 21 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam0_vdig_default>;
+		enable-active-high;
+		regulator-always-on;
 	};
 
 	cam1_vdig_vreg: cam1-vdig {
@@ -55,12 +55,11 @@
 		regulator-min-microvolt = <1200000>;
 		regulator-max-microvolt = <1200000>;
 		gpio = <&tlmm 25 GPIO_ACTIVE_HIGH>;
-		startup-delay-us = <0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam1_vdig_default>;
 		vin-supply = <&vreg_s3a_1p35>;
 		enable-active-high;
-
+		regulator-always-on;
 	};
 
 	cam_vio_vreg: cam-vio-vreg {
@@ -69,11 +68,11 @@
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
 		gpio = <&pmi8998_gpio 1 GPIO_ACTIVE_HIGH>;
-		startup-delay-us = <0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam_vio_default>;
 		vin-supply = <&vreg_lvs1a_1p8>;
 		enable-active-high;
+		regulator-always-on;
 	};
 
 	touch_vddio_vreg: touch-vddio-vreg {
@@ -289,9 +288,9 @@
 
 &cci_i2c1 {
 	/* IMX258 on Poplar & Maple, IMX219 on Lilac */
-	sensor@6c {
-		// compatible = "sony,imx258";
-		reg = <0x6c>;
+	sensor@34 {
+		compatible = "sony,imx258";
+		reg = <0x34>;
 
 		clocks = <&xo>;
 		assigned-clocks = <&mmcc CAMSS_MCLK1_CLK>;
@@ -306,8 +305,8 @@
 
 		reset-gpios = <&tlmm 28 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&mclk1_on>, <&front_cam_reset>;
-		pinctrl-1 = <&mclk1_off>, <&front_cam_reset>;
+		pinctrl-0 = <&mclk1_on &front_cam_reset>;
+		pinctrl-1 = <&mclk1_off &front_cam_reset>;
 
 		port {
 			front_cam_ep: endpoint {
@@ -474,6 +473,7 @@
 		vreg_s3a_1p35: s3 {
 			regulator-min-microvolt = <1352000>;
 			regulator-max-microvolt = <1352000>;
+			regulator-always-on;
 		};
 
 		vreg_s4a_1p8: s4 {
@@ -481,16 +481,19 @@
 			regulator-max-microvolt = <1800000>;
 			regulator-system-load = <100000>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
 		vreg_s5a_2p04: s5 {
 			regulator-min-microvolt = <1904000>;
 			regulator-max-microvolt = <2032000>;
+			regulator-always-on;
 		};
 
 		vreg_s7a_1p025: s7 {
 			regulator-min-microvolt = <900000>;
 			regulator-max-microvolt = <1028000>;
+			regulator-always-on;
 		};
 
 		vreg_l1a_0p875: l1 {
@@ -498,6 +501,7 @@
 			regulator-max-microvolt = <880000>;
 			regulator-system-load = <73400>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
 		vreg_l2a_1p2: l2 {
@@ -505,57 +509,68 @@
 			regulator-max-microvolt = <1200000>;
 			regulator-system-load = <12560>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
 		vreg_l3a_1p0: l3 {
 			regulator-min-microvolt = <1000000>;
 			regulator-max-microvolt = <1000000>;
+			regulator-always-on;
 		};
 
 		vreg_l5a_0p8: l5 {
 			regulator-min-microvolt = <800000>;
 			regulator-max-microvolt = <800000>;
+			regulator-always-on;
 		};
 
 		vreg_l6a_1p8: l6 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
 		};
 
 		vreg_l7a_1p8: l7 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
 		};
 
 		vreg_l8a_1p2: l8 {
 			regulator-min-microvolt = <1200000>;
 			regulator-max-microvolt = <1200000>;
+			regulator-always-on;
 		};
 
 		vreg_l9a_1p8: l9 {
 			regulator-min-microvolt = <1808000>;
 			regulator-max-microvolt = <2960000>;
+			regulator-always-on;
 		};
 
 		vreg_l10a_1p8: l10 {
 			regulator-min-microvolt = <1808000>;
 			regulator-max-microvolt = <2960000>;
+			regulator-always-on;
 		};
 
 		vreg_l11a_1p0: l11 {
 			regulator-min-microvolt = <1000000>;
 			regulator-max-microvolt = <1000000>;
+			regulator-always-on;
 		};
 
 		vreg_l12a_1p8: l12 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
 		};
 
 		vreg_l13a_2p95: l13 {
 			regulator-min-microvolt = <1808000>;
 			regulator-max-microvolt = <2960000>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
 		vreg_l14a_1p85: l14 {
@@ -563,28 +578,35 @@
 			regulator-max-microvolt = <1856000>;
 			regulator-system-load = <32000>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
 		vreg_l15a_1p8: l15 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
 		};
 
 		vreg_l16a_2p7: l16 {
 			regulator-min-microvolt = <2704000>;
 			regulator-max-microvolt = <2704000>;
+			regulator-always-on;
 		};
 
 		vreg_l17a_1p3: l17 {
 			regulator-min-microvolt = <1304000>;
 			regulator-max-microvolt = <1304000>;
+			regulator-always-on;
 		};
 
-		vreg_l18a_2p85: l18 { };
+		vreg_l18a_2p85: l18 {
+			regulator-always-on;
+		};
 
 		vreg_l19a_2p7: l19 {
 			regulator-min-microvolt = <2696000>;
 			regulator-max-microvolt = <2704000>;
+			regulator-always-on;
 		};
 
 		vreg_l20a_2p95: l20 {
@@ -592,6 +614,7 @@
 			regulator-max-microvolt = <2960000>;
 			regulator-system-load = <10000>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
 		vreg_l21a_2p95: l21 {
@@ -599,39 +622,51 @@
 			regulator-max-microvolt = <2960000>;
 			regulator-system-load = <800000>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
-		vreg_l22a_2p85: l22 { };
+		vreg_l22a_2p85: l22 {
+			regulator-always-on;
+		};
 
 		vreg_l23a_3p3: l23 {
 			regulator-min-microvolt = <3312000>;
 			regulator-max-microvolt = <3312000>;
+			regulator-always-on;
 		};
 
 		vreg_l24a_3p075: l24 {
 			regulator-min-microvolt = <3088000>;
 			regulator-max-microvolt = <3088000>;
+			regulator-always-on;
 		};
 
 		vreg_l25a_3p3: l25 {
 			regulator-min-microvolt = <3104000>;
 			regulator-max-microvolt = <3312000>;
+			regulator-always-on;
 		};
 
 		vreg_l26a_1p2: l26 {
 			regulator-min-microvolt = <1200000>;
 			regulator-max-microvolt = <1200000>;
 			regulator-allow-set-load;
+			regulator-always-on;
 		};
 
 		vreg_l28_3p0: l28 {
 			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3000000>;
+			regulator-always-on;
 		};
 
-		vreg_lvs1a_1p8: lvs1 { };
+		vreg_lvs1a_1p8: lvs1 {
+			regulator-always-on;
+		};
 
-		vreg_lvs2a_1p8: lvs2 { };
+		vreg_lvs2a_1p8: lvs2 {
+			regulator-always-on;
+		};
 	};
 
 	regulators-1 {
@@ -642,6 +677,7 @@
 		vreg_bob: bob {
 			regulator-min-microvolt = <3312000>;
 			regulator-max-microvolt = <3600000>;
+			regulator-always-on;
 		};
 	};
 };
@@ -676,22 +712,8 @@
 		output-low;
 	};
 
-	msm_mclk0_default: msm-mclk0-active-state {
-		pins = "gpio13";
-		function = "cam_mclk";
-		drive-strength = <2>;
-		bias-disable;
-	};
-
-	msm_mclk1_default: msm-mclk1-active-state {
-		pins = "gpio14";
-		function = "cam_mclk";
-		drive-strength = <2>;
-		bias-disable;
-	};
-
 	cci0_default: cci0-default-state {
-		pins = "gpio18", "gpio19";
+		pins = "gpio17", "gpio18";
 		function = "cci_i2c";
 		bias-disable;
 		drive-strength = <2>;
@@ -707,8 +729,9 @@
 	cam0_vdig_default: cam0-vdig-default-state {
 		pins = "gpio21";
 		function = "gpio";
-		bias-disable;
 		drive-strength = <2>;
+		bias-disable;
+		output-low;
 	};
 
 	tof_int: tof-int-state {
@@ -722,12 +745,13 @@
 	cam1_vdig_default: cam1-vdig-default-state {
 		pins = "gpio25";
 		function = "gpio";
-		bias-disable;
 		drive-strength = <2>;
+		bias-disable;
+		output-low;
 	};
 
 	front_cam_reset: front-cam-reset {
-		pins = "gpio28";
+		pins = "gpio28", "gpio30";
 		function = "gpio";
 		drive-strength = <2>;
 		bias-disable;
