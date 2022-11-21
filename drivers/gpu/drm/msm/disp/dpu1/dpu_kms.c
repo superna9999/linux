@@ -790,7 +790,11 @@ static int _dpu_kms_drm_obj_init(struct dpu_kms *dpu_kms)
 	/* Create one CRTC per encoder */
 	i = 0;
 	drm_for_each_encoder(encoder, dev) {
-		crtc = dpu_crtc_init(dev, primary_planes[i], cursor_planes[i]);
+		bool _ctm = false;
+
+		if (catalog->dspp_count && dpu_encoder_is_builtin(encoder))
+			_ctm = true;
+		crtc = dpu_crtc_init(dev, primary_planes[i], cursor_planes[i], _ctm);
 		if (IS_ERR(crtc)) {
 			ret = PTR_ERR(crtc);
 			return ret;
