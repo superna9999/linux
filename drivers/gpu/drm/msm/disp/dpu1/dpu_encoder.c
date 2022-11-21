@@ -217,6 +217,32 @@ static u32 dither_matrix[DITHER_MATRIX_SZ] = {
 	15, 7, 13, 5, 3, 11, 1, 9, 12, 4, 14, 6, 0, 8, 2, 10
 };
 
+bool dpu_encoder_is_builtin(struct drm_encoder *encoder)
+{
+	struct drm_connector *connector;
+	struct drm_connector_list_iter conn_iter;
+	struct drm_device *dev = encoder->dev;
+	int type = 0;
+
+	drm_connector_list_iter_begin(dev, &conn_iter);
+	drm_for_each_connector_iter(connector, &conn_iter) {
+		if (drm_connector_has_possible_encoder(connector, encoder)) {
+			type = connector->connector_type;
+			break;
+		}
+	}
+	drm_connector_list_iter_end(&conn_iter);
+
+	switch (type) {
+	case DRM_MODE_CONNECTOR_LVDS:
+	case DRM_MODE_CONNECTOR_eDP:
+	case DRM_MODE_CONNECTOR_DSI:
+	case DRM_MODE_CONNECTOR_DPI:
+		return true;
+	default:
+		return false;
+	}
+}
 
 bool dpu_encoder_is_widebus_enabled(const struct drm_encoder *drm_enc)
 {
