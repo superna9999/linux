@@ -15,7 +15,7 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 
-	chosen { };
+	chosen { bootargs = "clk_ignore_unused pd_ignore_unused"; };
 
 	clocks {
 		xo_board: xo-board {
