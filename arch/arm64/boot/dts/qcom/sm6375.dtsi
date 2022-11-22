@@ -695,6 +695,50 @@
 			status = "disabled";
 		};
 
+		system_noc: interconnect@1880000 {
+			reg = <0 0x01880000 0 0x5f080>;
+			compatible = "qcom,sm6375-snoc";
+			clock-names = "bus", "bus_a";
+			clocks = <&rpmcc RPM_SMD_SNOC_CLK>,
+				 <&rpmcc RPM_SMD_SNOC_A_CLK>;
+			#interconnect-cells = <1>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			clk_virt: interconnect-clk {
+				compatible = "qcom,sm6375-clk-virt";
+				clock-names = "bus", "bus_a";
+				clocks = <&rpmcc RPM_SMD_QUP_CLK>,
+					 <&rpmcc RPM_SMD_QUP_A_CLK>;
+				#interconnect-cells = <1>;
+			};
+
+			mmrt_virt: interconnect-mmrt {
+				compatible = "qcom,sm6375-mmrt-virt";
+				clock-names = "bus", "bus_a";
+				clocks = <&rpmcc RPM_SMD_MMRT_CLK>,
+					 <&rpmcc RPM_SMD_MMRT_A_CLK>;
+				#interconnect-cells = <1>;
+			};
+
+			mmnrt_virt: interconnect-mmnrt {
+				compatible = "qcom,sm6375-mmnrt-virt";
+				clock-names = "bus", "bus_a";
+				clocks = <&rpmcc RPM_SMD_MMNRT_CLK>,
+					 <&rpmcc RPM_SMD_MMNRT_A_CLK>;
+				#interconnect-cells = <1>;
+			};
+		};
+
+		config_noc: interconnect@1900000 {
+			compatible = "qcom,sm6375-cnoc";
+			reg = <0 0x01900000 0 0x6200>;
+			clock-names = "bus", "bus_a";
+			clocks = <&rpmcc RPM_SMD_CNOC_CLK>,
+				 <&rpmcc RPM_SMD_CNOC_A_CLK>;
+			#interconnect-cells = <1>;
+		};
+
 		spmi_bus: spmi@1c40000 {
 			compatible = "qcom,spmi-pmic-arb";
 			reg = <0 0x01c40000 0 0x1100>,
@@ -711,6 +755,15 @@
 			#size-cells = <0>;
 			interrupt-controller;
 			#interrupt-cells = <4>;
+		};
+
+		bimc: interconnect@4480000 {
+			compatible = "qcom,sm6375-bimc";
+			reg = <0 0x04480000 0 0x80000>;
+			clock-names = "bus", "bus_a";
+			clocks = <&rpmcc RPM_SMD_BIMC_CLK>,
+				 <&rpmcc RPM_SMD_BIMC_A_CLK>;
+			#interconnect-cells = <1>;
 		};
 
 		rpm_msg_ram: sram@45f0000 {
