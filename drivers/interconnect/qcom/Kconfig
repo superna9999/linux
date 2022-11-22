@@ -164,6 +164,15 @@ config INTERCONNECT_QCOM_SM6350
 	  This is a driver for the Qualcomm Network-on-Chip on sm6350-based
 	  platforms.
 
+config INTERCONNECT_QCOM_SM6375
+	tristate "Qualcomm SM6375 interconnect driver"
+	depends on INTERCONNECT_QCOM
+	depends on QCOM_SMD_RPM
+	select INTERCONNECT_QCOM_SMD_RPM
+	help
+	  This is a driver for the Qualcomm Network-on-Chip on sm6375-based
+	  platforms.
+
 config INTERCONNECT_QCOM_SM8150
 	tristate "Qualcomm SM8150 interconnect driver"
 	depends on INTERCONNECT_QCOM_RPMH_POSSIBLE
