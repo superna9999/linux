@@ -192,8 +192,8 @@ static struct clk_rcg2 gpucc_gx_gfx3d_clk_src = {
 		.name = "gpucc_gx_gfx3d_clk_src",
 		.parent_data = gpucc_parent_data_1,
 		.num_parents = ARRAY_SIZE(gpucc_parent_data_1),
-		.flags = CLK_SET_RATE_PARENT,
-		.ops = &clk_rcg2_shared_ops,
+		.flags = CLK_SET_RATE_PARENT | CLK_OPS_PARENT_ENABLE,
+		.ops = &clk_rcg2_ops,
 	},
 };
 
@@ -371,17 +371,6 @@ static struct clk_branch gpucc_sleep_clk = {
 	},
 };
 
-static struct gdsc gpu_gx_gdsc = {
-	.gdscr = 0x100c,
-	.clamp_io_ctrl = 0x1508,
-	.pd = {
-		.name = "gpu_gx_gdsc",
-		.power_on = gdsc_gx_do_nothing_enable,
-	},
-	.pwrsts = PWRSTS_OFF_ON,
-	.flags = CLAMP_IO | AON_RESET | POLL_CFG_GDSCR,
-};
-
 static struct gdsc gpu_cx_gdsc = {
 	.gdscr = 0x106c,
 	.gds_hw_ctrl = 0x1540,
@@ -389,7 +378,20 @@ static struct gdsc gpu_cx_gdsc = {
 		.name = "gpu_cx_gdsc",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
-	.flags = VOTABLE,
+	.flags = VOTABLE | RETAIN_FF_ENABLE,
+};
+
+static struct gdsc gpu_gx_gdsc = {
+	.gdscr = 0x100c,
+	.clamp_io_ctrl = 0x1508,
+	.resets = (unsigned int []){ GPU_GX_BCR, GPU_ACD_BCR, GPU_GX_ACD_MISC_BCR },
+	.reset_count = 3,
+	.pd = {
+		.name = "gpu_gx_gdsc",
+	},
+	.parent = &gpu_cx_gdsc.pd,
+	.pwrsts = PWRSTS_OFF_ON,
+	.flags = CLAMP_IO | SW_RESET | AON_RESET | POLL_CFG_GDSCR | RETAIN_FF_ENABLE,
 };
 
 static struct clk_regmap *gpucc_sm6375_clocks[] = {
@@ -425,7 +427,7 @@ static const struct regmap_config gpucc_sm6375_regmap_config = {
 	.reg_bits = 32,
 	.reg_stride = 4,
 	.val_bits = 32,
-	.max_register = 0x8008,
+	.max_register = 0x9000,
 	.fast_io = true,
 };
 
