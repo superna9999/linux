@@ -36,14 +36,6 @@
 			height = <2520>;
 			stride = <(1080 * 4)>;
 			format = "a8r8g8b8";
-			/*
-			 * That's (going to be) a lot of clocks, but it's necessary due
-			 * to unused clk cleanup & no panel driver yet
-			 */
-			clocks = <&gcc GCC_DISP_AHB_CLK>,
-				 <&gcc GCC_DISP_HF_AXI_CLK>,
-				 <&gcc GCC_DISP_THROTTLE_CORE_CLK>,
-				 <&gcc GCC_DISP_GPLL0_DIV_CLK_SRC>;
 		};
 	};
 
