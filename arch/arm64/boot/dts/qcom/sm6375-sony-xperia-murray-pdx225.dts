@@ -89,6 +89,14 @@
 	status = "okay";
 };
 
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		firmware-name = "qcom/sm6375/Sony/murray/a615_zap.mbn";
+	};
+};
+
 &i2c8 {
 	clock-frequency = <400000>;
 	status = "okay";
