@@ -193,12 +193,12 @@
 
 &remoteproc_adsp {
 	firmware-name = "qcom/Sony/murray/adsp.mbn";
-	status = "okay";
+//	status = "okay";
 };
 
 &remoteproc_cdsp {
 	firmware-name = "qcom/Sony/murray/cdsp.mbn";
-	status = "okay";
+//	status = "okay";
 };
 
 &rpm_requests {
