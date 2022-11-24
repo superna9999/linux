@@ -25,6 +25,11 @@ properties:
       - qcom,sc8280xp-edp
       - qcom,sdm845-dp
       - qcom,sm8350-dp
+      - items:
+          - enum:
+            - qcom,sm8450-dp
+            - qcom,sm8550-dp
+          - const: qcom,sm8350-dp
 
   reg:
     minItems: 4
