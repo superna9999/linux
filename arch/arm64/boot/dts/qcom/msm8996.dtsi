@@ -2198,9 +2198,20 @@
 				 <&vfe_smmu 2>,
 				 <&vfe_smmu 3>;
 			status = "disabled";
+
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+					csiphy0_ep: endpoint { };
+				};
+
+				port@2 {
+					reg = <2>;
+					csiphy2_ep: endpoint { };
+				};
 			};
 		};
 

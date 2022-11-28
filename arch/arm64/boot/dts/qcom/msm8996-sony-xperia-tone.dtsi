@@ -157,25 +157,52 @@
 	output-low;
 };
 
-&camera0_pwdn {
-	drive-strength = <2>;
-	output-low;
+&camss {
+	vdda-supply = <&pm8994_l2>;
+	status = "okay";
 };
 
-&camera0_rst {
-	pins = "gpio30";
-	drive-strength = <2>;
-	output-low;
+&cci {
+	vbus-supply = <&pm8994_lvs1>;
+	status = "okay";
 };
 
-&camera2_mclk {
-	drive-strength = <2>;
-	output-low;
+&cci_i2c1 {
+	clock-frequency = <1000000>;
+
+	imx214: sensor@6c {
+		compatible = "sony,imx214";
+		reg = <0x6c>;
+
+		vdda-supply = <&pm8994_l29>;
+		vddd-supply = <&pm8994_l27>;
+		vdddo-supply = <&pm8994_l19>;
+
+		enable-gpios = <&tlmm 23 GPIO_ACTIVE_HIGH>;
+
+		clocks = <&mmcc CAMSS_MCLK2_CLK>;
+		clock-frequency = <24000000>;
+		assigned-clocks = <&mmcc CAMSS_MCLK2_CLK>;
+		assigned-clock-rates = <24000000>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mclk2_on &imx214_reset_default>;
+
+		port {
+			imx214_ep: endpoint {
+				remote-endpoint = <&csiphy2_ep>;
+				data-lanes = <1 2 3 4>;
+				link-frequencies = /bits/ 64 <480000000>;
+				// clock-noncontinuous;
+			};
+		};
+	};
 };
 
-&camera2_rst {
-	drive-strength = <2>;
-	output-low;
+&csiphy2_ep {
+	remote-endpoint = <&imx214_ep>;
+	data-lanes = <0 1 2 3>;
+	clock-lanes = <7>;
 };
 
 &dsi0 {
@@ -794,7 +821,8 @@
 		};
 
 		pm8994_l17: l17 {
-			regulator-min-microvolt = <2200000>;
+			// CHECK FOR !KAGURA
+			regulator-min-microvolt = <2500000>;
 			regulator-max-microvolt = <2500000>;
 		};
 
@@ -866,6 +894,10 @@
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
 		};
+
+		pm8994_lvs1: lvs1 { };
+
+		pm8994_lvs2: lvs2 { };
 	};
 };
 
@@ -903,6 +935,20 @@
 		bias-disable;
 	};
 
+	mclk0_on: mclk0-on-state {
+		pins = "gpio13";
+		function = "cam_mclk";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	mclk2_on: mclk2-on-state {
+		pins = "gpio15";
+		function = "cam_mclk";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
 	sw_service_gpio: sw-service-gpio-state {
 		pins = "gpio16";
 		function = "gpio";
@@ -918,12 +964,26 @@
 		output-high;
 	};
 
+	imx214_reset_default: imx300-reset-default-state {
+		pins = "gpio23";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
 	uim_detect_en: uim-detect-en-state {
 		pins = "gpio29";
 		function = "gpio";
 		drive-strength = <2>;
 		bias-disable;
 		output-high;
+	};
+
+	imx300_reset_default: imx300-reset-default-state {
+		pins = "gpio30";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
 	};
 
 	tray_det_pin: tray-det-state {
