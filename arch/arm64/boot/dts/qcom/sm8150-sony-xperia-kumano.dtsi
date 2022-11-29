@@ -464,6 +464,50 @@
 	};
 };
 
+&mdss {
+	status = "okay";
+};
+
+&mdss_dsi0 {
+	vdda-supply = <&vreg_l3c_1p2>;
+	status = "okay";
+
+	panel: panel@0 {
+		compatible = "samsung,4k-or-1080p-oled";
+		reg = <0>;
+
+		disp-te-gpios = <&tlmm 8 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&tlmm 6 GPIO_ACTIVE_LOW>;
+
+		//vddio-supply = <&vreg_l14a_1p8>;
+		//lab-supply = <&lab>;
+		//ibb-supply = <&ibb>;
+		//vci-supply = <&vreg_l17a_3p0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&disp_reset_n &te_active>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&mdss_dsi0_out>;
+			};
+		};
+	};
+};
+
+&mdss_dsi0_out {
+	remote-endpoint = <&panel_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&mdss_dsi0_phy {
+	vdda-supply = <&vreg_l18a_0p8>;
+	status = "okay";
+};
+
 &pm8150_gpios {
 	vol_down_n: vol-down-n-state {
 		pins = "gpio1";
@@ -511,6 +555,20 @@
 
 &tlmm {
 	gpio-reserved-ranges = <126 4>;
+
+	disp_reset_n: disp-reset-n-state {
+		pins = "gpio6";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	te_active: te-active-state {
+		pins = "gpio8";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-disable;
+	};
 
 	ts_int_default: ts-int-default-state {
 		pins = "gpio122";
