@@ -133,7 +133,7 @@
 };
 
 &adsp {
-	status = "okay";
+//	status = "okay";
 };
 
 &apps_rsc {
@@ -433,7 +433,7 @@
 };
 
 &cdsp {
-	status = "okay";
+//	status = "okay";
 };
 
 &gpi_dma0 {
@@ -547,7 +547,7 @@
 };
 
 &pcie2 {
-	status = "okay";
+//	status = "okay";
 
 	pinctrl-0 = <&pcie2_default_state &mdm2ap_default &ap2mdm_default>;
 };
@@ -624,7 +624,7 @@
 };
 
 &slpi {
-	status = "okay";
+//	status = "okay";
 };
 
 &tlmm {
