@@ -505,6 +505,18 @@ config EDAC_TI
 	help
 	  Support for error detection and correction on the TI SoCs.
 
+config EDAC_ARM_RAS
+	tristate "ARM RAS extension based EDAC for CPU L1/L2/L3-SCU caches"
+	depends on ARCH_QCOM && ARM64_RAS_EXTN
+	select ACPI_AEST if ACPI
+	help
+	  Support for Error detection and correction on Arm Cortex CPU cores
+	  with RAS extensions. Currently it detects and reports all Single
+	  Bit Errors (SBEs) and Double Bit Errors (DBEs).
+
+	  For debugging issues having to do with stability and overall system
+	  health, you should probably say 'Y' here.
+
 config EDAC_QCOM
 	tristate "QCOM EDAC Controller"
 	depends on ARCH_QCOM && QCOM_LLCC

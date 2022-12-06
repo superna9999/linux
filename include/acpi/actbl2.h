@@ -24,6 +24,7 @@
  * file. Useful because they make it more difficult to inadvertently type in
  * the wrong signature.
  */
+#define ACPI_SIG_AEST           "AEST"	/* Arm Error Source Table */
 #define ACPI_SIG_AGDI           "AGDI"	/* Arm Generic Diagnostic Dump and Reset Device Interface */
 #define ACPI_SIG_APMT           "APMT"	/* Arm Performance Monitoring Unit table */
 #define ACPI_SIG_BDAT           "BDAT"	/* BIOS Data ACPI Table */
@@ -95,6 +96,8 @@ struct acpi_aest_hdr {
 	u32 node_interface_offset;
 	u32 node_interrupt_offset;
 	u32 node_interrupt_count;
+
+	/* Node generic data */
 	u64 timestamp_rate;
 	u64 reserved1;
 	u64 error_injection_rate;
@@ -240,6 +243,30 @@ typedef struct acpi_aest_node_interrupt {
 #define ACPI_AEST_NODE_FAULT_HANDLING       0
 #define ACPI_AEST_NODE_ERROR_RECOVERY       1
 #define ACPI_AEST_XRUPT_RESERVED            2	/* 2 and above are reserved */
+
+typedef union acpi_aest_proc_substruct {
+	struct acpi_aest_processor_cache cache;
+	struct acpi_aest_processor_tlb tlb;
+	acpi_aest_processor_generic generic;
+
+} acpi_aest_proc_substruct;
+
+typedef struct acpi_aest_node {
+	struct acpi_aest_hdr hdr;
+	union {
+		struct {
+			struct acpi_aest_processor proc;
+			union acpi_aest_proc_substruct proc_sub;
+		} processor;
+		struct acpi_aest_memory mem;
+		struct acpi_aest_smmu smmu;
+		struct acpi_aest_vendor vendor;
+		struct acpi_aest_gic gic;
+	} data;
+	struct acpi_aest_node_interface intf;
+	struct acpi_aest_node_interrupt intr[];
+
+} acpi_aest_node;
 
 /*******************************************************************************
  * AGDI - Arm Generic Diagnostic Dump and Reset Device Interface

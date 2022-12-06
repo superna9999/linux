@@ -19,5 +19,8 @@ config ACPI_AGDI
 
 	  If set, the kernel parses AGDI table and listens for the command.
 
+config ACPI_AEST
+	bool
+
 config ACPI_APMT
 	bool

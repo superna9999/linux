@@ -26,6 +26,7 @@
 #include <asm/mpspec.h>
 #include <linux/dmi.h>
 #endif
+#include <linux/acpi_aest.h>
 #include <linux/acpi_agdi.h>
 #include <linux/acpi_apmt.h>
 #include <linux/acpi_iort.h>
@@ -1428,6 +1429,7 @@ static int __init acpi_init(void)
 	acpi_viot_init();
 	acpi_agdi_init();
 	acpi_apmt_init();
+	acpi_aest_init();
 	return 0;
 }
 
