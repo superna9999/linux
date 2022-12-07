@@ -264,7 +264,7 @@ static int msm_mdss_enable(struct msm_mdss *msm_mdss)
 	 *
 	 * Decoder version can be read from the UBWC_DEC_HW_VERSION reg,
 	 * UBWC_n and the rest of params comes from hw_catalog.
-	 * Unforunately this driver can not access hw catalog, so we have to
+	 * Unfortunately this driver can not access hw catalog, so we have to
 	 * hardcode them here.
 	 */
 	switch (hw_rev) {
@@ -288,6 +288,8 @@ static int msm_mdss_enable(struct msm_mdss *msm_mdss)
 	case DPU_HW_VER_720:
 		msm_mdss_setup_ubwc_dec_40(msm_mdss, UBWC_3_0, 6, 1, 1, 1);
 		break;
+	default:
+		dev_warn(msm_mdss->dev, "No ubwc setup for DPU_HW_VER %#x\n", hw_rev);
 	}
 
 	return ret;
