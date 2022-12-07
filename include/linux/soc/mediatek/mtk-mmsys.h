@@ -74,4 +74,8 @@ void mtk_mmsys_ddp_disconnect(struct device *dev,
 
 void mtk_mmsys_ddp_dpi_fmt_config(struct device *dev, u32 val);
 
+void mtk_mmsys_vpp_rsz_merge_config(struct device *dev, u32 id, bool enable);
+
+void mtk_mmsys_vpp_rsz_dcm_config(struct device *dev, bool enable);
+
 #endif /* __MTK_MMSYS_H */
