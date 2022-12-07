@@ -382,6 +382,13 @@
 		vsn-supply = <&ibb>;
 		panel-reset-gpios = <&tlmm 6 GPIO_ACTIVE_HIGH>;
 		touch-reset-gpios = <&tlmm 99 GPIO_ACTIVE_HIGH>;
+		/*
+		 * This GPIO is intentionally omitted because we already
+		 * have pinctrl to set the desired bias.  Requesting this
+		 * as GPIOD_IN makes it so that vsync interrupts are not
+		 * received over the hardware MDP interrupt anymore.
+		 */
+		/* disp-te-gpios = <&tlmm 10 GPIO_ACTIVE_HIGH>; */
 
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&sde_dsi_active &sde_te_active_sleep>;
