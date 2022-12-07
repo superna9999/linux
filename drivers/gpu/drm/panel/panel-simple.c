@@ -4605,17 +4605,17 @@ static const struct panel_desc_dsi sofef03m = {
 };
 
 static const struct drm_display_mode pdx213_amoled_fhd_mode = {
-        .clock = (1080 + 8 + 8 + 8) * (2520 + 8 + 8 + 8) * 60 / 1000,
-        .hdisplay = 1080,
-        .hsync_start = 1080 + 8,
-        .hsync_end = 1080 + 8 + 8,
-        .htotal = 1080 + 8 + 8 + 8,
-        .vdisplay = 2520,
-        .vsync_start = 2520 + 8,
-        .vsync_end = 2520 + 8 + 8,
-        .vtotal = 2520 + 8 + 8 + 8,
-        .width_mm = 60,
-        .height_mm = 139,
+	.clock = (1080 + 8 + 8 + 8) * (2520 + 8 + 8 + 8) * 60 / 1000,
+	.hdisplay = 1080,
+	.hsync_start = 1080 + 8,
+	.hsync_end = 1080 + 8 + 8,
+	.htotal = 1080 + 8 + 8 + 8,
+	.vdisplay = 2520,
+	.vsync_start = 2520 + 8,
+	.vsync_end = 2520 + 8 + 8,
+	.vtotal = 2520 + 8 + 8 + 8,
+	.width_mm = 60,
+	.height_mm = 139,
 };
 
 static const struct panel_desc_dsi pdx213_amoled_fhd = {
