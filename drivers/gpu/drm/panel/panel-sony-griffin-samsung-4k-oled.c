@@ -70,16 +70,16 @@ static int sony_griffin_samsung_4k_oled_on(struct sony_griffin_samsung_4k_oled *
 	mipi_dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_CONTROL_DISPLAY, 0x20);
 	msleep(110);
 	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	mipi_dsi_dcs_write_seq(dsi, 0xe2, 0x00); // TODO: Set to 01 for 2.5k
+	mipi_dsi_dcs_write_seq(dsi, 0xe2, 0x01); // TODO: Set to 01 for 2.5k
 	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 
-	ret = mipi_dsi_dcs_set_column_address(dsi, 0x0000, 1643); // 1095
+	ret = mipi_dsi_dcs_set_column_address(dsi, 0x0000, 1095); // 1095
 	if (ret < 0) {
 		dev_err(dev, "Failed to set column address: %d\n", ret);
 		return ret;
 	}
 
-	ret = mipi_dsi_dcs_set_page_address(dsi, 0x0000, 3839); // 2559
+	ret = mipi_dsi_dcs_set_page_address(dsi, 0x0000, 2559); // 2559
 	if (ret < 0) {
 		dev_err(dev, "Failed to set page address: %d\n", ret);
 		return ret;
@@ -190,6 +190,20 @@ static int sony_griffin_samsung_4k_oled_unprepare(struct drm_panel *panel)
 }
 
 static const struct drm_display_mode sony_griffin_samsung_4k_oled_mode = {
+	.clock = (1096 + 56 + 8 + 8) * (2560 + 8 + 8 + 8) * 60 / 1000,
+	.hdisplay = 1096,
+	.hsync_start = 1096 + 56,
+	.hsync_end = 1096 + 56 + 8,
+	.htotal = 1096 + 56 + 8 + 8,
+	.vdisplay = 2560,
+	.vsync_start = 2560 + 8,
+	.vsync_end = 2560 + 8 + 8,
+	.vtotal = 2560 + 8 + 8 + 8,
+	.width_mm = 65,
+	.height_mm = 152,
+};
+
+static const struct drm_display_mode sony_griffin_samsung_4k_oled_4kblahmode = {
 	.clock = (1644 + 60 + 8 + 8) * (3840 + 8 + 8 + 8) * 60 / 1000,
 	.hdisplay = 1644,
 	.hsync_start = 1644 + 60,
@@ -327,7 +341,7 @@ static int sony_griffin_samsung_4k_oled_probe(struct mipi_dsi_device *dsi)
 	dsc->dsc_version_minor = 0x1;
 
 	dsc->slice_height = 32;
-	dsc->slice_width = 822; // 548
+	dsc->slice_width = 548; // 548
 	dsc->slice_count = 2;
 	dsc->bits_per_component = 8;
 	dsc->bits_per_pixel = 8 << 4; /* 4 fractional bits */
