@@ -31,14 +31,6 @@ static inline struct sofef03_m *to_sofef03_m(struct drm_panel *panel)
 	return container_of(panel, struct sofef03_m, panel);
 }
 
-#define dsi_dcs_write_seq(dsi, seq...) do {				\
-		static const u8 d[] = { seq };				\
-		int ret;						\
-		ret = mipi_dsi_dcs_write_buffer(dsi, d, ARRAY_SIZE(d));	\
-		if (ret < 0)						\
-			return ret;					\
-	} while (0)
-
 static void sofef03_m_reset(struct sofef03_m *ctx)
 {
 	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
@@ -53,7 +45,7 @@ static int sofef03_m_on(struct sofef03_m *ctx)
 
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
-	dsi_dcs_write_seq(dsi, 0x9d, 0x01);
+	mipi_dsi_dcs_write_seq(dsi, 0x9d, 0x01);
 
 	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
 	if (ret < 0) {
@@ -62,14 +54,14 @@ static int sofef03_m_on(struct sofef03_m *ctx)
 	}
 	usleep_range(10000, 11000);
 
-	dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	dsi_dcs_write_seq(dsi, 0xb0, 0x09);
-	dsi_dcs_write_seq(dsi, 0xd5, 0x00, 0x00, 0x00);
-	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	dsi_dcs_write_seq(dsi, 0xb0, 0x08);
-	dsi_dcs_write_seq(dsi, 0xee, 0x00, 0x00);
-	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x09);
+	mipi_dsi_dcs_write_seq(dsi, 0xd5, 0x00, 0x00, 0x00);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x08);
+	mipi_dsi_dcs_write_seq(dsi, 0xee, 0x00, 0x00);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
 
 	ret = mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 	if (ret < 0) {
@@ -89,26 +81,27 @@ static int sofef03_m_on(struct sofef03_m *ctx)
 		return ret;
 	}
 
-	dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	dsi_dcs_write_seq(dsi, 0xdf, 0x83);
-	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	dsi_dcs_write_seq(dsi, 0xb0, 0x01);
-	dsi_dcs_write_seq(dsi, 0xe6, 0x01);
-	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	dsi_dcs_write_seq(dsi, 0xb0, 0x02);
-	dsi_dcs_write_seq(dsi, 0xec, 0x02, 0x00, 0x1c, 0x1c);
-	dsi_dcs_write_seq(dsi, 0xb0, 0x0c);
-	dsi_dcs_write_seq(dsi, 0xec, 0x01, 0x19);
-	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_CONTROL_DISPLAY, 0x20);
-	dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	dsi_dcs_write_seq(dsi, 0xc2, 0x2d, 0x27);
-	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
-	dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
-	dsi_dcs_write_seq(dsi, 0x60, 0x00);
-	dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xdf, 0x83);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x01);
+	mipi_dsi_dcs_write_seq(dsi, 0xe6, 0x01);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x02);
+	mipi_dsi_dcs_write_seq(dsi, 0xec, 0x02, 0x00, 0x1c, 0x1c);
+	mipi_dsi_dcs_write_seq(dsi, 0xb0, 0x0c);
+	mipi_dsi_dcs_write_seq(dsi, 0xec, 0x01, 0x19);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, MIPI_DCS_WRITE_CONTROL_DISPLAY, 0x20);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0xc2, 0x2d, 0x27);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0x5a, 0x5a);
+	mipi_dsi_dcs_write_seq(dsi, 0x60, 0x00);
+	mipi_dsi_dcs_write_seq(dsi, 0xf0, 0xa5, 0xa5);
+
 	msleep(60);
 
 	ret = mipi_dsi_dcs_set_display_on(dsi);
@@ -252,6 +245,8 @@ static int sofef03_m_bl_update_status(struct backlight_device *bl)
 	u16 brightness = backlight_get_brightness(bl);
 	int ret;
 
+	brightness = cpu_to_be16(brightness);
+
 	dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
 
 	ret = mipi_dsi_dcs_set_display_brightness(dsi, brightness);
@@ -263,8 +258,6 @@ static int sofef03_m_bl_update_status(struct backlight_device *bl)
 	return 0;
 }
 
-// TODO: Check if /sys/class/backlight/.../actual_brightness actually returns
-// correct values. If not, remove this function.
 static int sofef03_m_bl_get_brightness(struct backlight_device *bl)
 {
 	struct mipi_dsi_device *dsi = bl_get_data(bl);
@@ -278,6 +271,8 @@ static int sofef03_m_bl_get_brightness(struct backlight_device *bl)
 		return ret;
 
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
+
+	brightness = be16_to_cpu(brightness);
 
 	return brightness;
 }
