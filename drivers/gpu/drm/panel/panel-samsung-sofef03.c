@@ -165,7 +165,6 @@ static int sofef03_m_prepare(struct drm_panel *panel)
 	}
 
 	if (ctx->dsi->dsc) {
-		/* this panel uses DSC so send the pps */
 		drm_dsc_pps_payload_pack(&pps, ctx->dsi->dsc);
 		print_hex_dump(KERN_DEBUG, "DSC params:", DUMP_PREFIX_NONE,
 			       16, 1, &pps, sizeof(pps), false);
@@ -334,8 +333,8 @@ static int sofef03_m_probe(struct mipi_dsi_device *dsi)
 
 	drm_panel_add(&ctx->panel);
 
-	/* The panel is DSC panel only, set the dsc params */
-	dsc = devm_kzalloc(&dsi->dev, sizeof(*dsc), GFP_KERNEL);
+	/* This panel only supports DSC; unconditionally enable it */
+	dsi->dsc = dsc = devm_kzalloc(&dsi->dev, sizeof(*dsc), GFP_KERNEL);
 	if (!dsc)
 		return -ENOMEM;
 
@@ -346,11 +345,8 @@ static int sofef03_m_probe(struct mipi_dsi_device *dsi)
 	dsc->slice_width = 540;
 	dsc->slice_count = 2;
 	dsc->bits_per_component = 8;
-	/* 4 fractional bits */
-	dsc->bits_per_pixel = 8 << 4;
+	dsc->bits_per_pixel = 8 << 4; /* 4 fractional bits */
 	dsc->block_pred_enable = true;
-
-	ctx->dsi->dsc = dsc;
 
 	ret = mipi_dsi_attach(dsi);
 	if (ret < 0) {
