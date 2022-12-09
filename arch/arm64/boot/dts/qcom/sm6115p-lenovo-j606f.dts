@@ -55,6 +55,60 @@
 	};
 };
 
+&gpi_dma0 {
+	status = "okay";
+};
+
+&i2c0 {
+	clock-frequency = <1000000>;
+	// status = "okay";
+
+	/* Some devices use fusb302 and others use rt1711h.. */
+	fusb302: typec-portc@22 {
+		compatible = "fcs,fusb302";
+		reg = <0x22>;
+		interrupts-extended = <&tlmm 97 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&typec_int>;
+	};
+
+	rt1711h: typec-portc@4e {
+		compatible = "richtek,rt1711h";
+		reg = <0x4e>;
+		interrupts-extended = <&tlmm 97 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&typec_int>;
+	};
+
+	/* AW882xx speaker amp @ 34, 35, 36, 37 (yes, the tab has 4 nice speakers!) */
+	/* MM8013 fuel gauge @ 55 */
+	/* HID-over-I2C for the touchpad on keyboard folio @ 60 */
+};
+
+&i2c1 {
+	clock-frequency = <1000000>;
+	status = "okay";
+
+	tps65132@3e {
+		compatible = "ti,tps65132";
+		reg = <0x3e>;
+	};
+
+	fsa4480: typec-mux@42 {
+		compatible = "fcs,fsa4480";
+		reg = <0x42>;
+		interrupts-extended = <&tlmm 89 IRQ_TYPE_LEVEL_LOW>;
+		orientation-switch;
+		mode-switch;
+	};
+
+	/* PM8008 @ 8, 9 */
+	/* SMB1355 @ c */
+	/* SGM37604A WLED driver @ 36 */
+	/* ES7210 audio ADC @ 40 */
+	/* HID-over-I2C for the keyboard on keyboard folio @ 61 */
+};
+
 &mdss {
 	status = "okay";
 };
@@ -108,6 +162,10 @@
 
 &pon_resin {
 	linux,code = <KEY_VOLUMEDOWN>;
+	status = "okay";
+};
+
+&qupv3_id_0 {
 	status = "okay";
 };
 
@@ -256,6 +314,7 @@
 		pm6125_l24: l24 {
 			regulator-min-microvolt = <2704000>;
 			regulator-max-microvolt = <3600000>;
+			regulator-always-on;
 		};
 	};
 };
@@ -274,6 +333,12 @@
 
 &sleep_clk {
 	clock-frequency = <32764>;
+};
+
+&spi2 {
+	status = "okay";
+
+	/* HIMAX83102P (rev x0/x1?) or NT36523W (rev x2?) touchscreen */
 };
 
 &tlmm {
@@ -303,6 +368,14 @@
 		function = "gpio";
 		drive-strength = <8>;
 		bias-disable;
+	};
+
+	typec_int: typec-int-state {
+		pins = "gpio97";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-up;
+		input-enable;
 	};
 };
 
