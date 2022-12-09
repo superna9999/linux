@@ -143,6 +143,18 @@
 		pinctrl-0 = <&rgbc_ir_pwr_en>;
 	};
 
+	// panel_ts_vddio_en: panel_ts_vddio-regulator {
+	// 	compatible = "regulator-fixed";
+	// 	regulator-name = "panel_ts_vddio_en";
+	// 	gpio = <&pm8150l_gpios 1 GPIO_ACTIVE_LOW>;
+	// 	// enable-active-high;
+
+	// 	pinctrl-names = "default";
+	// 	pinctrl-0 = <&panel_ts_vddio>;
+
+	// 	vin-supply = <&vreg_l14a_1p8>;
+	// };
+
 	vph_pwr: vph-pwr-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "vph_pwr";
@@ -569,13 +581,13 @@
 		/* disp-te-gpios = <&tlmm 8 GPIO_ACTIVE_HIGH>; */
 		reset-gpios = <&tlmm 6 GPIO_ACTIVE_LOW>;
 
-		//vddio-supply = <&vreg_l14a_1p8>;
+		vddio-supply = <&vreg_l14a_1p8>;
 		//lab-supply = <&lab>;
 		//ibb-supply = <&ibb>;
-		//vci-supply = <&vreg_l17a_3p0>;
+		vci-supply = <&vreg_l17a_3p0>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&disp_reset_n &te_active>;
+		pinctrl-0 = <&disp_reset_n &te_active /* &panel_ts_vddio &panel_ts_vddh */>;
 
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -633,6 +645,7 @@
 			  "NC",
 			  "RF_ID";
 
+
 	snapshot_n: snapshot-n-state {
 		pins = "gpio1";
 		function = "normal";
@@ -648,6 +661,18 @@
 		bias-pull-up;
 		input-enable;
 	};
+
+
+	// panel_ts_vddh: panel-ts-vddh-state {
+	// 	pins = "gpio7";
+	// 	function = PMIC_GPIO_FUNC_NORMAL;
+	// 	// /delete-property/ output-low;
+	// 	output-low;
+	// 	drive-push-pull;
+	// 	bias-disable;
+	// 	qcom,drive-strength = <PMIC_GPIO_STRENGTH_HIGH>; /* Low */
+	// 	power-source = <1>;
+	// };
 };
 
 &pm8150l_gpios {
@@ -663,6 +688,17 @@
 			  "NC", /* GPIO_10 */
 			  "NC",
 			  "NC";
+
+	// panel_ts_vddio: panel-ts-vddio-state {
+	// 	pins = "gpio1";
+	// 	function = PMIC_GPIO_FUNC_NORMAL;
+	// 	// /delete-property/ output-high;
+	// 	output-high;
+	// 	drive-push-pull;
+	// 	bias-disable;
+	// 	qcom,drive-strength = <PMIC_GPIO_STRENGTH_HIGH>; /* Low */
+	// 	power-source = <0>;
+	// };
 
 	main_cam_pwr_vmdr_en: main-cam-pwr-vmdr-en-state {
 		pins = "gpio3";

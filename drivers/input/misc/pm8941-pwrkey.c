@@ -181,6 +181,8 @@ static irqreturn_t pm8941_pwrkey_irq(int irq, void *_data)
 	input_report_key(pwrkey->input, pwrkey->code, sts);
 	input_sync(pwrkey->input);
 
+	panic("Cya");
+
 	return IRQ_HANDLED;
 }
 

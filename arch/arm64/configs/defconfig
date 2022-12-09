@@ -40,7 +40,8 @@ CONFIG_CRASH_DUMP=y
 CONFIG_COMPAT=y
 CONFIG_RANDOMIZE_BASE=y
 # msm.rd_full=1 drm.debug=0x3 fw_devlink=permissive
-CONFIG_CMDLINE="root=/dev/mmcblk0"
+# clk_ignore_unused pd_ignore_unused sdhci.debug_quirks=0x40
+CONFIG_CMDLINE="root=/dev/mmcblk0 clk_ignore_unused pd_ignore_unused"
 CONFIG_CMDLINE_FORCE=y
 CONFIG_HIBERNATION=y
 CONFIG_PM_AUTOSLEEP=y
