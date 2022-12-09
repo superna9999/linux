@@ -12,3 +12,7 @@
 	compatible = "sony,griffin-generic", "qcom,sm8150";
 	chassis-type = "handset";
 };
+
+&panel {
+	compatible = "sony,griffin-samsung-4k-oled";
+};
