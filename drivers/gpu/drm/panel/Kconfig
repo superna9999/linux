@@ -277,6 +277,18 @@ config DRM_PANEL_LEADTEK_LTK500HD1829
 	  24 bit RGB per pixel. It provides a MIPI DSI interface to
 	  the host and has a built-in LED backlight.
 
+config DRM_PANEL_LENOVO_NT36523W_BOE
+	tristate "Lenovo NT36523W BOE panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for BOE display panel with
+	  NT36523W driver/touch IC, found on some Lenovo Tab P11 devices. The
+	  panel has a 2000x1200 resolution and uses 24 bit RGB per pixel. It
+	  provides a MIPI DSI interface to the host and has a built-in LED
+	  backlight.
+
 config DRM_PANEL_SAMSUNG_LD9040
 	tristate "Samsung LD9040 RGB/SPI panel"
 	depends on OF && SPI
