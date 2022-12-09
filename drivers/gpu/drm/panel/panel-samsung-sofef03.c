@@ -171,8 +171,17 @@ static int sofef03_m_prepare(struct drm_panel *panel)
 
 		ret = mipi_dsi_picture_parameter_set(ctx->dsi, &pps);
 		if (ret < 0) {
+			dev_err(dev, "failed to set pps: %d\n", ret);
 			return ret;
 		}
+
+		ret = mipi_dsi_compression_mode(ctx->dsi, true);
+		if (ret < 0) {
+			dev_err(dev, "Failed to set compression mode: %d\n", ret);
+			return ret;
+		}
+
+		msleep(28);
 	}
 
 	ctx->prepared = true;
