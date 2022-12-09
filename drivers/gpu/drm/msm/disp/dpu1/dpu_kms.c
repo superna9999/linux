@@ -534,7 +534,7 @@ static int _dpu_kms_initialize_dsi(struct drm_device *dev,
 		return rc;
 
 	/*
-	 * We support following confiurations:
+	 * We support following configurations:
 	 * - Single DSI host (dsi0 or dsi1)
 	 * - Two independent DSI hosts
 	 * - Bonded DSI0 and DSI1 hosts

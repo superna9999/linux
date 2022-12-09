@@ -304,6 +304,13 @@ static void _dpu_encoder_setup_dither(struct dpu_hw_pingpong *hw_pp, unsigned bp
 		dither_cfg.c3_bitdepth = 6;
 		dither_cfg.temporal_en = 0;
 		break;
+	case 8:
+		dither_cfg.c0_bitdepth = 8;
+		dither_cfg.c1_bitdepth = 8;
+		dither_cfg.c2_bitdepth = 8;
+		dither_cfg.c3_bitdepth = 8;
+		dither_cfg.temporal_en = 0;
+		break;
 	default:
 		hw_pp->ops.setup_dither(hw_pp, NULL);
 		return;
@@ -1143,7 +1150,13 @@ static void _dpu_encoder_virt_enable_helper(struct drm_encoder *drm_enc)
 
 	if (dpu_enc->disp_info.intf_type == DRM_MODE_ENCODER_DSI &&
 			!WARN_ON(dpu_enc->num_phys_encs == 0)) {
+
+		// TODO: This is zero. Downstream pulls this from a
+		// DRM property, where its value is 8 (matching our
+		// DSC config, conveniently...)
 		unsigned bpc = dpu_enc->connector->display_info.bpc;
+		if (dpu_enc->dsc)
+			bpc = dpu_enc->dsc->bits_per_component;
 		for (i = 0; i < MAX_CHANNELS_PER_ENC; i++) {
 			if (!dpu_enc->hw_pp[i])
 				continue;
