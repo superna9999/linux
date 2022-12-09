@@ -556,7 +556,7 @@
 	status = "okay";
 
 	panel: panel@0 {
-		compatible = "samsung,4k-or-1080p-oled";
+		// compatible = "samsung,4k-or-1080p-oled";
 		reg = <0>;
 
 		/*
@@ -724,7 +724,7 @@
 	cd-gpios = <&tlmm 96 GPIO_ACTIVE_HIGH>;
 	bus-width = <4>;
 	no-sdio;
-	no-emmc;
+	no-mmc;
 
 	status = "okay";
 };

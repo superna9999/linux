@@ -18,3 +18,7 @@
 	height = <2520>;
 	stride = <(1080 * 4)>;
 };
+
+&panel {
+	compatible = "mdss,sofef01-m";
+};
