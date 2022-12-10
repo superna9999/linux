@@ -559,7 +559,13 @@
 		compatible = "samsung,4k-or-1080p-oled";
 		reg = <0>;
 
-		disp-te-gpios = <&tlmm 8 GPIO_ACTIVE_HIGH>;
+		/*
+		 * This GPIO is intentionally omitted because we already
+		 * have pinctrl to set the desired bias.  Requesting this
+		 * as GPIOD_IN makes it so that vsync interrupts are not
+		 * received over the hardware MDP interrupt anymore.
+		 */
+		/* disp-te-gpios = <&tlmm 8 GPIO_ACTIVE_HIGH>; */
 		reset-gpios = <&tlmm 6 GPIO_ACTIVE_LOW>;
 
 		//vddio-supply = <&vreg_l14a_1p8>;
