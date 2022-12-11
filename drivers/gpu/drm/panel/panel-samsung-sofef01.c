@@ -159,15 +159,15 @@ static int sofef01_m_unprepare(struct drm_panel *panel)
 }
 
 static const struct drm_display_mode sofef01_m_mode = {
-	.clock = (1080 + 8 + 8 + 8) * (2520 + 8 + 8 + 8) * 60 / 1000,
+	.clock = (1080 + 156 + 8 + 8) * (2520 + 2393 + 8 + 8) * 60 / 1000,
 	.hdisplay = 1080,
-	.hsync_start = 1080 + 8,
-	.hsync_end = 1080 + 8 + 8,
-	.htotal = 1080 + 8 + 8 + 8,
+	.hsync_start = 1080 + 156,
+	.hsync_end = 1080 + 156 + 8,
+	.htotal = 1080 + 156 + 8 + 8,
 	.vdisplay = 2520,
-	.vsync_start = 2520 + 8,
-	.vsync_end = 2520 + 8 + 8,
-	.vtotal = 2520 + 8 + 8 + 8,
+	.vsync_start = 2520 + 2393,
+	.vsync_end = 2520 + 2393 + 8,
+	.vtotal = 2520 + 2393 + 8 + 8,
 	.width_mm = 61,
 	.height_mm = 142,
 };
