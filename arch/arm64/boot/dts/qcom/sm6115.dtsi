@@ -5,6 +5,7 @@
 
 #include <dt-bindings/clock/qcom,gcc-sm6115.h>
 #include <dt-bindings/clock/qcom,sm6115-dispcc.h>
+#include <dt-bindings/clock/qcom,sm6115-gpucc.h>
 #include <dt-bindings/clock/qcom,rpmcc.h>
 #include <dt-bindings/dma/qcom-gpi.h>
 #include <dt-bindings/gpio/gpio.h>
@@ -1044,6 +1045,87 @@
 				maximum-speed = "high-speed";
 				dr_mode = "peripheral";
 			};
+		};
+
+		gpu: gpu@5900000 {
+			compatible = "qcom,adreno-610.0", "qcom,adreno";
+			reg = <0 0x05900000 0 0x90000>;
+			reg-names = "kgsl_3d0_reg_memory";
+
+			clocks = <&gpucc GPUCC_GX_GFX3D_CLK>,
+				 <&gpucc GPUCC_CXO_CLK>,
+				 <&gcc GCC_BIMC_GPU_AXI_CLK>,
+				 <&gpucc GPUCC_AHB_CLK>,
+				 <&gcc GCC_GPU_MEMNOC_GFX_CLK>,
+				 <&gpucc GPUCC_CX_GMU_CLK>,
+				 <&gpucc GPUCC_HLOS1_VOTE_GPU_SMMU_CLK>;
+			clock-names = "core",
+				      "xo",
+				      "mem_iface",
+				      "iface",
+				      "mnoc",
+				      "gmu",
+				      "smmu";
+
+			interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;
+
+			iommus = <&adreno_smmu 0 1>;
+			// iommus = <&adreno_smmu 0>;
+			operating-points-v2 = <&gpu_opp_table>;
+			power-domains = <&gpucc GPU_GX_GDSC>;
+
+			// status = "disabled";
+
+			zap-shader {
+				memory-region = <&pil_gpu_mem>;
+			};
+
+			gpu_opp_table: opp-table {
+				compatible = "operating-points-v2";
+
+				opp-320000000 {
+					opp-hz = /bits/ 64 <320000000>;
+					opp-level = <RPM_SMD_LEVEL_LOW_SVS>;
+				};
+			};
+		};
+
+		gpucc: clock-controller@5990000 {
+			compatible = "qcom,sm6115-gpucc";
+			reg = <0 0x05990000 0 0x9000>;
+			clocks = <&rpmcc RPM_SMD_XO_CLK_SRC>,
+				 <&gcc GCC_GPU_GPLL0_CLK_SRC>,
+				 <&gcc GCC_GPU_GPLL0_DIV_CLK_SRC>;
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+			#power-domain-cells = <1>;
+		};
+
+		adreno_smmu: iommu@59a0000 {
+			// TODO: which one.. downstream gives conflicting info..
+			compatible = "qcom,sm6115-smmu-500", "qcom,adreno-smmu",
+				     "qcom,smmu-500", "arm,mmu-500";
+			// compatible = "qcom,sdm845-smmu-v2", "qcom,adreno-smmu", "qcom,smmu-v2";
+			reg = <0 0x059a0000 0 0x10000>;
+			interrupts = <GIC_SPI 163 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 169 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 170 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 171 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 172 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 173 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&gpucc GPUCC_AHB_CLK>,
+				 <&gcc GCC_GPU_MEMNOC_GFX_CLK>,
+				 <&gcc GCC_GPU_SNOC_DVM_GFX_CLK>,
+				 <&gpucc GPUCC_HLOS1_VOTE_GPU_SMMU_CLK>;
+			clock-names = "iface", "mem", "mem_iface", "hlos";
+			power-domains = <&gpucc GPU_GX_GDSC>;
+
+			#global-interrupts = <1>;
+			#iommu-cells = <2>;
 		};
 
 		mdss: display-subsystem@5e00000 {
