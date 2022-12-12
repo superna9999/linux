@@ -131,7 +131,7 @@ struct adreno_platform_config {
 	struct adreno_rev rev;
 };
 
-#define ADRENO_IDLE_TIMEOUT msecs_to_jiffies(1000)
+#define ADRENO_IDLE_TIMEOUT msecs_to_jiffies(2000)
 
 #define spin_until(X) ({                                   \
 	int __ret = -ETIMEDOUT;                            \
