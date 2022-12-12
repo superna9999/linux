@@ -485,6 +485,18 @@
 	/* PM8009 is not present on these boards, even if downstream sources suggest so. */
 };
 
+&gmu {
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		firmware-name = "qcom/sm8150/Sony/kumano/a640_zap.mbn";
+	};
+};
+
 &i2c4 {
 	status = "okay";
 
