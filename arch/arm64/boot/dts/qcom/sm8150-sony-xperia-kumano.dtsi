@@ -502,7 +502,6 @@
 
 	/* Qcom SMB1355 @ c */
 	/* Qcom SMB1390 @ 10 */
-	/* Qcom FSA4480 USB-C audio switch @ 43 */
 
 	nfc@28 {
 		compatible = "nxp,nxp-nci-i2c";
@@ -513,6 +512,16 @@
 
 		enable-gpios = <&tlmm 41 GPIO_ACTIVE_HIGH>;
 		firmware-gpios = <&tlmm 48 GPIO_ACTIVE_HIGH>;
+	};
+
+	typec-mux@43 {
+		compatible = "fcs,fsa4480";
+		reg = <0x43>;
+		interrupts-extended = <&tlmm 100 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb_audio_en1>;
+		orientation-switch;
+		mode-switch;
 	};
 };
 
@@ -936,6 +945,14 @@
 		drive-strength = <2>;
 		bias-pull-down;
 		input-enable;
+	};
+
+	usb_audio_en1: usb-audio-en1-state {
+		pins = "gpio100";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+		output-low;
 	};
 
 	ts_int_default: ts-int-default-state {
