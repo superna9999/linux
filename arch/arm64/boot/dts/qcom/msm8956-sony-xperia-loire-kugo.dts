@@ -25,11 +25,30 @@
 &blsp2_i2c4 {
 	status = "okay";
 
-	/* ST STMVL53L0 ToF @ 29 */
 	/* AMS TCS349 RGBCIR @ 72 */
+
+	proximity@29 {
+		compatible = "st,vl53l0x";
+		reg = <0x29>;
+		interrupts-extended = <&tlmm 12 IRQ_TYPE_EDGE_FALLING>;
+		vdd-supply = <&pm8950_l5>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&tof_int_active>;
+	};
 };
 
 &pm8950_l1 {
 	regulator-min-microvolt = <1100000>;
 	regulator-max-microvolt = <1300000>;
+};
+
+&tlmm {
+	tof_int_active: tof-int-active-state {
+		pins = "gpio12";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+		input-enable;
+	};
 };
