@@ -31,6 +31,11 @@ properties:
     description: >
       vmid of the remote processor, to set up memory protection
 
+  qcom,assign-to-nav:
+    type: boolean
+    description: >
+      whether to also assign the region to the NAV VM
+
 required:
   - qcom,client-id
 
