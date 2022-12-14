@@ -89,32 +89,6 @@
 		};
 	};
 
-	edac-l12 {
-		compatible = "arm,ras-edac-cpu";
-		interrupts = <GIC_PPI 0 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "fault";
-		arm,edac-impl-err-rec = /bits/ 64 <0xffffffff>; /* FIXTHIS */
-		arm,cpu-resource-type = /bits/ 8 <0>;
-		arm,edac-start-err-rec = <0>; /* ERR0STATUS.. */
-		arm,edac-num-err-rec = <1>;
-		arm,edac-shared-node;
-		cache-levels = <1 2>;
-		affined-cpus = <&CPU0 &CPU1 &CPU2 &CPU3 &CPU4 &CPU5 &CPU6 &CPU7>;
-	};
-
-	edac-l3 {
-		compatible = "arm,ras-edac-cpu";
-		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "fault";
-		arm,edac-impl-err-rec = /bits/ 64 <0xffffffff>; /* FIXTHIS */
-		arm,cpu-resource-type = /bits/ 8 <0>;
-		arm,edac-start-err-rec = <1>; /* ERR1STATUS.. */
-		arm,edac-num-err-rec = <1>;
-		arm,edac-shared-node;
-		arm,edac-global-node;
-		cache-levels = <3>;
-	};
-
 	cpus {
 		#address-cells = <2>;
 		#size-cells = <0>;
