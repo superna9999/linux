@@ -3504,6 +3504,10 @@ static int gcc_sm6115_probe(struct platform_device *pdev)
 	clk_alpha_pll_configure(&gpll10, regmap, &gpll10_config);
 	clk_alpha_pll_configure(&gpll11, regmap, &gpll11_config);
 
+	/* Set up no PERIPH/MEM retain on the GPU mem_iface clock */
+	regmap_update_bits(regmap, gcc_gpu_memnoc_gfx_clk.halt_reg,
+			   (BIT(14) | BIT(13)), 0);
+
 	return qcom_cc_really_probe(pdev, &gcc_sm6115_desc, regmap);
 }
 
