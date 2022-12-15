@@ -132,7 +132,7 @@ CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 # qcom/adsp.mbn qcom/cdsp.mbn qcom/ipa_fws.mbn qcom/mba.mbn qcom/slpi.mbn qcom/venus.mbn
 # TODO: Drop .elf, only .mdt with .bxx files is needed (or packed .mbn, or symlinked .mbn->.mdt with .bxx)
-CONFIG_EXTRA_FIRMWARE="qcom/a630_sqe.fw qcom/a619_gmu.bin qcom/a630_gmu.bin qcom/a640_gmu.bin qcom/sdm845/Sony/tama/a630_zap.mbn qcom/sm6350/Sony/lena/a615_zap.mbn qcom/sm6350/Sony/lena/a615_zap.mdt qcom/sm6350/Sony/lena/a615_zap.b00 qcom/sm6350/Sony/lena/a615_zap.b01 qcom/sm6350/Sony/lena/a615_zap.b02 qcom/sm6350/Sony/lena/a615_zap.elf qcom/sm8150/Sony/kumano/a640_zap.mbn qcom/sm8150/Sony/kumano/a640_zap.mdt qcom/sm8150/Sony/kumano/a640_zap.b00 qcom/sm8150/Sony/kumano/a640_zap.b01 qcom/sm8150/Sony/kumano/a640_zap.b02"
+CONFIG_EXTRA_FIRMWARE="qcom/a630_sqe.fw qcom/a650_sqe.fw qcom/a619_gmu.bin qcom/a630_gmu.bin qcom/a640_gmu.bin qcom/a650_gmu.bin qcom/sdm845/Sony/tama/a630_zap.mbn qcom/sm6350/Sony/lena/a615_zap.mbn qcom/sm6350/Sony/lena/a615_zap.mdt qcom/sm6350/Sony/lena/a615_zap.b00 qcom/sm6350/Sony/lena/a615_zap.b01 qcom/sm6350/Sony/lena/a615_zap.b02 qcom/sm6350/Sony/lena/a615_zap.elf qcom/sm8150/Sony/kumano/a640_zap.mbn qcom/sm8150/Sony/kumano/a640_zap.mdt qcom/sm8150/Sony/kumano/a640_zap.b00 qcom/sm8150/Sony/kumano/a640_zap.b01 qcom/sm8150/Sony/kumano/a640_zap.b02 qcom/sm8250/Sony/edo/a650_zap.mbn qcom/sm8250/Sony/edo/a650_zap.mdt qcom/sm8250/Sony/edo/a650_zap.b00 qcom/sm8250/Sony/edo/a650_zap.b01 qcom/sm8250/Sony/edo/a650_zap.b02"
 CONFIG_EXTRA_FIRMWARE_DIR="../firmware/"
 CONFIG_FW_LOADER_USER_HELPER=n
 CONFIG_FW_LOADER_USER_HELPER_FALLBACK=n
