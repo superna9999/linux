@@ -30,7 +30,7 @@
  * sort of problem defining LOG_DEVICE will add printks for basic
  * register I/O on a specific device.
  */
-#undef LOG_DEVICE
+#define LOG_DEVICE "5990000.clock-controller"
 
 #ifdef LOG_DEVICE
 static inline bool regmap_should_log(struct regmap *map)
