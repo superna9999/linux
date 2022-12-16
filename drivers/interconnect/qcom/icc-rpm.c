@@ -63,6 +63,8 @@ static int qcom_icc_set_qnoc_qos(struct icc_node *src, u64 max_bw)
 	if (rc)
 		return rc;
 
+	wmb();
+
 	return regmap_update_bits(qp->regmap,
 			qp->qos_offset + QNOC_QOS_MCTL_LOWn_ADDR(qos->qos_port),
 			QNOC_QOS_MCTL_URGFWD_EN_MASK,
