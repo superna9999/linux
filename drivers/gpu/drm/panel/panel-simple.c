@@ -4574,36 +4574,6 @@ static const struct panel_desc_dsi osd101t2045_53ts = {
 	.lanes = 4,
 };
 
-static const struct drm_display_mode sofef03m_mode = {
-	.clock = (1080 + 56 + 8 + 8) * (2520 + 499 + 8 + 8) * 120 / 1000,
-	.hdisplay = 1080,
-	.hsync_start = 1080 + 56,
-	.hsync_end = 1080 + 56 + 8,
-	.htotal = 1080 + 56 + 8 + 8,
-	.vdisplay = 2520,
-	.vsync_start = 2520 + 499,
-	.vsync_end = 2520 + 499 + 8,
-	.vtotal = 2520 + 499 + 8 + 8,
-	.width_mm = 61,
-	.height_mm = 142,
-};
-
-static const struct panel_desc_dsi sofef03m = {
-	.desc = {
-		.modes = &sofef03m_mode,
-		.num_modes = 1,
-		.bpc = 8,
-		.size = {
-			.width = 61,
-			.height = 142,
-		},
-		.connector_type = DRM_MODE_CONNECTOR_DSI,
-	},
-	.flags = MIPI_DSI_CLOCK_NON_CONTINUOUS,
-	.format = MIPI_DSI_FMT_RGB888,
-	.lanes = 4,
-};
-
 static const struct drm_display_mode pdx213_amoled_fhd_mode = {
 	.clock = (1080 + 8 + 8 + 8) * (2520 + 8 + 8 + 8) * 60 / 1000,
 	.hdisplay = 1080,
@@ -4686,9 +4656,6 @@ static const struct of_device_id dsi_of_match[] = {
 	}, {
 		.compatible = "osddisplays,osd101t2045-53ts",
 		.data = &osd101t2045_53ts
-	}, {
-		.compatible = "samsung,sofef03m",
-		.data = &sofef03m
 	}, {
 		.compatible = "sony,pdx213panel",
 		.data = &pdx213_amoled_fhd
