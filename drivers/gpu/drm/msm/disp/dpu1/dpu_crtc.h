@@ -136,6 +136,7 @@ struct dpu_crtc_frame_event {
  * @enabled       : whether the DPU CRTC is currently enabled. updated in the
  *                  commit-thread, not state-swap time which is earlier, so
  *                  safe to make decisions on during VBLANK on/off work
+ * @color_enabled : whether crtc supports color management
  * @feature_list  : list of color processing features supported on a crtc
  * @active_list   : list of color processing features are active
  * @dirty_list    : list of color processing features are dirty
@@ -164,6 +165,7 @@ struct dpu_crtc {
 	u64 play_count;
 	ktime_t vblank_cb_time;
 	bool enabled;
+	bool color_enabled;
 
 	struct list_head feature_list;
 	struct list_head active_list;
@@ -269,10 +271,11 @@ void dpu_crtc_complete_commit(struct drm_crtc *crtc);
  * @dev: dpu device
  * @plane: base plane
  * @cursor: cursor plane
+ * @ctm: ctm flag
  * @Return: new crtc object or error
  */
 struct drm_crtc *dpu_crtc_init(struct drm_device *dev, struct drm_plane *plane,
-			       struct drm_plane *cursor);
+			       struct drm_plane *cursor, bool ctm);
 
 /**
  * dpu_crtc_register_custom_event - api for enabling/disabling crtc event
