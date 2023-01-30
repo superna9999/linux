@@ -85,4 +85,10 @@ config TYPEC_MUX_WCD939X_USBSS
 	  common USB Type-C connector.
 	  If compiled as a module, the module will be named wcd939x-usbss.
 
+config TYPEC_MUX_GPIO_SWITCH
+	tristate "GPIO based USB Type-C SuperSpeed switch"
+	help
+	  Say Y or M if your system uses a GPIO based analog switch mux for
+	  flipping the SuperSpeed lanes connected to a Type-C port.
+
 endmenu

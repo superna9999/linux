@@ -9,3 +9,4 @@ obj-$(CONFIG_TYPEC_MUX_NB7VPQ904M)	+= nb7vpq904m.o
 obj-$(CONFIG_TYPEC_MUX_PTN36502)	+= ptn36502.o
 obj-$(CONFIG_TYPEC_MUX_TUSB1046)	+= tusb1046.o
 obj-$(CONFIG_TYPEC_MUX_WCD939X_USBSS)	+= wcd939x-usbss.o
+obj-$(CONFIG_TYPEC_MUX_GPIO_SWITCH)	+= gpio-superspeed-switch.o
