@@ -12,8 +12,10 @@
 #include "meson-g12b-a311d.dtsi"
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/gpio/meson-g12a-gpio.h>
 #include <dt-bindings/sound/meson-g12a-tohdmitx.h>
+#include <dt-bindings/usb/pd.h>
 
 / {
 	compatible = "radxa,zero2", "amlogic,a311d", "amlogic,g12b";
@@ -84,12 +86,40 @@
 		clock-names = "ext_clock";
 	};
 
+	superspeed-switch {
+		compatible = "wcn,ch482d", "gpio-superspeed-switch";
+
+		select-gpios = <&gpio GPIOC_7 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
+
+		orientation-switch;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				usb_ss_switch_out: endpoint {
+					remote-endpoint = <&usb_con_ss>;
+				};
+			};
+		};
+	};
+
 	ao_5v: regulator-ao-5v {
 		compatible = "regulator-fixed";
 		regulator-name = "AO_5V";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		regulator-always-on;
+	};
+
+	typec2_vbus: regulator-typec2-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "TYPEC2_VBUS";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&ao_5v>;
 	};
 
 	vcc_1v8: regulator-vcc-1v8 {
@@ -376,6 +406,54 @@
 	pinctrl-names = "default";
 };
 
+&i2c3 {
+	pinctrl-0 = <&i2c3_sda_a_pins>, <&i2c3_sck_a_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	fusb0: typec-portc@22 {
+		compatible = "fcs,fusb302";
+		reg = <0x22>;
+		interrupt-parent = <&gpio_intc>;
+		interrupts = <74 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-0 = <&fusb302_irq_pins>;
+		pinctrl-names = "default";
+		vbus-supply = <&typec2_vbus>;
+
+		connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			data-role = "host";
+			power-role = "source";
+			source-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+					usb_con_ss: endpoint {
+						remote-endpoint = <&usb_ss_switch_out>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&periphs_pinctrl {
+	/* Ensure the TYPE-C controller irq pin is not driven by the SoC */
+	fusb302_irq_pins: fusb302_irq {
+		mux {
+			groups = "GPIOA_13";
+			function = "gpio_periphs";
+			bias-pull-up;
+			output-disable;
+		};
+	};
+};
+
 &pwm_ab {
 	pinctrl-0 = <&pwm_a_e_pins>;
 	pinctrl-names = "default";
@@ -514,4 +592,9 @@
 
 &usb {
 	status = "okay";
+};
+
+&usb3_pcie_phy {
+	status = "okay";
+	phy-supply = <&typec2_vbus>;
 };
