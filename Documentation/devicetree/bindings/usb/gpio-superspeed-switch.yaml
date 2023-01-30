@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 1.2
+---
+$id: "http://devicetree.org/schemas/usb/gpio-superspeed-switch.yaml#"
+$schema: "http://devicetree.org/meta-schemas/core.yaml#"
+
+title: GPIO-based SuperSpeed switch
+
+maintainers:
+  - Neil Armstrong <neil.armstrong@linaro.org>
+
+description:
+  In USB Type-C applications the USB SuperSpeed lanes must be switched depending
+  on the orientation of the Type-C plug. This binding describes a family of
+  hardware solutions which analog switches pairs of differential high-speed
+  lanes using a GPIO signal.
+
+properties:
+  compatible:
+    items:
+      - enum:
+          - wcn,ch482d
+      - const: gpio-superspeed-switch
+
+  enable-gpios:
+    description: Switch enable GPIO
+
+  select-gpios:
+    description: Orientation select
+
+  vcc-supply:
+    description: power supply
+
+  orientation-switch:
+    description: Flag the port as possible handler of orientation switching
+    type: boolean
+
+  ports:
+    $ref: /schemas/graph.yaml#/properties/ports
+
+    properties:
+      port@0:
+        $ref: /schemas/graph.yaml#/properties/port
+        description: Super Speed output lanes
+
+      port@1:
+        $ref: /schemas/graph.yaml#/properties/port
+        description: Super Speed input lanes
+
+required:
+  - compatible
+  - select-gpios
+  - orientation-switch
+  - ports
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+
+    tcpm {
+        connector {
+            compatible = "usb-c-connector";
+
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                port@0 {
+                    reg = <0>;
+                    tcpm_hs_out: endpoint {
+                        remote-endpoint = <&usb_hs_phy_in>;
+                    };
+                };
+
+                port@1 {
+                    reg = <1>;
+                    tcpm_ss_out: endpoint {
+                        remote-endpoint = <&usb_ss_switch_in>;
+                    };
+                };
+
+                port@2 {
+                    reg = <2>;
+                    tcpm_sbu_out: endpoint {
+                        remote-endpoint = <&sbu_mux_in>;
+                    };
+                };
+            };
+        };
+    };
+
+    superspeed-mux {
+        compatible = "wcn,ch482d", "gpio-superspeed-switch";
+
+        select-gpios = <&gpio 7 GPIO_ACTIVE_LOW>;
+
+        orientation-switch;
+
+        ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            port@0 {
+                reg = <0>;
+                usb_ss_switch_out: endpoint {
+                    remote-endpoint = <&tcpm_ss_out>;
+                };
+            };
+
+            port@1 {
+                reg = <1>;
+                usb_ss_switch_in: endpoint {
+                    remote-endpoint = <&usb_ss_phy_in>;
+                };
+            };
+        };
+    };
+...
