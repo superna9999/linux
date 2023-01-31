@@ -1645,6 +1645,8 @@ patternProperties:
     description: Wandbord (Technexion)
   "^waveshare,.*":
     description: Waveshare Electronics
+  "^wch,.*":
+    description: Nanjing Qinheng Microelectronics Co., Ltd (WinChipHead)
   "^wd,.*":
     description: Western Digital Corp.
   "^we,.*":
