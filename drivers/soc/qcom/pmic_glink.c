@@ -243,8 +243,8 @@ static struct rpmsg_driver pmic_glink_rpmsg_driver = {
 	},
 };
 
-/* Do not handle altmode for now on those platforms */
 static const unsigned int pmic_glink_sm8450_client_mask = BIT(PMIC_GLINK_CLIENT_BATT) |
+							  BIT(PMIC_GLINK_CLIENT_ALTMODE) |
 							  BIT(PMIC_GLINK_CLIENT_UCSI);
 
 static const struct of_device_id pmic_glink_of_client_mask[] = {
