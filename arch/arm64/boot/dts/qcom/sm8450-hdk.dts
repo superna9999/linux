@@ -480,7 +480,9 @@
 	status = "okay";
 };
 
-&mdss_mdp {
+&mdss_dp0 {
+	data-lanes = <0 1 2 3>;
+
 	status = "okay";
 };
 
