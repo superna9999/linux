@@ -108,6 +108,21 @@
 						remote-endpoint = <&usb_1_dwc3_out>;
 					};
 				};
+
+				port@2 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <2>;
+
+					pmic_glink_dp_in: endpoint@0 {
+						remote-endpoint = <&mdss_dp_altmode>;
+					};
+
+					pmic_glink_fsa4480_in: endpoint@1 {
+						remote-endpoint = <&fsa4480_ept>;
+					};
+				};
+
 			};
 		};
 	};
@@ -486,6 +501,35 @@
 	};
 };
 
+&i2c5 {
+	status = "okay";
+	clock-frequency = <100000>;
+
+	fsa4480@42 {
+		compatible = "fcs,fsa4480";
+		reg = <0x42>;
+
+		interrupts-extended = <&tlmm 2 IRQ_TYPE_LEVEL_LOW>;
+
+		vcc-supply = <&vreg_bob>;
+		mode-switch;
+		orientation-switch;
+		svid = /bits/ 16 <0xff01>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				fsa4480_ept: endpoint {
+					remote-endpoint = <&pmic_glink_fsa4480_in>;
+				};
+			};
+		};
+	};
+};
+
 &mdss {
 	status = "okay";
 };
@@ -509,6 +553,15 @@
 	data-lanes = <0 1 2 3>;
 
 	status = "okay";
+
+	ports {
+		port@1 {
+			reg = <1>;
+			mdss_dp_altmode: endpoint {
+				remote-endpoint = <&pmic_glink_dp_in>;
+			};
+		};
+	};
 };
 
 &pcie0 {
