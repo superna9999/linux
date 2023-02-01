@@ -64,6 +64,8 @@ static int fsa4480_switch_set(struct typec_switch_dev *sw,
 	struct fsa4480 *fsa = typec_switch_get_drvdata(sw);
 	u8 new_sel;
 
+	pr_info("%s:%d orientation %d\n", __func__, __LINE__, orientation);
+
 	mutex_lock(&fsa->lock);
 	new_sel = FSA4480_SEL_USB;
 	if (orientation == TYPEC_ORIENTATION_REVERSE)
@@ -101,6 +103,8 @@ static int fsa4480_mux_set(struct typec_mux_dev *mux, struct typec_mux_state *st
 {
 	struct fsa4480 *fsa = typec_mux_get_drvdata(mux);
 	u8 new_enable;
+	
+	pr_info("%s:%d state mode %d\n", __func__, __LINE__, state->mode);
 
 	mutex_lock(&fsa->lock);
 

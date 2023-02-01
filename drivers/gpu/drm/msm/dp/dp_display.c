@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  */
-
+#define DEBUG
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>

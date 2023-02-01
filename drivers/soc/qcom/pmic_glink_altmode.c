@@ -270,6 +270,9 @@ static void pmic_glink_altmode_sc8280xp_notify(struct pmic_glink_altmode *altmod
 	u8 mode;
 	u8 port;
 
+	pr_info("%s:%d svid %x\n", __func__, __LINE__, svid);
+	print_hex_dump_bytes("", DUMP_PREFIX_NONE, data, len);
+
 	if (len != sizeof(*notify)) {
 		dev_warn(altmode->dev, "invalid length USBC_NOTIFY_IND: %zd\n",
 			 len);
@@ -283,6 +286,8 @@ static void pmic_glink_altmode_sc8280xp_notify(struct pmic_glink_altmode *altmod
 	mode = FIELD_GET(SC8280XP_DPAM_MASK, notify->payload[8]) - DPAM_HPD_A;
 	hpd_state = FIELD_GET(SC8280XP_HPD_STATE_MASK, notify->payload[8]);
 	hpd_irq = FIELD_GET(SC8280XP_HPD_IRQ_MASK, notify->payload[8]);
+
+	pr_info("%s:%d port %d orientation %d mode %d hpd_state %d hpd_irq %d\n", __func__, __LINE__, port, orientation, mode, hpd_state, hpd_irq);
 
 	if (!altmode->ports[port].altmode) {
 		dev_dbg(altmode->dev, "notification on undefined port %d\n", port);
