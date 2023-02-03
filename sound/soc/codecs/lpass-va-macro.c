@@ -201,6 +201,7 @@ struct va_macro {
 	unsigned long active_ch_cnt[VA_MACRO_MAX_DAIS];
 	u16 dmic_clk_div;
 	bool has_swr_master;
+	bool has_npl_clk;
 
 	int dec_mode[VA_MACRO_NUM_DECIMATORS];
 	struct regmap *regmap;
@@ -226,14 +227,22 @@ struct va_macro {
 
 struct va_macro_data {
 	bool has_swr_master;
+	bool has_npl_clk;
 };
 
 static const struct va_macro_data sm8250_va_data = {
 	.has_swr_master = false,
+	.has_npl_clk = false,
 };
 
 static const struct va_macro_data sm8450_va_data = {
 	.has_swr_master = true,
+	.has_npl_clk = true,
+};
+
+static const struct va_macro_data sm8550_va_data = {
+	.has_swr_master = true,
+	.has_npl_clk = false,
 };
 
 static bool va_is_volatile_register(struct device *dev, unsigned int reg)
@@ -1384,7 +1393,7 @@ static int va_macro_register_fsgen_output(struct va_macro *va)
 	struct clk_init_data init;
 	int ret;
 
-	if (va->has_swr_master)
+	if (va->has_npl_clk)
 		parent = va->npl;
 
 	parent_clk_name = __clk_get_name(parent);
@@ -1509,11 +1518,12 @@ static int va_macro_probe(struct platform_device *pdev)
 
 	data = of_device_get_match_data(dev);
 	va->has_swr_master = data->has_swr_master;
+	va->has_npl_clk = data->has_npl_clk;
 
 	/* mclk rate */
 	clk_set_rate(va->mclk, 2 * VA_MACRO_MCLK_FREQ);
 
-	if (va->has_swr_master) {
+	if (va->has_npl_clk) {
 		va->npl = devm_clk_get(dev, "npl");
 		if (IS_ERR(va->npl))
 			goto err;
@@ -1533,7 +1543,7 @@ static int va_macro_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_mclk;
 
-	if (va->has_swr_master) {
+	if (va->has_npl_clk) {
 		ret = clk_prepare_enable(va->npl);
 		if (ret)
 			goto err_npl;
@@ -1587,7 +1597,7 @@ static int va_macro_probe(struct platform_device *pdev)
 	return 0;
 
 err_clkout:
-	if (va->has_swr_master)
+	if (va->has_npl_clk)
 		clk_disable_unprepare(va->npl);
 err_npl:
 	clk_disable_unprepare(va->mclk);
@@ -1605,7 +1615,7 @@ static void va_macro_remove(struct platform_device *pdev)
 {
 	struct va_macro *va = dev_get_drvdata(&pdev->dev);
 
-	if (va->has_swr_master)
+	if (va->has_npl_clk)
 		clk_disable_unprepare(va->npl);
 
 	clk_disable_unprepare(va->mclk);
@@ -1622,7 +1632,7 @@ static int __maybe_unused va_macro_runtime_suspend(struct device *dev)
 	regcache_cache_only(va->regmap, true);
 	regcache_mark_dirty(va->regmap);
 
-	if (va->has_swr_master)
+	if (va->has_npl_clk)
 		clk_disable_unprepare(va->npl);
 
 	clk_disable_unprepare(va->mclk);
@@ -1641,7 +1651,7 @@ static int __maybe_unused va_macro_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	if (va->has_swr_master) {
+	if (va->has_npl_clk) {
 		ret = clk_prepare_enable(va->npl);
 		if (ret) {
 			clk_disable_unprepare(va->mclk);
@@ -1665,6 +1675,7 @@ static const struct of_device_id va_macro_dt_match[] = {
 	{ .compatible = "qcom,sc7280-lpass-va-macro", .data = &sm8250_va_data },
 	{ .compatible = "qcom,sm8250-lpass-va-macro", .data = &sm8250_va_data },
 	{ .compatible = "qcom,sm8450-lpass-va-macro", .data = &sm8450_va_data },
+	{ .compatible = "qcom,sm8550-lpass-va-macro", .data = &sm8550_va_data },
 	{ .compatible = "qcom,sc8280xp-lpass-va-macro", .data = &sm8450_va_data },
 	{}
 };
