@@ -1108,7 +1108,7 @@ static const struct adsp_data sm8550_adsp_resource = {
 	.pas_id = 1,
 	.dtb_pas_id = 0x24,
 	.minidump_id = 5,
-	.auto_boot = false,
+	.auto_boot = true,
 	.proxy_pd_names = (char*[]){
 		"lcx",
 		"lmx",
@@ -1127,7 +1127,7 @@ static const struct adsp_data sm8550_cdsp_resource = {
 	.pas_id = 18,
 	.dtb_pas_id = 0x25,
 	.minidump_id = 7,
-	.auto_boot = false,
+	.auto_boot = true,
 	.proxy_pd_names = (char*[]){
 		"cx",
 		"mxc",
