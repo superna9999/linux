@@ -36,6 +36,12 @@ properties:
   interrupts:
     maxItems: 1
 
+  interconnects:
+    description: Path leading to system memory
+
+  interconnect-names:
+    const: memory
+
   iommus:
     minItems: 1
     maxItems: 4
