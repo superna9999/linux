@@ -3163,7 +3163,7 @@ static struct clk_regmap g12a_vclk2_sel = {
 		.ops = &clk_regmap_mux_ops,
 		.parent_hws = g12a_vclk_parent_hws,
 		.num_parents = ARRAY_SIZE(g12a_vclk_parent_hws),
-		.flags = CLK_SET_RATE_NO_REPARENT | CLK_GET_RATE_NOCACHE,
+		.flags = CLK_SET_RATE_NO_REPARENT,
 	},
 };
 
@@ -3191,7 +3191,6 @@ static struct clk_regmap g12a_vclk2_input = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_hws = (const struct clk_hw *[]) { &g12a_vclk2_sel.hw },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
 	},
 };
 
@@ -3212,6 +3211,42 @@ static struct clk_regmap g12a_vclk_div = {
 	},
 };
 
+struct g12a_vclk_div_notifier {
+	struct clk_regmap *clk;
+	unsigned int offset;
+	u8 en_bit_idx;
+	u8 reset_bit_idx;
+	struct notifier_block nb;
+};
+
+static int g12a_vclk_div_notifier_cb(struct notifier_block *nb,
+				  unsigned long event, void *data)
+{
+	struct g12a_vclk_div_notifier *nb_data =
+		container_of(nb, struct g12a_vclk_div_notifier, nb);
+
+	switch (event) {
+	case PRE_RATE_CHANGE:
+		/* disable and reset vclk2 divider */
+		regmap_update_bits(nb_data->clk->map, nb_data->offset,
+				   BIT(nb_data->en_bit_idx) |
+				   BIT(nb_data->reset_bit_idx),
+				   BIT(nb_data->reset_bit_idx));
+		pr_info("%s(%s): PRE_RATE_CHANGE\n", __func__, clk_hw_get_name(&nb_data->clk->hw));
+		return NOTIFY_OK;
+	case POST_RATE_CHANGE:
+		/* enabled and release reset */
+		regmap_update_bits(nb_data->clk->map, nb_data->offset,
+				   BIT(nb_data->en_bit_idx) |
+				   BIT(nb_data->reset_bit_idx),
+				   BIT(nb_data->en_bit_idx));
+		pr_info("%s(%s): POST_RATE_CHANGE\n", __func__, clk_hw_get_name(&nb_data->clk->hw));
+		return NOTIFY_OK;
+	default:
+		return NOTIFY_DONE;
+	};
+};
+
 static struct clk_regmap g12a_vclk2_div = {
 	.data = &(struct clk_regmap_div_data){
 		.offset = HHI_VIID_CLK_DIV,
@@ -3225,8 +3260,16 @@ static struct clk_regmap g12a_vclk2_div = {
 			&g12a_vclk2_input.hw
 		},
 		.num_parents = 1,
-		.flags = CLK_GET_RATE_NOCACHE,
+		.flags = CLK_DIVIDER_ROUND_CLOSEST,
 	},
+};
+
+static struct g12a_vclk_div_notifier g12a_vclk2_div_data = {
+	.clk = &g12a_vclk2_div,
+	.offset = HHI_VIID_CLK_DIV,
+	.en_bit_idx = 16,
+	.reset_bit_idx = 17,
+	.nb = g12a_vclk_div_notifier_cb,
 };
 
 static struct clk_regmap g12a_vclk = {
@@ -3243,6 +3286,34 @@ static struct clk_regmap g12a_vclk = {
 	},
 };
 
+struct g12a_vclk_reset_notifier {
+	struct clk_regmap *clk;
+	unsigned int offset;
+	u8 bit_idx;
+	struct notifier_block nb;
+};
+
+static int g12a_vclk_notifier_cb(struct notifier_block *nb,
+				  unsigned long event, void *data)
+{
+	struct g12a_vclk_reset_notifier *nb_data =
+		container_of(nb, struct g12a_vclk_reset_notifier, nb);
+
+	switch (event) {
+	case POST_RATE_CHANGE:
+		/* reset vclk2 */
+		regmap_update_bits(nb_data->clk->map, nb_data->offset,
+				   BIT(nb_data->bit_idx), BIT(nb_data->bit_idx));
+		regmap_update_bits(nb_data->clk->map, nb_data->offset,
+				   BIT(nb_data->bit_idx), 0);
+
+		pr_info("%s(%s): POST_RATE_CHANGE\n", __func__, clk_hw_get_name(&nb_data->clk->hw));
+		return NOTIFY_OK;
+	default:
+		return NOTIFY_DONE;
+	};
+}
+
 static struct clk_regmap g12a_vclk2 = {
 	.data = &(struct clk_regmap_gate_data){
 		.offset = HHI_VIID_CLK_CNTL,
@@ -3253,8 +3324,15 @@ static struct clk_regmap g12a_vclk2 = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_hws = (const struct clk_hw *[]) { &g12a_vclk2_div.hw },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
+		.flags = CLK_SET_RATE_PARENT,
 	},
+};
+
+static struct g12a_vclk_reset_notifier g12a_vclk2_data = {
+	.clk = &g12a_vclk2,
+	.offset = HHI_VIID_CLK_CNTL,
+	.bit_idx = 15,
+	.nb = g12a_vclk_notifier_cb,
 };
 
 static struct clk_regmap g12a_vclk_div1 = {
@@ -3337,7 +3415,7 @@ static struct clk_regmap g12a_vclk2_div1 = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_hws = (const struct clk_hw *[]) { &g12a_vclk2.hw },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3351,7 +3429,7 @@ static struct clk_regmap g12a_vclk2_div2_en = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_hws = (const struct clk_hw *[]) { &g12a_vclk2.hw },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3365,7 +3443,7 @@ static struct clk_regmap g12a_vclk2_div4_en = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_hws = (const struct clk_hw *[]) { &g12a_vclk2.hw },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3379,7 +3457,7 @@ static struct clk_regmap g12a_vclk2_div6_en = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_hws = (const struct clk_hw *[]) { &g12a_vclk2.hw },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3393,7 +3471,7 @@ static struct clk_regmap g12a_vclk2_div12_en = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_hws = (const struct clk_hw *[]) { &g12a_vclk2.hw },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3459,6 +3537,7 @@ static struct clk_fixed_factor g12a_vclk2_div2 = {
 			&g12a_vclk2_div2_en.hw
 		},
 		.num_parents = 1,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3472,6 +3551,7 @@ static struct clk_fixed_factor g12a_vclk2_div4 = {
 			&g12a_vclk2_div4_en.hw
 		},
 		.num_parents = 1,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3485,6 +3565,7 @@ static struct clk_fixed_factor g12a_vclk2_div6 = {
 			&g12a_vclk2_div6_en.hw
 		},
 		.num_parents = 1,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3498,6 +3579,7 @@ static struct clk_fixed_factor g12a_vclk2_div12 = {
 			&g12a_vclk2_div12_en.hw
 		},
 		.num_parents = 1,
+		.flags = CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3559,7 +3641,7 @@ static struct clk_regmap g12a_cts_encl_sel = {
 		.ops = &clk_regmap_mux_ops,
 		.parent_hws = g12a_cts_parent_hws,
 		.num_parents = ARRAY_SIZE(g12a_cts_parent_hws),
-		.flags = CLK_SET_RATE_NO_REPARENT | CLK_GET_RATE_NOCACHE,
+		.flags = CLK_SET_RATE_NO_REPARENT | CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -3727,7 +3809,7 @@ static struct clk_regmap g12a_mipi_dsi_pxclk_div = {
 	},
 	.hw.init = &(struct clk_init_data){
 		.name = "mipi_dsi_pxclk_div",
-		.ops = &clk_regmap_divider_ops,
+		.ops = &clk_regmap_divider_ro_ops,
 		.parent_hws = (const struct clk_hw *[]) {
 			&g12a_mipi_dsi_pxclk_sel.hw
 		},
@@ -5421,6 +5503,32 @@ static int meson_g12a_dvfs_setup(struct platform_device *pdev)
 	return 0;
 }
 
+static int meson_g12a_vclk_setup(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct clk *notifier_clk;
+	int ret;
+
+	/* Setup clock notifier for vclk2 */
+	notifier_clk = devm_clk_hw_get_clk(dev, &g12a_vclk2.hw, DVFS_CON_ID);
+	ret = devm_clk_notifier_register(dev, notifier_clk, &g12a_vclk2_data.nb);
+	if (ret) {
+		dev_err(dev, "failed to register the vlkc2 notifier\n");
+		return ret;
+	}
+
+	/* Setup clock notifier for vclk2_div */
+	notifier_clk = devm_clk_hw_get_clk(dev, &g12a_vclk2_div.hw, DVFS_CON_ID);
+	ret = devm_clk_notifier_register(dev, notifier_clk,
+					 &g12a_vclk2_div_data.nb);
+	if (ret) {
+		dev_err(dev, "failed to register the vclk2_div notifier\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 struct meson_g12a_data {
 	const struct meson_eeclkc_data eeclkc_data;
 	int (*dvfs_setup)(struct platform_device *pdev);
@@ -5442,6 +5550,10 @@ static int meson_g12a_probe(struct platform_device *pdev)
 
 	g12a_data = container_of(eeclkc_data, struct meson_g12a_data,
 				 eeclkc_data);
+
+	ret = meson_g12a_vclk_setup(pdev);
+	if (ret)
+		return ret;
 
 	if (g12a_data->dvfs_setup)
 		return g12a_data->dvfs_setup(pdev);
