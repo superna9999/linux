@@ -2463,16 +2463,13 @@ static int qmp_combo_com_init(struct qmp_combo *qmp)
 	void __iomem *com = qmp->com;
 	int ret;
 
-	mutex_lock(&qmp->phy_mutex);
-	if (qmp->init_count++) {
-		mutex_unlock(&qmp->phy_mutex);
+	if (qmp->init_count++)
 		return 0;
-	}
 
 	ret = regulator_bulk_enable(cfg->num_vregs, qmp->vregs);
 	if (ret) {
 		dev_err(qmp->dev, "failed to enable regulators, err=%d\n", ret);
-		goto err_unlock;
+		goto err;
 	}
 
 	ret = reset_control_bulk_assert(cfg->num_resets, qmp->resets);
@@ -2514,16 +2511,13 @@ static int qmp_combo_com_init(struct qmp_combo *qmp)
 	qphy_setbits(qmp->pcs, cfg->regs[QPHY_PCS_POWER_DOWN_CONTROL],
 			SW_PWRDN);
 
-	mutex_unlock(&qmp->phy_mutex);
-
 	return 0;
 
 err_assert_reset:
 	reset_control_bulk_assert(cfg->num_resets, qmp->resets);
 err_disable_regulators:
 	regulator_bulk_disable(cfg->num_vregs, qmp->vregs);
-err_unlock:
-	mutex_unlock(&qmp->phy_mutex);
+err:
 
 	return ret;
 }
@@ -2532,19 +2526,14 @@ static int qmp_combo_com_exit(struct qmp_combo *qmp)
 {
 	const struct qmp_phy_cfg *cfg = qmp->cfg;
 
-	mutex_lock(&qmp->phy_mutex);
-	if (--qmp->init_count) {
-		mutex_unlock(&qmp->phy_mutex);
+	if (--qmp->init_count)
 		return 0;
-	}
 
 	reset_control_bulk_assert(cfg->num_resets, qmp->resets);
 
 	clk_bulk_disable_unprepare(cfg->num_clks, qmp->clks);
 
 	regulator_bulk_disable(cfg->num_vregs, qmp->vregs);
-
-	mutex_unlock(&qmp->phy_mutex);
 
 	return 0;
 }
@@ -2555,20 +2544,28 @@ static int qmp_combo_dp_init(struct phy *phy)
 	const struct qmp_phy_cfg *cfg = qmp->cfg;
 	int ret;
 
+	mutex_lock(&qmp->phy_mutex);
+
 	ret = qmp_combo_com_init(qmp);
 	if (ret)
-		return ret;
+		goto out_unlock;
 
 	cfg->dp_aux_init(qmp);
 
-	return 0;
+out_unlock:
+	mutex_unlock(&qmp->phy_mutex);
+	return ret;
 }
 
 static int qmp_combo_dp_exit(struct phy *phy)
 {
 	struct qmp_combo *qmp = phy_get_drvdata(phy);
 
+	mutex_lock(&qmp->phy_mutex);
+
 	qmp_combo_com_exit(qmp);
+
+	mutex_unlock(&qmp->phy_mutex);
 
 	return 0;
 }
@@ -2686,14 +2683,19 @@ static int qmp_combo_usb_init(struct phy *phy)
 	struct qmp_combo *qmp = phy_get_drvdata(phy);
 	int ret;
 
+	mutex_lock(&qmp->phy_mutex);
 	ret = qmp_combo_com_init(qmp);
 	if (ret)
-		return ret;
+		goto out_unlock;
 
 	ret = qmp_combo_usb_power_on(phy);
-	if (ret)
+	if (ret) {
 		qmp_combo_com_exit(qmp);
+		goto out_unlock;
+	}
 
+out_unlock:
+	mutex_unlock(&qmp->phy_mutex);
 	return ret;
 }
 
@@ -2702,11 +2704,18 @@ static int qmp_combo_usb_exit(struct phy *phy)
 	struct qmp_combo *qmp = phy_get_drvdata(phy);
 	int ret;
 
+	mutex_lock(&qmp->phy_mutex);
 	ret = qmp_combo_usb_power_off(phy);
 	if (ret)
-		return ret;
+		goto out_unlock;
 
-	return qmp_combo_com_exit(qmp);
+	ret = qmp_combo_com_exit(qmp);
+	if (ret)
+		goto out_unlock;
+
+out_unlock:
+	mutex_unlock(&qmp->phy_mutex);
+	return ret;
 }
 
 static int qmp_combo_usb_set_mode(struct phy *phy, enum phy_mode mode, int submode)
