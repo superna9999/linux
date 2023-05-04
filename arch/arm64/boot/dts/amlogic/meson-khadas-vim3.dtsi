@@ -401,9 +401,9 @@
 	assigned-clock-parents = <0>,
 				 <&clkc CLKID_GP0_PLL>,
 				 <0>;
-	assigned-clock-rates = <720000000>,
+	assigned-clock-rates = <1920000000>,
 			       <0>,
-			       <720000000>;
+			       <1920000000>;
 
 	panel@0 {
 		compatible = "khadas,ts050";
