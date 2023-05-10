@@ -26,6 +26,13 @@
 #define IRQ_ENABLE_BANK		0x10
 #define IRQ_i_CFG		0x110
 
+#define PDC_VERSION		0x1000
+
+/* Notable PDC versions */
+enum {
+	PDC_VERSION_3_2	= 0x30200,
+};
+
 struct pdc_pin_region {
 	u32 pin_base;
 	u32 parent_base;
@@ -38,6 +45,7 @@ static DEFINE_RAW_SPINLOCK(pdc_lock);
 static void __iomem *pdc_base;
 static struct pdc_pin_region *pdc_region;
 static int pdc_region_cnt;
+static unsigned int pdc_version;
 
 static void pdc_reg_write(int reg, u32 i, u32 val)
 {
@@ -183,6 +191,25 @@ static struct irq_chip qcom_pdc_gic_chip = {
 	.irq_set_affinity	= irq_chip_set_affinity_parent,
 };
 
+static struct irq_chip qcom_pdc_gic_chip_3_2 = {
+	.name			= "PDC",
+	.irq_eoi		= irq_chip_eoi_parent,
+	.irq_mask		= irq_chip_mask_parent,
+	.irq_unmask		= irq_chip_unmask_parent,
+	.irq_disable		= irq_chip_disable_parent,
+	.irq_enable		= irq_chip_enable_parent,
+	.irq_get_irqchip_state	= irq_chip_get_parent_state,
+	.irq_set_irqchip_state	= irq_chip_set_parent_state,
+	.irq_retrigger		= irq_chip_retrigger_hierarchy,
+	.irq_set_type		= qcom_pdc_gic_set_type,
+	.flags			= IRQCHIP_MASK_ON_SUSPEND |
+				  IRQCHIP_SET_TYPE_MASKED |
+				  IRQCHIP_SKIP_SET_WAKE |
+				  IRQCHIP_ENABLE_WAKEUP_ON_SUSPEND,
+	.irq_set_vcpu_affinity	= irq_chip_set_vcpu_affinity_parent,
+	.irq_set_affinity	= irq_chip_set_affinity_parent,
+};
+
 static struct pdc_pin_region *get_pin_region(int pin)
 {
 	int i;
@@ -202,6 +229,7 @@ static int qcom_pdc_alloc(struct irq_domain *domain, unsigned int virq,
 	struct irq_fwspec *fwspec = data;
 	struct irq_fwspec parent_fwspec;
 	struct pdc_pin_region *region;
+	struct irq_chip *chip;
 	irq_hw_number_t hwirq;
 	unsigned int type;
 	int ret;
@@ -213,8 +241,12 @@ static int qcom_pdc_alloc(struct irq_domain *domain, unsigned int virq,
 	if (hwirq == GPIO_NO_WAKE_IRQ)
 		return irq_domain_disconnect_hierarchy(domain, virq);
 
-	ret = irq_domain_set_hwirq_and_chip(domain, virq, hwirq,
-					    &qcom_pdc_gic_chip, NULL);
+	if (pdc_version >= PDC_VERSION_3_2)
+		chip = &qcom_pdc_gic_chip_3_2;
+	else
+		chip = &qcom_pdc_gic_chip;
+
+	ret = irq_domain_set_hwirq_and_chip(domain, virq, hwirq, chip, NULL);
 	if (ret)
 		return ret;
 
@@ -244,10 +276,23 @@ static const struct irq_domain_ops qcom_pdc_ops = {
 	.free		= irq_domain_free_irqs_common,
 };
 
+static void pdc_enable_region(unsigned int n)
+{
+	u32 irq_index, reg_index, val;
+	int i;
+
+	for (i = 0; i < pdc_region[n].cnt; i++) {
+		reg_index = (i + pdc_region[n].pin_base) >> 5;
+		irq_index = (i + pdc_region[n].pin_base) & 0x1f;
+		val = pdc_reg_read(IRQ_ENABLE_BANK, reg_index);
+		val &= ~BIT(irq_index);
+		pdc_reg_write(IRQ_ENABLE_BANK, reg_index, val);
+	}
+}
+
 static int pdc_setup_pin_mapping(struct device_node *np)
 {
-	int ret, n, i;
-	u32 irq_index, reg_index, val;
+	int ret, n;
 
 	n = of_property_count_elems_of_size(np, "qcom,pdc-ranges", sizeof(u32));
 	if (n <= 0 || n % 3)
@@ -277,13 +322,8 @@ static int pdc_setup_pin_mapping(struct device_node *np)
 		if (ret)
 			return ret;
 
-		for (i = 0; i < pdc_region[n].cnt; i++) {
-			reg_index = (i + pdc_region[n].pin_base) >> 5;
-			irq_index = (i + pdc_region[n].pin_base) & 0x1f;
-			val = pdc_reg_read(IRQ_ENABLE_BANK, reg_index);
-			val &= ~BIT(irq_index);
-			pdc_reg_write(IRQ_ENABLE_BANK, reg_index, val);
-		}
+		if (pdc_version < PDC_VERSION_3_2)
+			pdc_enable_region(n);
 	}
 
 	return 0;
@@ -299,6 +339,8 @@ static int qcom_pdc_init(struct device_node *node, struct device_node *parent)
 		pr_err("%pOF: unable to map PDC registers\n", node);
 		return -ENXIO;
 	}
+
+	pdc_version = pdc_reg_read(PDC_VERSION, 0);
 
 	parent_domain = irq_find_host(parent);
 	if (!parent_domain) {
