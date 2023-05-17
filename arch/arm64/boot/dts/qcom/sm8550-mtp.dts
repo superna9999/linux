@@ -675,13 +675,13 @@
 &remoteproc_cdsp {
 	firmware-name = "qcom/sm8550/cdsp.mdt",
 			"qcom/sm8550/cdsp_dtb.mdt";
-	status = "okay";
+	//status = "okay";
 };
 
 &remoteproc_mpss {
 	firmware-name = "qcom/sm8550/modem.mdt",
 			"qcom/sm8550/modem_dtb.mdt";
-	status = "okay";
+	//status = "okay";
 };
 
 &sdhc_2 {
