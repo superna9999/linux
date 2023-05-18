@@ -594,6 +594,16 @@ static int qcom_swrm_enumerate(struct sdw_bus *bus)
 	int i;
 	char *buf1 = (char *)&val1, *buf2 = (char *)&val2;
 
+		/*SCP_Devid5 - Devid 4*/
+		ctrl->reg_read(ctrl, SWRM_ENUMERATOR_SLAVE_DEV_ID_1(0), &val1);
+
+		/*SCP_Devid3 - DevId 2 Devid 1 Devid 0*/
+		ctrl->reg_read(ctrl, SWRM_ENUMERATOR_SLAVE_DEV_ID_2(0), &val2);
+
+		dev_err(ctrl->dev, "DEV_ID_1[%d]= 0x%x\n", 0, val1);
+		dev_err(ctrl->dev, "DEV_ID_2[%d]= 0x%x\n", 0, val2);
+
+
 	for (i = 1; i <= SDW_MAX_DEVICES; i++) {
 		/* do not continue if the status is Not Present  */
 		if (!ctrl->status[i])
@@ -605,12 +615,16 @@ static int qcom_swrm_enumerate(struct sdw_bus *bus)
 		/*SCP_Devid3 - DevId 2 Devid 1 Devid 0*/
 		ctrl->reg_read(ctrl, SWRM_ENUMERATOR_SLAVE_DEV_ID_2(i), &val2);
 
+		dev_err(ctrl->dev, "DEV_ID_1[%d]= 0x%x\n", i, val1);
+		dev_err(ctrl->dev, "DEV_ID_2[%d]= 0x%x\n", i, val2);
+
 		if (!val1 && !val2)
 			break;
 
 		addr = buf2[1] | (buf2[0] << 8) | (buf1[3] << 16) |
 			((u64)buf1[2] << 24) | ((u64)buf1[1] << 32) |
 			((u64)buf1[0] << 40);
+		dev_err(ctrl->dev, "addr[%d]= 0x%llx\n", i, addr);
 
 		sdw_extract_slave_id(bus, addr, &id);
 		found = false;
@@ -696,6 +710,7 @@ static irqreturn_t qcom_swrm_irq_handler(int irq, void *dev_id)
 			case SWRM_INTERRUPT_STATUS_CHANGE_ENUM_SLAVE_STATUS:
 				dev_dbg_ratelimited(ctrl->dev, "SWR new slave attached\n");
 				ctrl->reg_read(ctrl, SWRM_MCP_SLV_STATUS, &slave_status);
+				dev_err(ctrl->dev, "SWR new slave attached status 0x%x\n", slave_status);
 				if (ctrl->slave_status == slave_status) {
 					dev_dbg(ctrl->dev, "Slave status not changed %x\n",
 						slave_status);

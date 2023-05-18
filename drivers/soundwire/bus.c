@@ -786,7 +786,7 @@ void sdw_extract_slave_id(struct sdw_bus *bus,
 	id->part_id = SDW_PART_ID(addr);
 	id->class_id = SDW_CLASS_ID(addr);
 
-	dev_dbg(bus->dev,
+	dev_err(bus->dev,
 		"SDW Slave class_id 0x%02x, mfg_id 0x%04x, part_id 0x%04x, unique_id 0x%x, version 0x%x\n",
 		id->class_id, id->mfg_id, id->part_id, id->unique_id, id->sdw_version);
 }
