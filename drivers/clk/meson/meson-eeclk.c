@@ -14,6 +14,19 @@
 #include "clk-regmap.h"
 #include "meson-eeclk.h"
 
+static struct clk_hw *meson_eeclkc_hw_get(struct of_phandle_args *clkspec, void *clk_data)
+{
+	const struct meson_eeclkc_data *data = clk_data;
+	unsigned int idx = clkspec->args[0];
+
+	if (idx >= data->hw_clk_num) {
+		pr_err("%s: invalid index %u\n", __func__, idx);
+		return ERR_PTR(-EINVAL);
+	}
+
+	return data->hw_clks[idx];
+}
+
 int meson_eeclkc_probe(struct platform_device *pdev)
 {
 	const struct meson_eeclkc_data *data;
@@ -43,20 +56,19 @@ int meson_eeclkc_probe(struct platform_device *pdev)
 	for (i = 0; i < data->regmap_clk_num; i++)
 		data->regmap_clks[i]->map = map;
 
-	for (i = 0; i < data->hw_onecell_data->num; i++) {
+	for (i = 0; i < data->hw_clk_num; i++) {
 		/* array might be sparse */
-		if (!data->hw_onecell_data->hws[i])
+		if (!data->hw_clks[i])
 			continue;
 
-		ret = devm_clk_hw_register(dev, data->hw_onecell_data->hws[i]);
+		ret = devm_clk_hw_register(dev, data->hw_clks[i]);
 		if (ret) {
 			dev_err(dev, "Clock registration failed\n");
 			return ret;
 		}
 	}
 
-	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
-					   data->hw_onecell_data);
+	return devm_of_clk_add_hw_provider(dev, meson_eeclkc_hw_get, (void *)data);
 }
 EXPORT_SYMBOL_GPL(meson_eeclkc_probe);
 MODULE_LICENSE("GPL v2");

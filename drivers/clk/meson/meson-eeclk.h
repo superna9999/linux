@@ -17,7 +17,8 @@ struct meson_eeclkc_data {
 	unsigned int			regmap_clk_num;
 	const struct reg_sequence	*init_regs;
 	unsigned int			init_count;
-	struct clk_hw_onecell_data	*hw_onecell_data;
+	struct clk_hw			**hw_clks;
+	unsigned int			hw_clk_num;
 };
 
 int meson_eeclkc_probe(struct platform_device *pdev);
