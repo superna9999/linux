@@ -24,7 +24,8 @@ struct meson_aoclk_data {
 	const unsigned int			*reset;
 	const int				num_clks;
 	struct clk_regmap			**clks;
-	const struct clk_hw_onecell_data	*hw_data;
+	struct clk_hw				**hw_clks;
+	unsigned int				hw_clk_num;
 };
 
 struct meson_aoclk_reset_controller {

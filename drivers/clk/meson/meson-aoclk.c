@@ -33,6 +33,19 @@ static const struct reset_control_ops meson_aoclk_reset_ops = {
 	.reset = meson_aoclk_do_reset,
 };
 
+static struct clk_hw *meson_aoclkc_hw_get(struct of_phandle_args *clkspec, void *clk_data)
+{
+	const struct meson_aoclk_data *data = clk_data;
+	unsigned int idx = clkspec->args[0];
+
+	if (idx >= data->hw_clk_num) {
+		pr_err("%s: invalid index %u\n", __func__, idx);
+		return ERR_PTR(-EINVAL);
+	}
+
+	return data->hw_clks[idx];
+}
+
 int meson_aoclkc_probe(struct platform_device *pdev)
 {
 	struct meson_aoclk_reset_controller *rstc;
@@ -75,19 +88,18 @@ int meson_aoclkc_probe(struct platform_device *pdev)
 		data->clks[clkid]->map = regmap;
 
 	/* Register all clks */
-	for (clkid = 0; clkid < data->hw_data->num; clkid++) {
-		if (!data->hw_data->hws[clkid])
+	for (clkid = 0; clkid < data->hw_clk_num; clkid++) {
+		if (!data->hw_clks[clkid])
 			continue;
 
-		ret = devm_clk_hw_register(dev, data->hw_data->hws[clkid]);
+		ret = devm_clk_hw_register(dev, data->hw_clks[clkid]);
 		if (ret) {
 			dev_err(dev, "Clock registration failed\n");
 			return ret;
 		}
 	}
 
-	return devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get,
-		(void *) data->hw_data);
+	return devm_of_clk_add_hw_provider(dev, meson_aoclkc_hw_get, data);
 }
 EXPORT_SYMBOL_GPL(meson_aoclkc_probe);
 MODULE_LICENSE("GPL v2");
