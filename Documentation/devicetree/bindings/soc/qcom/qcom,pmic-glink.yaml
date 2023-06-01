@@ -35,6 +35,11 @@ properties:
   '#size-cells':
     const: 0
 
+  orientation-gpios:
+    description: An input gpio for Type-C connector orientation, used to detect orientation
+      of the Type-C connector. GPIO active level means "CC2" or Reversed/Flipped orientation.
+    maxItems: 1
+
 patternProperties:
   '^connector@\d$':
     $ref: /schemas/connector/usb-connector.yaml#
@@ -49,6 +54,17 @@ patternProperties:
 
 required:
   - compatible
+
+allOf:
+  - if:
+      not:
+        properties:
+          compatible:
+            contains:
+              const: qcom,sm8550-pmic-glink
+    then:
+      properties:
+        orientation-gpios: false
 
 additionalProperties: false
 
