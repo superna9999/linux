@@ -305,6 +305,7 @@ static int visionox_vtdr6130_probe(struct mipi_dsi_device *dsi)
 		return dev_err_probe(dev, PTR_ERR(ctx->panel.backlight),
 				     "Failed to create backlight\n");
 
+	ctx->panel.prepare_prev_first = true;
 	drm_panel_add(&ctx->panel);
 
 	ret = mipi_dsi_attach(dsi);
