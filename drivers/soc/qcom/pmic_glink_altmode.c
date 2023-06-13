@@ -351,6 +351,8 @@ static void pmic_glink_altmode_callback(const void *data, size_t len, void *priv
 	opcode = le32_to_cpu(hdr->opcode) & 0xff;
 	svid = le32_to_cpu(hdr->opcode) >> 16;
 
+	pr_info("%s: opcode %d svid %x\n", __func__, opcode, svid);
+
 	switch (opcode) {
 	case USBC_CMD_WRITE_REQ:
 		complete(&altmode->pan_ack);

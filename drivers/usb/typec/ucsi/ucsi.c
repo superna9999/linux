@@ -835,6 +835,8 @@ static int ucsi_check_connection(struct ucsi_connector *con)
 	if (con->status.flags == prev_flags)
 		return 0;
 
+	pr_info("%s: status flags %x\n", __func__, con->status.flags);
+
 	if (con->status.flags & UCSI_CONSTAT_CONNECTED) {
 		ucsi_register_partner(con);
 		ucsi_pwr_opmode_change(con);
