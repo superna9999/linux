@@ -161,8 +161,6 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define MAX_TCP_KEEPCNT		127
 #define MAX_TCP_SYNCNT		127
 
-#define TCP_SYNQ_INTERVAL	(HZ/5)	/* Period of SYNACK timer */
-
 #define TCP_PAWS_24DAYS	(60 * 60 * 24 * 24)
 #define TCP_PAWS_MSL	60		/* Per-host timestamps are invalidated
 					 * after this time. It should be equal
@@ -333,8 +331,6 @@ int tcp_sendpage(struct sock *sk, struct page *page, int offset, size_t size,
 		 int flags);
 int tcp_sendpage_locked(struct sock *sk, struct page *page, int offset,
 			size_t size, int flags);
-ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset,
-		 size_t size, int flags);
 int tcp_send_mss(struct sock *sk, int *size_goal, int flags);
 void tcp_push(struct sock *sk, int flags, int mss_now, int nonagle,
 	      int size_goal);

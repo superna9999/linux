@@ -26,7 +26,7 @@
 // *** IMPORTANT ***
 // PMFW TEAM: Always increment the interface version if
 // anything is changed in this file
-#define SMU13_0_6_DRIVER_IF_VERSION 0x08042022
+#define SMU13_0_6_DRIVER_IF_VERSION 0x08042023
 
 //I2C Interface
 #define NUM_I2C_CONTROLLERS                8
@@ -106,7 +106,7 @@ typedef enum {
 } UCLK_DPM_MODE_e;
 
 typedef struct {
-  //0-26 SOC, 27-29 SOCIO
+  //0-23 SOC, 24-26 SOCIO, 27-29 SOC
   uint16_t avgPsmCount[30];
   uint16_t minPsmCount[30];
   float    avgPsmVoltage[30];
@@ -121,21 +121,15 @@ typedef struct {
   float    minPsmVoltage[30];
 } AvfsDebugTableXcd_t;
 
-// These defines are used with the following messages:
-// SMC_MSG_TransferTableDram2Smu
-// SMC_MSG_TransferTableSmu2Dram
-// #define TABLE_PPTABLE                 0
-// #define TABLE_AVFS_PSM_DEBUG          1
-// #define TABLE_AVFS_FUSE_OVERRIDE      2
-// #define TABLE_PMSTATUSLOG             3
-// #define TABLE_SMU_METRICS             4
-// #define TABLE_DRIVER_SMU_CONFIG       5
-// #define TABLE_I2C_COMMANDS            6
-// #define TABLE_COUNT                   7
+// Defines used for IH-based thermal interrupts to GFX driver - A/X only
+#define IH_INTERRUPT_ID_TO_DRIVER                   0xFE
+#define IH_INTERRUPT_CONTEXT_ID_THERMAL_THROTTLING  0x7
 
-// // Table transfer status
-// #define TABLE_TRANSFER_OK         0x0
-// #define TABLE_TRANSFER_FAILED     0xFF
-// #define TABLE_TRANSFER_PENDING    0xAB
+//thermal over-temp mask defines
+#define THROTTLER_TEMP_CCD_BIT     5
+#define THROTTLER_TEMP_XCD_BIT     6
+#define THROTTLER_TEMP_HBM_BIT     7
+#define THROTTLER_TEMP_AID_BIT     8
+#define THROTTLER_VRHOT_BIT        9
 
 #endif

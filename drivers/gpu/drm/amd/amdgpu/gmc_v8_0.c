@@ -622,7 +622,7 @@ static int gmc_v8_0_mc_init(struct amdgpu_device *adev)
  */
 static int gmc_v8_0_flush_gpu_tlb_pasid(struct amdgpu_device *adev,
 					uint16_t pasid, uint32_t flush_type,
-					bool all_hub)
+					bool all_hub, uint32_t inst)
 {
 	int vmid;
 	unsigned int tmp;
@@ -1093,7 +1093,7 @@ static int gmc_v8_0_sw_init(void *handle)
 	int r;
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
-	adev->num_vmhubs = 1;
+	set_bit(AMDGPU_GFXHUB(0), adev->vmhubs_mask);
 
 	if (adev->flags & AMD_IS_APU) {
 		adev->gmc.vram_type = AMDGPU_VRAM_TYPE_UNKNOWN;

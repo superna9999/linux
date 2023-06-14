@@ -76,17 +76,6 @@ noinstr void __tdx_hypercall_failed(void)
 	panic("TDVMCALL failed. TDX module bug?");
 }
 
-/*
- * The TDG.VP.VMCALL-Instruction-execution sub-functions are defined
- * independently from but are currently matched 1:1 with VMX EXIT_REASONs.
- * Reusing the KVM EXIT_REASON macros makes it easier to connect the host and
- * guest sides of these calls.
- */
-static __always_inline u64 hcall_func(u64 exit_reason)
-{
-	return exit_reason;
-}
-
 #ifdef CONFIG_KVM_GUEST
 long tdx_kvm_hypercall(unsigned int nr, unsigned long p1, unsigned long p2,
 		       unsigned long p3, unsigned long p4)
@@ -852,7 +841,7 @@ void __init tdx_early_init(void)
 
 	setup_force_cpu_cap(X86_FEATURE_TDX_GUEST);
 
-	cc_set_vendor(CC_VENDOR_INTEL);
+	cc_vendor = CC_VENDOR_INTEL;
 	tdx_parse_tdinfo(&cc_mask);
 	cc_set_mask(cc_mask);
 

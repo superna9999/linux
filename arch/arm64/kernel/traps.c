@@ -947,7 +947,7 @@ void do_serror(struct pt_regs *regs, unsigned long esr)
 }
 
 /* GENERIC_BUG traps */
-
+#ifdef CONFIG_GENERIC_BUG
 int is_valid_bugaddr(unsigned long addr)
 {
 	/*
@@ -959,6 +959,7 @@ int is_valid_bugaddr(unsigned long addr)
 	 */
 	return 1;
 }
+#endif
 
 static int bug_handler(struct pt_regs *regs, unsigned long esr)
 {
@@ -1044,7 +1045,7 @@ static int kasan_handler(struct pt_regs *regs, unsigned long esr)
 	bool recover = esr & KASAN_ESR_RECOVER;
 	bool write = esr & KASAN_ESR_WRITE;
 	size_t size = KASAN_ESR_SIZE(esr);
-	u64 addr = regs->regs[0];
+	void *addr = (void *)regs->regs[0];
 	u64 pc = regs->pc;
 
 	kasan_report(addr, size, write, pc);

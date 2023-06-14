@@ -451,6 +451,14 @@
 	status = "okay";
 };
 
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		firmware-name = "qcom/sm8550/a740_zap.mbn";
+	};
+};
+
 &mdss {
 	status = "okay";
 };
@@ -546,6 +554,7 @@
 	};
 };
 
+<<<<<<< HEAD
 &pm8550_gpios {
 	volume_up_n: volume-up-n-state {
 		pins = "gpio6";
@@ -583,11 +592,20 @@
 	};
 };
 
+=======
+>>>>>>> topic/sm8550/graphics/gpu
 &pm8550b_eusb2_repeater {
 	vdd18-supply = <&vreg_l15b_1p8>;
 	vdd3-supply = <&vreg_l5b_3p1>;
 };
 
+<<<<<<< HEAD
+=======
+&pcie_1_phy_aux_clk {
+	clock-frequency = <1000>;
+};
+
+>>>>>>> topic/sm8550/graphics/gpu
 &qupv3_id_0 {
 	status = "okay";
 };
@@ -614,6 +632,7 @@
 	clock-frequency = <32000>;
 };
 
+<<<<<<< HEAD
 &spi4 {
 	status = "okay";
 
@@ -638,6 +657,8 @@
 	};
 };
 
+=======
+>>>>>>> topic/sm8550/graphics/gpu
 &swr1 {
 	status = "okay";
 
@@ -698,6 +719,7 @@
 		bias-disable;
 		output-low;
 	};
+<<<<<<< HEAD
 
 	ts_active: ts-active-state {
 		pins = "gpio24", "gpio25";
@@ -705,6 +727,8 @@
 		drive-strength = <8>;
 		bias-pull-up;
 	};
+=======
+>>>>>>> topic/sm8550/graphics/gpu
 };
 
 &uart7 {
