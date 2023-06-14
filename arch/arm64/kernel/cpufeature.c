@@ -2235,11 +2235,7 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.capability = ARM64_HAS_ECV_CNTPOFF,
 		.type = ARM64_CPUCAP_SYSTEM_FEATURE,
 		.matches = has_cpuid_feature,
-		.sys_reg = SYS_ID_AA64MMFR0_EL1,
-		.field_pos = ID_AA64MMFR0_EL1_ECV_SHIFT,
-		.field_width = 4,
-		.sign = FTR_UNSIGNED,
-		.min_field_value = ID_AA64MMFR0_EL1_ECV_CNTPOFF,
+		ARM64_CPUID_FIELDS(ID_AA64MMFR0_EL1, ECV, CNTPOFF)
 	},
 #ifdef CONFIG_ARM64_PAN
 	{
@@ -2640,6 +2636,17 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.matches = has_cpuid_feature,
 		.cpu_enable = cpu_enable_dit,
 		ARM64_CPUID_FIELDS(ID_AA64PFR0_EL1, DIT, IMP)
+	},
+	{
+		.desc = "Enhanced Virtualization Traps",
+		.capability = ARM64_HAS_EVT,
+		.type = ARM64_CPUCAP_SYSTEM_FEATURE,
+		.sys_reg = SYS_ID_AA64MMFR2_EL1,
+		.sign = FTR_UNSIGNED,
+		.field_pos = ID_AA64MMFR2_EL1_EVT_SHIFT,
+		.field_width = 4,
+		.min_field_value = ID_AA64MMFR2_EL1_EVT_IMP,
+		.matches = has_cpuid_feature,
 	},
 	{},
 };

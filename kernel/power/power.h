@@ -26,9 +26,6 @@ extern void __init hibernate_image_size_init(void);
 /* Maximum size of architecture specific data in a hibernation header */
 #define MAX_ARCH_HEADER_SIZE	(sizeof(struct new_utsname) + 4)
 
-extern int arch_hibernation_header_save(void *addr, unsigned int max_size);
-extern int arch_hibernation_header_restore(void *addr);
-
 static inline int init_header_complete(struct swsusp_info *info)
 {
 	return arch_hibernation_header_save(info, MAX_ARCH_HEADER_SIZE);
@@ -40,8 +37,6 @@ static inline const char *check_image_kernel(struct swsusp_info *info)
 			"architecture specific data" : NULL;
 }
 #endif /* CONFIG_ARCH_HIBERNATION_HEADER */
-
-extern int hibernate_resume_nonboot_cpu_disable(void);
 
 /*
  * Keep some memory free so that I/O operations can succeed without paging
@@ -216,6 +211,11 @@ static inline void suspend_test_finish(const char *label) {}
 /* kernel/power/main.c */
 extern int pm_notifier_call_chain_robust(unsigned long val_up, unsigned long val_down);
 extern int pm_notifier_call_chain(unsigned long val);
+void pm_restrict_gfp_mask(void);
+void pm_restore_gfp_mask(void);
+#else
+static inline void pm_restrict_gfp_mask(void) {}
+static inline void pm_restore_gfp_mask(void) {}
 #endif
 
 #ifdef CONFIG_HIGHMEM

@@ -122,6 +122,7 @@ static const struct cmn2asic_msg_mapping smu_v13_0_6_message_map[SMU_MSG_MAX_COU
 	MSG_MAP(GetMaxGfxclkFrequency,               PPSMC_MSG_GetMaxGfxDpmFreq,                0),
 	MSG_MAP(SetSoftMinGfxclk,                    PPSMC_MSG_SetSoftMinGfxClk,                0),
 	MSG_MAP(SetSoftMaxGfxClk,                    PPSMC_MSG_SetSoftMaxGfxClk,                0),
+	MSG_MAP(PrepareMp1ForUnload,                 PPSMC_MSG_PrepareForDriverUnload,          0),
 };
 
 static const struct cmn2asic_mapping smu_v13_0_6_clk_map[SMU_CLK_COUNT] = {
@@ -175,7 +176,6 @@ static const struct cmn2asic_mapping smu_v13_0_6_table_map[SMU_TABLE_COUNT] = {
 #define THROTTLER_PPT_BIT 1
 #define THROTTLER_TEMP_SOC_BIT 2
 #define THROTTLER_TEMP_VR_GFX_BIT 3
-#define THROTTLER_TEMP_HBM_BIT 4
 
 static const uint8_t smu_v13_0_6_throttler_map[] = {
 	[THROTTLER_PPT_BIT]		= (SMU_THROTTLER_PPT0_BIT),
@@ -220,10 +220,12 @@ static int smu_v13_0_6_tables_init(struct smu_context *smu)
 			       PAGE_SIZE, AMDGPU_GEM_DOMAIN_VRAM);
 
 	SMU_TABLE_INIT(tables, SMU_TABLE_SMU_METRICS, sizeof(MetricsTable_t),
-		       PAGE_SIZE, AMDGPU_GEM_DOMAIN_VRAM);
+		       PAGE_SIZE,
+		       AMDGPU_GEM_DOMAIN_VRAM | AMDGPU_GEM_DOMAIN_GTT);
 
 	SMU_TABLE_INIT(tables, SMU_TABLE_I2C_COMMANDS, sizeof(SwI2cRequest_t),
-		       PAGE_SIZE, AMDGPU_GEM_DOMAIN_VRAM);
+		       PAGE_SIZE,
+		       AMDGPU_GEM_DOMAIN_VRAM | AMDGPU_GEM_DOMAIN_GTT);
 
 	smu_table->metrics_table = kzalloc(sizeof(MetricsTable_t), GFP_KERNEL);
 	if (!smu_table->metrics_table)
@@ -385,7 +387,7 @@ static int smu_v13_0_6_get_dpm_ultimate_freq(struct smu_context *smu,
 			break;
 		case SMU_SOCCLK:
 			if (pptable->Init)
-				clock_limit = pptable->UclkFrequencyTable[0];
+				clock_limit = pptable->SocclkFrequencyTable[0];
 			break;
 		case SMU_FCLK:
 			if (pptable->Init)
@@ -658,7 +660,10 @@ static int smu_v13_0_6_get_smu_metrics_data(struct smu_context *smu,
 {
 	struct smu_table_context *smu_table = &smu->smu_table;
 	MetricsTable_t *metrics = (MetricsTable_t *)smu_table->metrics_table;
+	struct amdgpu_device *adev = smu->adev;
+	uint32_t smu_version;
 	int ret = 0;
+	int xcc_id;
 
 	ret = smu_v13_0_6_get_metrics_table(smu, NULL, false);
 	if (ret)
@@ -668,7 +673,13 @@ static int smu_v13_0_6_get_smu_metrics_data(struct smu_context *smu,
 	switch (member) {
 	case METRICS_CURR_GFXCLK:
 	case METRICS_AVERAGE_GFXCLK:
-		*value = 0;
+		smu_cmn_get_smc_version(smu, NULL, &smu_version);
+		if (smu_version >= 0x552F00) {
+			xcc_id = GET_INST(GC, 0);
+			*value = SMUQ10_TO_UINT(metrics->GfxclkFrequency[xcc_id]);
+		} else {
+			*value = 0;
+		}
 		break;
 	case METRICS_CURR_SOCCLK:
 	case METRICS_AVERAGE_SOCCLK:
@@ -1246,21 +1257,6 @@ static int smu_v13_0_6_get_power_limit(struct smu_context *smu,
 	uint32_t power_limit = 0;
 	int ret;
 
-	if (!smu_cmn_feature_is_enabled(smu, SMU_FEATURE_PPT_BIT)) {
-		if (current_power_limit)
-			*current_power_limit = 0;
-		if (default_power_limit)
-			*default_power_limit = 0;
-		if (max_power_limit)
-			*max_power_limit = 0;
-
-		dev_warn(
-			smu->adev->dev,
-			"PPT feature is not enabled, power values can't be fetched.");
-
-		return 0;
-	}
-
 	ret = smu_cmn_send_smc_msg(smu, SMU_MSG_GetPptLimit, &power_limit);
 
 	if (ret) {
@@ -1287,14 +1283,137 @@ static int smu_v13_0_6_set_power_limit(struct smu_context *smu,
 	return smu_v13_0_set_power_limit(smu, limit_type, limit);
 }
 
+static int smu_v13_0_6_irq_process(struct amdgpu_device *adev,
+				   struct amdgpu_irq_src *source,
+				   struct amdgpu_iv_entry *entry)
+{
+	struct smu_context *smu = adev->powerplay.pp_handle;
+	uint32_t client_id = entry->client_id;
+	uint32_t src_id = entry->src_id;
+	/*
+	 * ctxid is used to distinguish different
+	 * events for SMCToHost interrupt
+	 */
+	uint32_t ctxid = entry->src_data[0];
+	uint32_t data;
+
+	if (client_id == SOC15_IH_CLIENTID_MP1) {
+		if (src_id == IH_INTERRUPT_ID_TO_DRIVER) {
+			/* ACK SMUToHost interrupt */
+			data = RREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT_CTRL);
+			data = REG_SET_FIELD(data, MP1_SMN_IH_SW_INT_CTRL, INT_ACK, 1);
+			WREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT_CTRL, data);
+
+			switch (ctxid) {
+			case IH_INTERRUPT_CONTEXT_ID_THERMAL_THROTTLING:
+				/*
+				 * Increment the throttle interrupt counter
+				 */
+				atomic64_inc(&smu->throttle_int_counter);
+
+				if (!atomic_read(&adev->throttling_logging_enabled))
+					return 0;
+
+				if (__ratelimit(&adev->throttling_logging_rs))
+					schedule_work(&smu->throttling_logging_work);
+
+				break;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int smu_v13_0_6_set_irq_state(struct amdgpu_device *adev,
+			      struct amdgpu_irq_src *source,
+			      unsigned tyep,
+			      enum amdgpu_interrupt_state state)
+{
+	uint32_t val = 0;
+
+	switch (state) {
+	case AMDGPU_IRQ_STATE_DISABLE:
+		/* For MP1 SW irqs */
+		val = RREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT_CTRL);
+		val = REG_SET_FIELD(val, MP1_SMN_IH_SW_INT_CTRL, INT_MASK, 1);
+		WREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT_CTRL, val);
+
+		break;
+	case AMDGPU_IRQ_STATE_ENABLE:
+		/* For MP1 SW irqs */
+		val = RREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT);
+		val = REG_SET_FIELD(val, MP1_SMN_IH_SW_INT, ID, 0xFE);
+		val = REG_SET_FIELD(val, MP1_SMN_IH_SW_INT, VALID, 0);
+		WREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT, val);
+
+		val = RREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT_CTRL);
+		val = REG_SET_FIELD(val, MP1_SMN_IH_SW_INT_CTRL, INT_MASK, 0);
+		WREG32_SOC15(MP1, 0, regMP1_SMN_IH_SW_INT_CTRL, val);
+
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static const struct amdgpu_irq_src_funcs smu_v13_0_6_irq_funcs =
+{
+	.set = smu_v13_0_6_set_irq_state,
+	.process = smu_v13_0_6_irq_process,
+};
+
+static int smu_v13_0_6_register_irq_handler(struct smu_context *smu)
+{
+	struct amdgpu_device *adev = smu->adev;
+	struct amdgpu_irq_src *irq_src = &smu->irq_source;
+	int ret = 0;
+
+	if (amdgpu_sriov_vf(adev))
+		return 0;
+
+	irq_src->num_types = 1;
+	irq_src->funcs = &smu_v13_0_6_irq_funcs;
+
+	ret = amdgpu_irq_add_id(adev, SOC15_IH_CLIENTID_MP1,
+				IH_INTERRUPT_ID_TO_DRIVER,
+				irq_src);
+	if (ret)
+		return ret;
+
+	return ret;
+}
+
+static int smu_v13_0_6_notify_unload(struct smu_context *smu)
+{
+	uint32_t smu_version;
+
+	smu_cmn_get_smc_version(smu, NULL, &smu_version);
+	if (smu_version <= 0x553500)
+		return 0;
+
+	dev_dbg(smu->adev->dev, "Notify PMFW about driver unload");
+	/* Ignore return, just intimate FW that driver is not going to be there */
+	smu_cmn_send_smc_msg(smu, SMU_MSG_PrepareMp1ForUnload, NULL);
+
+	return 0;
+}
+
 static int smu_v13_0_6_system_features_control(struct smu_context *smu,
 					       bool enable)
 {
+	struct amdgpu_device *adev = smu->adev;
 	int ret;
 
-	/* Nothing to be done for APU */
-	if (smu->adev->flags & AMD_IS_APU)
+	/* On APUs, notify FW that the device is no longer driver managed */
+	if (adev->flags & AMD_IS_APU) {
+		if (!enable)
+			smu_v13_0_6_notify_unload(smu);
+
 		return 0;
+	}
 
 	ret = smu_v13_0_system_features_control(smu, enable);
 
@@ -1905,27 +2024,27 @@ static ssize_t smu_v13_0_6_get_gpu_metrics(struct smu_context *smu, void **table
 
 static int smu_v13_0_6_mode2_reset(struct smu_context *smu)
 {
-	u32 smu_version;
 	int ret = 0, index;
 	struct amdgpu_device *adev = smu->adev;
 	int timeout = 10;
-
-	smu_cmn_get_smc_version(smu, NULL, &smu_version);
 
 	index = smu_cmn_to_asic_specific_index(smu, CMN2ASIC_MAPPING_MSG,
 					       SMU_MSG_GfxDeviceDriverReset);
 
 	mutex_lock(&smu->message_lock);
+
 	ret = smu_cmn_send_msg_without_waiting(smu, (uint16_t)index,
 					       SMU_RESET_MODE_2);
+
 	/* This is similar to FLR, wait till max FLR timeout */
 	msleep(100);
+
 	dev_dbg(smu->adev->dev, "restore config space...\n");
 	/* Restore the config space saved during init */
 	amdgpu_device_load_pci_state(adev->pdev);
 
 	dev_dbg(smu->adev->dev, "wait for reset ack\n");
-	while (ret == -ETIME && timeout) {
+	do {
 		ret = smu_cmn_wait_for_response(smu);
 		/* Wait a bit more time for getting ACK */
 		if (ret == -ETIME) {
@@ -1934,16 +2053,14 @@ static int smu_v13_0_6_mode2_reset(struct smu_context *smu)
 			continue;
 		}
 
-		if (ret != 1) {
+		if (ret) {
 			dev_err(adev->dev,
-				"failed to send mode2 message \tparam: 0x%08x response %#x\n",
+				"failed to send mode2 message \tparam: 0x%08x error code %d\n",
 				SMU_RESET_MODE_2, ret);
 			goto out;
 		}
-	}
+	} while (ret == -ETIME && timeout);
 
-	if (ret == 1)
-		ret = 0;
 out:
 	mutex_unlock(&smu->message_lock);
 
@@ -2032,11 +2149,9 @@ static const struct pptable_funcs smu_v13_0_6_ppt_funcs = {
 	.feature_is_enabled = smu_cmn_feature_is_enabled,
 	.set_power_limit = smu_v13_0_6_set_power_limit,
 	.set_xgmi_pstate = smu_v13_0_set_xgmi_pstate,
-	/* TODO: Thermal limits unknown, skip these for now
-	.register_irq_handler = smu_v13_0_register_irq_handler,
+	.register_irq_handler = smu_v13_0_6_register_irq_handler,
 	.enable_thermal_alert = smu_v13_0_enable_thermal_alert,
 	.disable_thermal_alert = smu_v13_0_disable_thermal_alert,
-	*/
 	.setup_pptable = smu_v13_0_6_setup_pptable,
 	.baco_is_support = smu_v13_0_6_is_baco_supported,
 	.get_dpm_ultimate_freq = smu_v13_0_6_get_dpm_ultimate_freq,
@@ -2065,5 +2180,6 @@ void smu_v13_0_6_set_ppt_funcs(struct smu_context *smu)
 	smu->clock_map = smu_v13_0_6_clk_map;
 	smu->feature_map = smu_v13_0_6_feature_mask_map;
 	smu->table_map = smu_v13_0_6_table_map;
+	smu->smc_driver_if_version = SMU13_0_6_DRIVER_IF_VERSION;
 	smu_v13_0_set_smu_mailbox_registers(smu);
 }

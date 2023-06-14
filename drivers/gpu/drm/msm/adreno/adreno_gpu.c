@@ -317,13 +317,19 @@ int adreno_get_param(struct msm_gpu *gpu, struct msm_file_private *ctx,
 
 	switch (param) {
 	case MSM_PARAM_GPU_ID:
-		*value = adreno_gpu->info->revn;
+		/* A7xx revn field is an obfuscated ID for the GMU fw, skip reporting it */
+		if (!adreno_is_a7xx(adreno_gpu))
+			*value = adreno_gpu->info->revn;
 		return 0;
 	case MSM_PARAM_GMEM_SIZE:
 		*value = adreno_gpu->gmem;
 		return 0;
 	case MSM_PARAM_GMEM_BASE:
-		*value = !adreno_is_a650_family(adreno_gpu) ? 0x100000 : 0;
+		if (adreno_is_a650_family(adreno_gpu) ||
+		    adreno_is_a740_family(adreno_gpu))
+			*value = 0;
+		else
+			*value = 0x100000;
 		return 0;
 	case MSM_PARAM_CHIP_ID:
 		*value =  (uint64_t)adreno_gpu->rev.patchid |
@@ -528,6 +534,10 @@ int adreno_load_fw(struct adreno_gpu *adreno_gpu)
 		if (!adreno_gpu->info->fw[i])
 			continue;
 
+		/* Skip loading GMU firwmare with GMU Wrapper */
+		if (adreno_has_gmu_wrapper(adreno_gpu) && i == ADRENO_FW_GMU)
+			continue;
+
 		/* Skip if the firmware has already been loaded */
 		if (adreno_gpu->fw[i])
 			continue;
@@ -574,6 +584,7 @@ int adreno_hw_init(struct msm_gpu *gpu)
 		ring->cur = ring->start;
 		ring->next = ring->start;
 		ring->memptrs->rptr = 0;
+		ring->memptrs->bv_fence = ring->fctx->completed_fence;
 
 		/* Detect and clean up an impossible fence, ie. if GPU managed
 		 * to scribble something invalid, we don't want that to confuse
@@ -1074,8 +1085,8 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 	u32 speedbin;
 	int ret;
 
-	/* Only handle the core clock when GMU is not in use */
-	if (config->rev.core < 6) {
+	/* Only handle the core clock when GMU is not in use (or is absent). */
+	if (adreno_has_gmu_wrapper(adreno_gpu) || config->rev.core < 6) {
 		/*
 		 * This can only be done before devm_pm_opp_of_add_table(), or
 		 * dev_pm_opp_set_config() will WARN_ON()

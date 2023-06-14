@@ -4643,6 +4643,26 @@ done:
 	return err;
 }
 
+static struct l2cap_chan *l2cap_del_chan_by_scid(struct l2cap_conn *conn,
+						 u16 cid, int err)
+{
+	struct l2cap_chan *c;
+
+	mutex_lock(&conn->chan_lock);
+	c = __l2cap_get_chan_by_scid(conn, cid);
+	if (c) {
+		/* Only lock if chan reference is not 0 */
+		c = l2cap_chan_hold_unless_zero(c);
+		if (c) {
+			l2cap_chan_lock(c);
+			l2cap_chan_del(c, err);
+		}
+	}
+	mutex_unlock(&conn->chan_lock);
+
+	return c;
+}
+
 static inline int l2cap_disconnect_req(struct l2cap_conn *conn,
 				       struct l2cap_cmd_hdr *cmd, u16 cmd_len,
 				       u8 *data)
@@ -4660,7 +4680,7 @@ static inline int l2cap_disconnect_req(struct l2cap_conn *conn,
 
 	BT_DBG("scid 0x%4.4x dcid 0x%4.4x", scid, dcid);
 
-	chan = l2cap_get_chan_by_scid(conn, dcid);
+	chan = l2cap_del_chan_by_scid(conn, dcid, ECONNRESET);
 	if (!chan) {
 		cmd_reject_invalid_cid(conn, cmd->ident, dcid, scid);
 		return 0;
@@ -4702,10 +4722,9 @@ static inline int l2cap_disconnect_rsp(struct l2cap_conn *conn,
 
 	BT_DBG("dcid 0x%4.4x scid 0x%4.4x", dcid, scid);
 
-	chan = l2cap_get_chan_by_scid(conn, scid);
-	if (!chan) {
+	chan = l2cap_del_chan_by_scid(conn, scid, 0);
+	if (!chan)
 		return 0;
-	}
 
 	if (chan->state != BT_DISCONN) {
 		l2cap_chan_unlock(chan);
@@ -6374,9 +6393,14 @@ static inline int l2cap_le_command_rej(struct l2cap_conn *conn,
 	if (!chan)
 		goto done;
 
+	chan = l2cap_chan_hold_unless_zero(chan);
+	if (!chan)
+		goto done;
+
 	l2cap_chan_lock(chan);
 	l2cap_chan_del(chan, ECONNREFUSED);
 	l2cap_chan_unlock(chan);
+	l2cap_chan_put(chan);
 
 done:
 	mutex_unlock(&conn->chan_lock);
