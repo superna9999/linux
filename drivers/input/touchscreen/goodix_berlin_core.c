@@ -813,7 +813,7 @@ int goodix_berlin_probe(struct device *dev, int irq, const struct input_id *id,
 		return dev_err_probe(cd->dev, PTR_ERR(cd->avdd),
 				     "Failed to request avdd regulator\n");
 
-	cd->iovdd = devm_regulator_get(cd->dev, "iovdd");
+	cd->iovdd = devm_regulator_get_optional(cd->dev, "iovdd");
 	if (IS_ERR(cd->iovdd))
 		return dev_err_probe(cd->dev, PTR_ERR(cd->iovdd),
 				     "Failed to request iovdd regulator\n");
