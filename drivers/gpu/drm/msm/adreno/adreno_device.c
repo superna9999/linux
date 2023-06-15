@@ -387,7 +387,7 @@ static const struct adreno_info gpulist[] = {
 			[ADRENO_FW_GMU] = "gmu_gen70200.bin",
 		},
 		.gmem = 3 * SZ_1M,
-		.inactive_period = 500,
+		.inactive_period = DRM_MSM_INACTIVE_PERIOD,
 		.init = a6xx_gpu_init,
 		.zapfw = "a740_zap.mdt",
 		.hwcg = a740_hwcg,
