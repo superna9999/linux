@@ -148,6 +148,7 @@ enum qca_btsoc_type {
 	QCA_QCA6390,
 	QCA_WCN6750,
 	QCA_WCN6855,
+	QCA_WCN7850,
 };
 
 #if IS_ENABLED(CONFIG_BT_QCA)
@@ -172,6 +173,10 @@ static inline bool qca_is_wcn6750(enum qca_btsoc_type soc_type)
 static inline bool qca_is_wcn6855(enum qca_btsoc_type soc_type)
 {
 	return soc_type == QCA_WCN6855;
+}
+static inline bool qca_is_wcn7850(enum qca_btsoc_type soc_type)
+{
+	return soc_type == QCA_WCN7850;
 }
 
 #else
@@ -212,6 +217,11 @@ static inline bool qca_is_wcn6750(enum qca_btsoc_type soc_type)
 }
 
 static inline bool qca_is_wcn6855(enum qca_btsoc_type soc_type)
+{
+	return false;
+}
+
+static inline bool qca_is_wcn7850(enum qca_btsoc_type soc_type)
 {
 	return false;
 }
