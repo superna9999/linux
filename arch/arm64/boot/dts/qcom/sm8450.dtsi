@@ -2046,6 +2046,8 @@
 				 <&gcc GCC_USB3_PRIM_PHY_PIPE_CLK>;
 			clock-names = "aux", "ref", "com_aux", "usb3_pipe";
 
+			power-domains = <&gcc USB30_PRIM_GDSC>;
+
 			resets = <&gcc GCC_USB3_DP_PHY_PRIM_BCR>,
 				 <&gcc GCC_USB3_PHY_PRIM_BCR>;
 			reset-names = "phy", "common";
