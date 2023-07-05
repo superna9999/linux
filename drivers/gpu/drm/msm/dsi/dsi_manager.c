@@ -266,11 +266,11 @@ static int dsi_mgr_bridge_power_on(struct drm_bridge *bridge)
 
 	DBG("id=%d", id);
 	if (!msm_dsi_device_connected(msm_dsi))
-		return;
+		return 0;
 
 	/* Do nothing with the host if it is slave-DSI in case of bonded DSI */
 	if (is_bonded_dsi && !IS_MASTER_DSI_LINK(id))
-		return;
+		return 0;
 
 	ret = dsi_mgr_phy_enable(id, phy_shared_timings);
 	if (ret)
