@@ -2529,6 +2529,9 @@ static int rx_macro_enable_interp_clk(struct snd_soc_component *component,
 						      CDC_RX_PATH_PGA_MUTE_MASK, 0x1);
 			snd_soc_component_write_field(component, dsm_reg,
 						      CDC_RX_RXn_DSM_CLK_EN_MASK, 0x1);
+			snd_soc_component_update_bits(component, main_reg,
+						      CDC_RX_PATH_CLK_EN_MASK,
+						      CDC_RX_PATH_CLK_ENABLE);
 			snd_soc_component_update_bits(component, rx_cfg2_reg,
 					CDC_RX_RXn_HPF_CUT_FREQ_MASK, 0x03);
 			rx_macro_load_compander_coeff(component, rx, interp_idx, event);
@@ -2595,6 +2598,9 @@ static int rx_macro_enable_mix_path(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		rx_macro_enable_interp_clk(component, event, w->shift);
+		snd_soc_component_update_bits(component, mix_reg,
+					      CDC_RX_RXn_MIX_CLK_EN_MASK,
+					      CDC_RX_RXn_MIX_CLK_EN_MASK);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		snd_soc_component_write(component, gain_reg,
