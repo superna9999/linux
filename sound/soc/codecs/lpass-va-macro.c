@@ -84,7 +84,8 @@
 #define CDC_VA_TX0_TX_PATH_CTL			(0x0400)
 #define CDC_VA_TX_PATH_CLK_EN_MASK		BIT(5)
 #define CDC_VA_TX_PATH_CLK_EN			BIT(5)
-#define CDC_VA_TX_PATH_CLK_DISABLE		0
+/* Disable clock and set PCM rate to default (48 kHz) */
+#define CDC_VA_TX_PATH_CLK_DISABLE		0x4
 #define CDC_VA_TX_PATH_PGA_MUTE_EN_MASK		BIT(4)
 #define CDC_VA_TX_PATH_PGA_MUTE_EN		BIT(4)
 #define CDC_VA_TX_PATH_PGA_MUTE_DISABLE		0
