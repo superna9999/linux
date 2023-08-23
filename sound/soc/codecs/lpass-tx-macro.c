@@ -997,6 +997,8 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 					      CDC_TXn_ADC_MODE_MASK, 0x0);
 		snd_soc_component_write_field(component, tx_vol_ctl_reg,
 					      CDC_TXn_PGA_MUTE_MASK, 0x0);
+		snd_soc_component_write_field(component, tx_vol_ctl_reg,
+					      CDC_TXn_PCM_RATE_MASK, 0x4);
 		if (tx->bcs_enable) {
 			snd_soc_component_write_field(component, dec_cfg_reg,
 						      CDC_TXn_PH_EN_MASK, 0x0);
