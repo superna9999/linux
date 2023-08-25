@@ -94,6 +94,28 @@
 		regulator-always-on;
 		regulator-boot-on;
 	};
+
+	wlan_regulator: wlan-regulator {
+		compatible = "regulator-wlan";
+		regulator-name = "wlan";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&wlan_en>;
+
+		enable-gpio = <&tlmm 16 GPIO_ACTIVE_HIGH>;
+
+		supply-count = <7>;
+
+		vin0-supply = <&vreg_l3c_1p2>;		// vdd-wlan-io12
+		vin1-supply = <&vreg_l15b_1p8>;		// vdd-wlan-io
+		vin2-supply = <&vreg_s4i_0p85>;		// vdd-wlan
+		vin3-supply = <&vreg_s2c_0p8>;		// vdd-wlan-aon
+		vin4-supply = <&vreg_s3c_0p9>;		// vdd-wlan-dig
+		vin5-supply = <&vreg_s6c_1p8>;		// vdd-wlan-rfa1
+		vin6-supply = <&vreg_s1c_1p2>;		// vdd-wlan-rfa2
+
+		clocks = <&rpmhcc RPMH_RF_CLK1>;
+	};
 };
 
 &apps_rsc {
@@ -507,6 +529,8 @@
 	wake-gpios = <&tlmm 96 GPIO_ACTIVE_HIGH>;
 	perst-gpios = <&tlmm 94 GPIO_ACTIVE_LOW>;
 
+	vdda-supply = <&wlan_regulator>;
+
 	pinctrl-0 = <&pcie0_default_state>;
 	pinctrl-names = "default";
 
@@ -717,6 +741,13 @@
 		function = "gpio";
 		drive-strength = <8>;
 		bias-pull-up;
+	};
+
+	wlan_en: wlan-en-state {
+		pins = "gpio16";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-down;
 	};
 };
 
