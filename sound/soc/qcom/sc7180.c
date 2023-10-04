@@ -4,6 +4,7 @@
 //
 // sc7180.c -- ALSA SoC Machine driver for SC7180
 
+#include <dt-bindings/sound/qcom,lpass.h>
 #include <dt-bindings/sound/sc7180-lpass.h>
 #include <dt-bindings/sound/qcom,q6afe.h>
 #include <linux/gpio/consumer.h>
