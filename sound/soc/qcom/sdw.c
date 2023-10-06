@@ -56,7 +56,9 @@ int qcom_snd_sdw_prepare(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *codec_dai;
 	int ret;
+	int i;
 
 	if (!sruntime)
 		return 0;
@@ -78,22 +80,28 @@ int qcom_snd_sdw_prepare(struct snd_pcm_substream *substream,
 	if (*stream_prepared)
 		return 0;
 
-	ret = sdw_prepare_stream(sruntime);
-	if (ret)
-		return ret;
+	//FIXME do it for every stream.
+	for_each_rtd_codec_dais(rtd, i, codec_dai) {
+		sruntime = snd_soc_dai_get_stream(codec_dai, substream->stream);
+		if (sruntime != ERR_PTR(-ENOTSUPP)) {
+			ret = sdw_prepare_stream(sruntime);
+			if (ret)
+				return ret;
 
-	/**
-	 * NOTE: there is a strict hw requirement about the ordering of port
-	 * enables and actual WSA881x PA enable. PA enable should only happen
-	 * after soundwire ports are enabled if not DC on the line is
-	 * accumulated resulting in Click/Pop Noise
-	 * PA enable/mute are handled as part of codec DAPM and digital mute.
-	 */
+		/**
+		 * NOTE: there is a strict hw requirement about the ordering of port
+		 * enables and actual WSA881x PA enable. PA enable should only happen
+		 * after soundwire ports are enabled if not DC on the line is
+		 * accumulated resulting in Click/Pop Noise
+		 * PA enable/mute are handled as part of codec DAPM and digital mute.
+		 */
 
-	ret = sdw_enable_stream(sruntime);
-	if (ret) {
-		sdw_deprepare_stream(sruntime);
-		return ret;
+			ret = sdw_enable_stream(sruntime);
+			if (ret) {
+				sdw_deprepare_stream(sruntime);
+				return ret;
+			}
+		}
 	}
 	*stream_prepared  = true;
 
@@ -120,7 +128,9 @@ int qcom_snd_sdw_hw_params(struct snd_pcm_substream *substream,
 	case TX_CODEC_DMA_TX_2:
 	case TX_CODEC_DMA_TX_3:
 		for_each_rtd_codec_dais(rtd, i, codec_dai) {
+
 			sruntime = snd_soc_dai_get_stream(codec_dai, substream->stream);
+
 			if (sruntime != ERR_PTR(-ENOTSUPP))
 				*psruntime = sruntime;
 		}
@@ -137,6 +147,8 @@ int qcom_snd_sdw_hw_free(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_dai *codec_dai;
+	int i;
 
 	switch (cpu_dai->id) {
 	case WSA_CODEC_DMA_RX_0:
@@ -147,11 +159,16 @@ int qcom_snd_sdw_hw_free(struct snd_pcm_substream *substream,
 	case TX_CODEC_DMA_TX_1:
 	case TX_CODEC_DMA_TX_2:
 	case TX_CODEC_DMA_TX_3:
-		if (sruntime && *stream_prepared) {
-			sdw_disable_stream(sruntime);
-			sdw_deprepare_stream(sruntime);
-			*stream_prepared = false;
+	for_each_rtd_codec_dais(rtd, i, codec_dai) {
+		sruntime = snd_soc_dai_get_stream(codec_dai, substream->stream);
+		if (sruntime != ERR_PTR(-ENOTSUPP)) {
+			if (*stream_prepared) {
+				sdw_disable_stream(sruntime);
+				sdw_deprepare_stream(sruntime);
+				*stream_prepared = false;
+			}
 		}
+	}
 		break;
 	default:
 		break;
