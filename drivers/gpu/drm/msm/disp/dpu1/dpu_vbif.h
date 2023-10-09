@@ -7,7 +7,12 @@
 
 #include "dpu_kms.h"
 
+struct dpu_hw_sspp;
+struct dpu_hw_wb;
+
 struct dpu_vbif_set_ot_params {
+	struct dpu_hw_sspp *sspp;
+	struct dpu_hw_wb *wb;
 	u32 xin_id;
 	u32 num;
 	u32 width;
@@ -16,28 +21,27 @@ struct dpu_vbif_set_ot_params {
 	bool rd;
 	bool is_wfd;
 	u32 vbif_idx;
-	u32 clk_ctrl;
 };
 
 struct dpu_vbif_set_memtype_params {
 	u32 xin_id;
 	u32 vbif_idx;
-	u32 clk_ctrl;
 	bool is_cacheable;
 };
 
 /**
  * struct dpu_vbif_set_qos_params - QoS remapper parameter
+ * @sspp: backing SSPP
  * @vbif_idx: vbif identifier
  * @xin_id: client interface identifier
- * @clk_ctrl: clock control identifier of the xin
  * @num: pipe identifier (debug only)
  * @is_rt: true if pipe is used in real-time use case
  */
 struct dpu_vbif_set_qos_params {
+	struct dpu_hw_sspp *sspp;
+	struct dpu_hw_wb *wb;
 	u32 vbif_idx;
 	u32 xin_id;
-	u32 clk_ctrl;
 	u32 num;
 	bool is_rt;
 };
