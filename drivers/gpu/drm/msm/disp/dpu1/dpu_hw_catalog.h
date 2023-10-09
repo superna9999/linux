@@ -505,6 +505,7 @@ struct dpu_ctl_cfg {
  * @sblk:              SSPP sub-blocks information
  * @xin_id:            bus client identifier
  * @clk_ctrl           clock control identifier
+ * @clk_ctrl_reg       local sspp clock control register
  * @type               sspp type identifier
  */
 struct dpu_sspp_cfg {
@@ -512,6 +513,7 @@ struct dpu_sspp_cfg {
 	const struct dpu_sspp_sub_blks *sblk;
 	u32 xin_id;
 	enum dpu_clk_ctrl_type clk_ctrl;
+	const struct dpu_clk_ctrl_reg *clk_ctrl_reg;
 	u32 type;
 };
 
@@ -620,6 +622,7 @@ struct dpu_intf_cfg  {
  * @format_list:	    list of formats supported by this writeback block
  * @num_formats:	    number of formats supported by this writeback block
  * @clk_ctrl:	        clock control identifier
+ * @clk_ctrl_reg        local wb clock control register
  */
 struct dpu_wb_cfg {
 	DPU_HW_BLK_INFO;
@@ -630,6 +633,7 @@ struct dpu_wb_cfg {
 	const u32 *format_list;
 	u32 num_formats;
 	enum dpu_clk_ctrl_type clk_ctrl;
+	const struct dpu_clk_ctrl_reg *clk_ctrl_reg;
 };
 
 /**

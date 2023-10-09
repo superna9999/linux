@@ -581,6 +581,14 @@ static void dpu_hw_sspp_setup_cdp(struct dpu_sw_pipe *pipe,
 	dpu_setup_cdp(&ctx->hw, cdp_cntl_offset, fmt, enable);
 }
 
+static bool dpu_hw_sspp_setup_clk_force_ctrl(struct dpu_hw_sspp *ctx, bool enable)
+{
+	if (!ctx->cap->clk_ctrl_reg)
+		return false;
+
+	return dpu_hw_clk_force_ctrl(&ctx->hw, ctx->cap->clk_ctrl_reg, enable);
+}
+
 static void _setup_layer_ops(struct dpu_hw_sspp *c,
 		unsigned long features)
 {
@@ -589,6 +597,7 @@ static void _setup_layer_ops(struct dpu_hw_sspp *c,
 	c->ops.setup_sourceaddress = dpu_hw_sspp_setup_sourceaddress;
 	c->ops.setup_solidfill = dpu_hw_sspp_setup_solidfill;
 	c->ops.setup_pe = dpu_hw_sspp_setup_pe_config;
+	c->ops.setup_clk_force_ctrl = dpu_hw_sspp_setup_clk_force_ctrl;
 
 	if (test_bit(DPU_SSPP_QOS, &features)) {
 		c->ops.setup_qos_lut = dpu_hw_sspp_setup_qos_lut;

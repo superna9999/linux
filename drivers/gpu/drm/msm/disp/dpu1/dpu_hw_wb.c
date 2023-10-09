@@ -175,11 +175,20 @@ static void dpu_hw_wb_bind_pingpong_blk(
 	DPU_REG_WRITE(c, WB_MUX, mux_cfg);
 }
 
+static bool dpu_hw_wb_setup_clk_force_ctrl(struct dpu_hw_wb *ctx, bool enable)
+{
+	if (!ctx->caps->clk_ctrl_reg)
+		return false;
+
+	return dpu_hw_clk_force_ctrl(&ctx->hw, ctx->caps->clk_ctrl_reg, enable);
+}
+
 static void _setup_wb_ops(struct dpu_hw_wb_ops *ops,
 		unsigned long features)
 {
 	ops->setup_outaddress = dpu_hw_wb_setup_outaddress;
 	ops->setup_outformat = dpu_hw_wb_setup_format;
+	ops->setup_clk_force_ctrl = dpu_hw_wb_setup_clk_force_ctrl;
 
 	if (test_bit(DPU_WB_XY_ROI_OFFSET, &features))
 		ops->setup_roi = dpu_hw_wb_roi;

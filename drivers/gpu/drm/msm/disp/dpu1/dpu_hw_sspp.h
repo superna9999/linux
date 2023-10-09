@@ -11,6 +11,7 @@
 #include "dpu_formats.h"
 
 struct dpu_hw_sspp;
+struct dpu_hw_mdp;
 
 /**
  * Flags
@@ -270,6 +271,14 @@ struct dpu_hw_sspp_ops {
 	 */
 	void (*setup_qos_ctrl)(struct dpu_hw_sspp *ctx,
 			       bool danger_safe_en);
+
+	/**
+	 * setup_clk_force_ctrl - setup clock force control
+	 * @ctx: Pointer to pipe context
+	 * @enable: enable clock force if true
+	 */
+	bool (*setup_clk_force_ctrl)(struct dpu_hw_sspp *ctx,
+				     bool enable);
 
 	/**
 	 * setup_histogram - setup histograms
