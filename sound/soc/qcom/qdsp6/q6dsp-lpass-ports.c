@@ -577,6 +577,11 @@ static struct snd_soc_dai_driver q6dsp_audio_fe_dais[] = {
 	Q6AFE_CDC_DMA_RX_DAI(WSA_CODEC_DMA_RX_1),
 	Q6AFE_CDC_DMA_TX_DAI(WSA_CODEC_DMA_TX_1),
 	Q6AFE_CDC_DMA_TX_DAI(WSA_CODEC_DMA_TX_2),
+	Q6AFE_CDC_DMA_RX_DAI(WSA2_CODEC_DMA_RX_0),
+	Q6AFE_CDC_DMA_TX_DAI(WSA2_CODEC_DMA_TX_0),
+	Q6AFE_CDC_DMA_RX_DAI(WSA2_CODEC_DMA_RX_1),
+	Q6AFE_CDC_DMA_TX_DAI(WSA2_CODEC_DMA_TX_1),
+	Q6AFE_CDC_DMA_TX_DAI(WSA2_CODEC_DMA_TX_2),
 	Q6AFE_CDC_DMA_TX_DAI(VA_CODEC_DMA_TX_0),
 	Q6AFE_CDC_DMA_TX_DAI(VA_CODEC_DMA_TX_1),
 	Q6AFE_CDC_DMA_TX_DAI(VA_CODEC_DMA_TX_2),
@@ -642,6 +647,7 @@ struct snd_soc_dai_driver *q6dsp_audio_ports_set_config(struct device *dev,
 			q6dsp_audio_fe_dais[i].ops = cfg->q6tdm_ops;
 			break;
 		case WSA_CODEC_DMA_RX_0 ... RX_CODEC_DMA_RX_7:
+		case WSA2_CODEC_DMA_RX_0 ... WSA2_CODEC_DMA_TX_2:
 			q6dsp_audio_fe_dais[i].ops = cfg->q6dma_ops;
 			break;
 		case USB_RX:

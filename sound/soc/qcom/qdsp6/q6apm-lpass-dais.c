@@ -39,6 +39,9 @@ static int q6dma_set_channel_map(struct snd_soc_dai *dai,
 	case WSA_CODEC_DMA_TX_0:
 	case WSA_CODEC_DMA_TX_1:
 	case WSA_CODEC_DMA_TX_2:
+	case WSA2_CODEC_DMA_TX_0:
+	case WSA2_CODEC_DMA_TX_1:
+	case WSA2_CODEC_DMA_TX_2:
 	case VA_CODEC_DMA_TX_0:
 	case VA_CODEC_DMA_TX_1:
 	case VA_CODEC_DMA_TX_2:
@@ -64,6 +67,8 @@ static int q6dma_set_channel_map(struct snd_soc_dai *dai,
 		break;
 	case WSA_CODEC_DMA_RX_0:
 	case WSA_CODEC_DMA_RX_1:
+	case WSA2_CODEC_DMA_RX_0:
+	case WSA2_CODEC_DMA_RX_1:
 	case RX_CODEC_DMA_RX_0:
 	case RX_CODEC_DMA_RX_1:
 	case RX_CODEC_DMA_RX_2:

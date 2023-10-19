@@ -16,6 +16,11 @@ static bool qcom_snd_is_sdw_dai(int id)
 	case WSA_CODEC_DMA_RX_1:
 	case WSA_CODEC_DMA_TX_1:
 	case WSA_CODEC_DMA_TX_2:
+	case WSA2_CODEC_DMA_RX_0:
+	case WSA2_CODEC_DMA_TX_0:
+	case WSA2_CODEC_DMA_RX_1:
+	case WSA2_CODEC_DMA_TX_1:
+	case WSA2_CODEC_DMA_TX_2:
 	case RX_CODEC_DMA_RX_0:
 	case TX_CODEC_DMA_TX_0:
 	case RX_CODEC_DMA_RX_1:
