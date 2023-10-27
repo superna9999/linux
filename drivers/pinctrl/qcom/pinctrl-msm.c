@@ -1197,6 +1197,7 @@ static int msm_gpio_irq_reqres(struct irq_data *d)
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct msm_pinctrl *pctrl = gpiochip_get_data(gc);
 	const struct msm_pingroup *g = &pctrl->soc->groups[d->hwirq];
+	unsigned long flags;
 	int ret;
 
 	if (!try_module_get(gc->owner))
@@ -1233,11 +1234,15 @@ static int msm_gpio_irq_reqres(struct irq_data *d)
 	if (test_bit(d->hwirq, pctrl->skip_wake_irqs) && g->intr_wakeup_present_bit) {
 		u32 intr_cfg;
 
+		raw_spin_lock_irqsave(&pctrl->lock, flags);
+
 		intr_cfg = msm_readl_intr_cfg(pctrl, g);
 		if (intr_cfg & BIT(g->intr_wakeup_present_bit)) {
 			intr_cfg |= BIT(g->intr_wakeup_enable_bit);
 			msm_writel_intr_cfg(intr_cfg, pctrl, g);
 		}
+
+		raw_spin_unlock_irqrestore(&pctrl->lock, flags);
 	}
 
 	return 0;
@@ -1251,16 +1256,21 @@ static void msm_gpio_irq_relres(struct irq_data *d)
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct msm_pinctrl *pctrl = gpiochip_get_data(gc);
 	const struct msm_pingroup *g = &pctrl->soc->groups[d->hwirq];
+	unsigned long flags;
 
 	/* Disable the wakeup_enable bit if it has been set in msm_gpio_irq_reqres() */
 	if (test_bit(d->hwirq, pctrl->skip_wake_irqs) && g->intr_wakeup_present_bit) {
 		u32 intr_cfg;
+
+		raw_spin_lock_irqsave(&pctrl->lock, flags);
 
 		intr_cfg = msm_readl_intr_cfg(pctrl, g);
 		if (intr_cfg & BIT(g->intr_wakeup_present_bit)) {
 			intr_cfg &= ~BIT(g->intr_wakeup_enable_bit);
 			msm_writel_intr_cfg(intr_cfg, pctrl, g);
 		}
+
+		raw_spin_unlock_irqrestore(&pctrl->lock, flags);
 	}
 
 	gpiochip_unlock_as_irq(gc, d->hwirq);
