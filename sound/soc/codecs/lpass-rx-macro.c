@@ -2328,6 +2328,9 @@ static int rx_macro_mux_put(struct snd_kcontrol *kcontrol,
 		goto err;
 	}
 
+	pr_info("%s: port %d ch_mask %x ch_cnt %d\n", __func__,
+		rx_port_value, rx->active_ch_mask[rx_port_value], rx->active_ch_cnt[rx_port_value]);
+
 	snd_soc_dapm_mux_update_power(widget->dapm, kcontrol,
 					rx_port_value, e, update);
 	return 0;

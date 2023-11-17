@@ -899,6 +899,10 @@ static int tx_macro_tx_mixer_put(struct snd_kcontrol *kcontrol,
 		clear_bit(dec_id, &tx->active_ch_mask[dai_id]);
 		tx->active_decimator[dai_id] = -1;
 	}
+
+	pr_info("%s: dec_id %d dai_id %d ch_mask 0x%x ch_cnt %d decimator %d\n", __func__,
+		dec_id, dai_id, tx->active_ch_mask[dai_id], tx->active_ch_cnt[dai_id], tx->active_decimator[dai_id]);
+
 	snd_soc_dapm_mixer_update_power(widget->dapm, kcontrol, enable, update);
 
 	return 1;
@@ -1179,6 +1183,7 @@ static int tx_macro_get_channel_map(struct snd_soc_dai *dai,
 	case TX_MACRO_AIF3_CAP:
 		*tx_slot = tx->active_ch_mask[dai->id];
 		*tx_num = tx->active_ch_cnt[dai->id];
+		pr_info("%s: tx_slot %d tx_num %d\n", __func__, *tx_slot, *tx_num);
 		break;
 	default:
 		break;
