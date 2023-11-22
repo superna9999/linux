@@ -25,6 +25,13 @@ properties:
   clocks:
     maxItems: 1
 
+  qcom,ice-use-hwkm:
+    type: boolean
+    description:
+      Use the supported Hardware Key Manager (HWKM) in Qualcomm
+      ICE to support wrapped keys. This dictates if wrapped keys
+      have to be used by ICE.
+
 required:
   - compatible
   - reg
