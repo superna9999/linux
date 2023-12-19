@@ -1037,6 +1037,7 @@ properties:
           - enum:
               - qcom,sm8550-mtp
               - qcom,sm8550-qrd
+              - qcom,sm8550-hdk
           - const: qcom,sm8550
 
       - items:
