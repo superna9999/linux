@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/regmap.h>
 #include <linux/spi/spi.h>
+#include <linux/input.h>
 
 #include "goodix_berlin.h"
 
