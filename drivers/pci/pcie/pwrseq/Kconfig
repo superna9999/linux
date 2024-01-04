@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menuconfig PCIE_PWRSEQ
+	bool "PCIe Power Sequencing support"
+	depends on PCIEPORTBUS
+	help
+	  Say yes here to enable support for PCIe power sequencing
+	  drivers.

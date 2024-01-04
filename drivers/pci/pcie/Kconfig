@@ -155,3 +155,5 @@ config PCIE_EDR
 	  the PCI Firmware Specification r3.2.  Enable this if you want to
 	  support hybrid DPC model which uses both firmware and OS to
 	  implement DPC.
+
+source "drivers/pci/pcie/pwrseq/Kconfig"
