@@ -13,6 +13,7 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
+#include <linux/of_platform.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
 #include <linux/string.h>
@@ -715,7 +716,7 @@ static int pcie_portdrv_probe(struct pci_dev *dev,
 		pm_runtime_allow(&dev->dev);
 	}
 
-	return 0;
+	return devm_of_platform_populate(&dev->dev);
 }
 
 static void pcie_portdrv_remove(struct pci_dev *dev)
