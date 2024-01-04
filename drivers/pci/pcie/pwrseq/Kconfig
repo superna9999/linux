@@ -6,3 +6,14 @@ menuconfig PCIE_PWRSEQ
 	help
 	  Say yes here to enable support for PCIe power sequencing
 	  drivers.
+
+if PCIE_PWRSEQ
+
+config PCIE_PWRSEQ_QCA6390
+	tristate "PCIe Power Sequencing driver for QCA6390"
+	depends on ARCH_QCOM || COMPILE_TEST
+	help
+	  Enable support for the PCIe power sequencing driver for the
+	  ath11k module of the QCA6390 WLAN/BT chip.
+
+endif
