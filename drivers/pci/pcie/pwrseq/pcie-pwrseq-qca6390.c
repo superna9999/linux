@@ -15,6 +15,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include <linux/clk.h>
 
 struct pcie_pwrseq_qca6390_vreg {
 	const char *name;
@@ -33,6 +34,7 @@ struct pcie_pwrseq_qca6390_ctx {
 	struct regulator_bulk_data *regs;
 	struct gpio_descs *en_gpios;
 	unsigned long *en_gpios_values;
+	struct clk *clk;
 };
 
 static struct pcie_pwrseq_qca6390_vreg pcie_pwrseq_qca6390_vregs[] = {
@@ -56,11 +58,45 @@ static struct pcie_pwrseq_qca6390_pdata pcie_pwrseq_qca6390_of_data = {
 	.delay_msec = 16,
 };
 
+static struct pcie_pwrseq_qca6390_vreg pcie_pwrseq_wcn7850_vregs[] = {
+	{
+		.name = "vdd",
+	},
+	{
+		.name = "vddio",
+	},
+	{
+		.name = "vddio12",
+	},
+	{
+		.name = "vdd-aon",
+	},
+	{
+		.name = "vdd-dig",
+	},
+	{
+		.name = "vdd-rfa1",
+	},
+	{
+		.name = "vdd-rfa2",
+	},
+};
+
+static struct pcie_pwrseq_qca6390_pdata pcie_pwrseq_wcn7850_of_data = {
+	.vregs = pcie_pwrseq_wcn7850_vregs,
+	.num_vregs = ARRAY_SIZE(pcie_pwrseq_wcn7850_vregs),
+	.delay_msec = 50,
+};
+
 static int pcie_pwrseq_qca6390_power_on(struct pcie_pwrseq_qca6390_ctx *ctx)
 {
 	int ret;
 
 	ret = regulator_bulk_enable(ctx->pdata->num_vregs, ctx->regs);
+	if (ret)
+		return ret;
+
+	ret = clk_prepare_enable(ctx->clk);
 	if (ret)
 		return ret;
 
@@ -93,6 +129,8 @@ static int pcie_pwrseq_qca6390_power_off(struct pcie_pwrseq_qca6390_ctx *ctx)
 					     ctx->en_gpios_values);
 	if (ret)
 		return ret;
+
+	clk_disable_unprepare(ctx->clk);
 
 	return regulator_bulk_disable(ctx->pdata->num_vregs, ctx->regs);
 }
@@ -143,6 +181,11 @@ static int pcie_pwrseq_qca6309_probe(struct platform_device *pdev)
 		}
 	}
 
+	ctx->clk = devm_clk_get_optional(dev, NULL);
+	if (IS_ERR(ctx->clk))
+		return dev_err_probe(dev, PTR_ERR(ctx->clk),
+				     "Failed to get clock\n");
+
 	ctx->en_gpios = devm_gpiod_get_array_optional(dev, "enable",
 						      GPIOD_OUT_LOW);
 	if (IS_ERR(ctx->en_gpios))
@@ -178,6 +221,10 @@ static const struct of_device_id pcie_pwrseq_qca6309_of_match[] = {
 	{
 		.compatible = "pci17cb,1101",
 		.data = &pcie_pwrseq_qca6390_of_data,
+	},
+	{
+		.compatible = "pci17cb,1107",
+		.data = &pcie_pwrseq_wcn7850_of_data,
 	},
 	{ }
 };
