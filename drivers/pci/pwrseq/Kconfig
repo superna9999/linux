@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menu "PCI Power sequencing drivers"
+
+config PCI_PWRSEQ
+	bool
+
+endmenu
