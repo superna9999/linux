@@ -5,4 +5,12 @@ menu "PCI Power sequencing drivers"
 config PCI_PWRSEQ
 	bool
 
+config PCI_PWRSEQ_QCA6390
+	tristate "PCI Power Sequencing driver for QCA6390"
+	select PCI_PWRSEQ
+	default (ATH11K_PCI && ARCH_QCOM)
+	help
+	  Enable support for the PCI power sequencing driver for the
+	  ath11k module of the QCA6390 WLAN/BT chip.
+
 endmenu
