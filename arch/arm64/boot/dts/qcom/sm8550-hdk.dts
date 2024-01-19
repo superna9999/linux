@@ -253,6 +253,22 @@
 		regulator-always-on;
 		regulator-boot-on;
 	};
+
+	wlan_regulator: wlan-regulator {
+		compatible = "regulator-wlan";
+		regulator-name = "wlan";
+
+		enable-gpio = <&tlmm 80 GPIO_ACTIVE_HIGH>;
+
+		supply-count = <6>;
+
+		vin0-supply = <&vreg_l15b_1p8>;		// vdd-wlan-io
+		vin1-supply = <&vreg_s5g_0p85>;		// vdd-wlan
+		vin2-supply = <&vreg_s2g_0p85>;		// vdd-wlan-aon
+		vin3-supply = <&vreg_s4e_0p95>;		// vdd-wlan-dig
+		vin4-supply = <&vreg_s6g_1p86>;		// vdd-wlan-rfa1
+		vin5-supply = <&vreg_s4g_1p25>;		// vdd-wlan-rfa2
+	};
 };
 
 &apps_rsc {
@@ -915,10 +931,12 @@
 };
 
 &pcie0 {
+	vdda-supply = <&wlan_regulator>;
+
 	wake-gpios = <&tlmm 96 GPIO_ACTIVE_HIGH>;
 	perst-gpios = <&tlmm 94 GPIO_ACTIVE_LOW>;
 
-	pinctrl-0 = <&pcie0_default_state>;
+	pinctrl-0 = <&pcie0_default_state>, <&pmk8550_sleep_clk>;
 	pinctrl-names = "default";
 
 	status = "okay";
@@ -1036,6 +1054,17 @@
 
 &pcie_1_phy_aux_clk {
 	clock-frequency = <1000>;
+};
+
+&pmk8550_gpios {
+	pmk8550_sleep_clk: sleep-clk-state {
+		pins = "gpio3";
+		function = "func1";
+		input-disable;
+		output-enable;
+		bias-disable;
+		power-source = <0>;
+	};
 };
 
 &qupv3_id_0 {
