@@ -806,12 +806,23 @@ EXPORT_SYMBOL_GPL(qcom_smem_get_soc_id);
 int qcom_smem_get_feature_code(u32 *code)
 {
 	struct socinfo *info;
+	u32 raw_code;
 
 	info = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_HW_SW_BUILD_ID, NULL);
 	if (IS_ERR(info))
 		return PTR_ERR(info);
 
-	*code = __le32_to_cpu(info->feature_code);
+	/* This only makes sense for socinfo >= 16 */
+	if (__le32_to_cpu(info->fmt) < SOCINFO_VERSION(0, 16))
+		return U32_MAX;
+
+	raw_code = __le32_to_cpu(info->feature_code);
+
+	/* Ensure the value makes sense */
+	if (raw_code >= SOCINFO_FC_INT_RESERVE)
+		raw_code = SOCINFO_FC_UNKNOWN;
+
+	*code = raw_code
 
 	return 0;
 }
@@ -828,12 +839,23 @@ EXPORT_SYMBOL_GPL(qcom_smem_get_feature_code);
 int qcom_smem_get_product_code(u32 *code)
 {
 	struct socinfo *info;
+	u32 raw_code;
 
 	info = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_HW_SW_BUILD_ID, NULL);
 	if (IS_ERR(info))
 		return PTR_ERR(info);
 
-	*code = __le32_to_cpu(info->pcode);
+	/* This only makes sense for socinfo >= 16 */
+	if (__le32_to_cpu(info->fmt) < SOCINFO_VERSION(0, 16))
+		return SOCINFO_PC_RESERVE;
+
+	raw_code = __le32_to_cpu(info->pcode);
+
+	/* Ensure the value makes sense */
+	if (raw_code >= SOCINFO_FC_INT_RESERVE)
+		raw_code = SOCINFO_FC_UNKNOWN;
+
+	*code = raw_code;
 
 	return 0;
 }
