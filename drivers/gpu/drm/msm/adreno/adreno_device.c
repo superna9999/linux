@@ -597,6 +597,13 @@ static const struct adreno_info gpulist[] = {
 		.init = a6xx_gpu_init,
 		.zapfw = "gen70900_zap.mbn",
 		.address_space_size = SZ_16G,
+		.speedbins = ADRENO_SPEEDBINS(
+			/* Other unlisted SKU will default to speedbin 0 */
+			{ ADRENO_SKU_ID(SOCINFO_PC_UNKNOWN, SOCINFO_FC_AC), 1 },
+			{ ADRENO_SKU_ID(SOCINFO_PCn(0), SOCINFO_FC_Yn(0x0)), 2 },
+			{ ADRENO_SKU_ID(SOCINFO_PCn(1), SOCINFO_FC_Yn(0x0)), 2 },
+			{ ADRENO_SKU_ID(SOCINFO_PCn(0), SOCINFO_FC_Yn(0x1)), 2 },
+		),
 	},
 };
 
