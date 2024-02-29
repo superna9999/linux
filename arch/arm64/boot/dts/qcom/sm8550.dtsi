@@ -2093,7 +2093,7 @@
 				opp-719000000 {
 					opp-hz = /bits/ 64 <719000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_SVS_L2>;
-					opp-supported-hw = <0x1>;
+					opp-supported-hw = <0x2>;
 				};
 
 				opp-680000000 {

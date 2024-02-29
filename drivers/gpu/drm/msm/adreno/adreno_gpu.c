@@ -1083,9 +1083,9 @@ int adreno_read_speedbin(struct adreno_gpu *adreno_gpu,
 		return ret;
 	}
 
-	/* Don't consider pcode for external feature codes */
-	if (pcode < SOCINFO_FC_Yn(0))
-		pcode = SOCINFO_FC_UNKNOWN;
+	/* Don't consider fcode for external feature codes */
+	if (fcode <= SOCINFO_FC_EXT_RESERVE)
+		fcode = SOCINFO_FC_UNKNOWN;
 
 	*speedbin = FIELD_PREP(ADRENO_SKU_ID_PCODE, pcode) |
 		    FIELD_PREP(ADRENO_SKU_ID_FCODE, fcode);
