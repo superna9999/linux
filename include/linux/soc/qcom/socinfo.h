@@ -102,7 +102,7 @@ enum feature_code {
 /* Internal feature codes */
 /* Valid values: 0 <= n <= 0xf */
 #define SOCINFO_FC_Yn(n)		(0xf1 + n)
-#define SOCINFO_FC_INT_RESERVE		SOCINFO_FC(0x10)
+#define SOCINFO_FC_INT_RESERVE		SOCINFO_FC_Yn(0x10)
 
 /* Product codes */
 #define SOCINFO_PC_UNKNOWN		0

@@ -822,7 +822,7 @@ int qcom_smem_get_feature_code(u32 *code)
 	if (raw_code >= SOCINFO_FC_INT_RESERVE)
 		raw_code = SOCINFO_FC_UNKNOWN;
 
-	*code = raw_code
+	*code = raw_code;
 
 	return 0;
 }
