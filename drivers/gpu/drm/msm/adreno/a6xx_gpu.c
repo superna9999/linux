@@ -2917,7 +2917,7 @@ static int a6xx_set_supported_hw(struct adreno_gpu *adreno_gpu,
 		DRM_DEV_ERROR(dev,
 			"missing support for speed-bin: %u. Some OPPs may not be supported by hardware\n",
 			speedbin);
-		supp_hw = BIT(0); /* Default */
+		supp_hw = BIT(info->speedbin_fallback); /* Default */
 	}
 
 	ret = devm_pm_opp_set_supported_hw(dev, &supp_hw, 1);

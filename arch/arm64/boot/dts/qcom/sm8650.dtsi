@@ -2621,13 +2621,13 @@
 				opp-903000000 {
 					opp-hz = /bits/ 64 <903000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
-					opp-supported-hw = <0x4>;
+					opp-supported-hw = <0x1>;
 				};
 
 				opp-869000000 {
 					opp-hz = /bits/ 64 <869000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_TURBO>;
-					opp-supported-hw = <0x6>;
+					opp-supported-hw = <0x3>;
 				};
 
 				opp-834000000 {
