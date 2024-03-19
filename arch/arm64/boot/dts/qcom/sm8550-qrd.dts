@@ -810,10 +810,6 @@
 	remote-endpoint = <&usb_dp_qmpphy_dp_in>;
 };
 
-&pcie_1_phy_aux_clk {
-	status = "disabled";
-};
-
 &pcie0 {
 	wake-gpios = <&tlmm 96 GPIO_ACTIVE_HIGH>;
 	perst-gpios = <&tlmm 94 GPIO_ACTIVE_LOW>;
@@ -905,10 +901,6 @@
 	linux,code = <KEY_VOLUMEDOWN>;
 
 	status = "okay";
-};
-
-&pcie_1_phy_aux_clk {
-	clock-frequency = <1000>;
 };
 
 &qupv3_id_0 {
