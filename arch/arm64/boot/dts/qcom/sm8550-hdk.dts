@@ -945,6 +945,11 @@
 	status = "okay";
 };
 
+&iris {
+	firmware-name = "qcom/vpu/vpu30_p4.mbn";
+	status = "okay";
+};
+
 &gpi_dma1 {
 	status = "okay";
 };
