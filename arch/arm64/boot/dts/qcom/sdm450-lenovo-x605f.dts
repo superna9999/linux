@@ -39,7 +39,6 @@
 			stride = <(1200 * 3)>;
 			format = "r8g8b8";
 
-#if 1
 			power-domains = <&gcc MDSS_GDSC>;
 
 			clocks = <&gcc GCC_MDSS_AHB_CLK>,
@@ -49,7 +48,6 @@
 				 <&gcc GCC_MDSS_BYTE0_CLK>,
 				 <&gcc GCC_MDSS_PCLK0_CLK>,
 				 <&gcc GCC_MDSS_ESC0_CLK>;
-#endif
 		};
 	};
 
@@ -78,14 +76,14 @@
 };
 
 &mdss {
-	//status = "okay";
+	status = "okay";
 };
 
 &mdss_dsi0 {
 	vdda-supply = <&pm8953_s3>;
 	vddio-supply = <&pm8953_l6>;
 
-	//status = "okay";
+	status = "okay";
 
 	panel@0 {
 		compatible = "boe,tv101wum-ll2";
@@ -94,6 +92,7 @@
 		vsp-supply = <&lab_vreg>;
 		vsn-supply = <&ibb_vreg>;
 		reset-gpios = <&tlmm 61 GPIO_ACTIVE_LOW>;
+		backlight-en-gpios = <&tlmm 16 GPIO_ACTIVE_HIGH>;
 
 		pinctrl-names = "default";
 		pinctrl-0 = <&pmx_mdss_default>;
@@ -114,6 +113,8 @@
 
 &mdss_dsi0_phy {
 	vcca-supply = <&pm8953_l3>;
+
+	status = "okay";
 };
 
 &hsusb_phy {
@@ -151,12 +152,12 @@
 &pmi8950_fg {
 	monitored-battery = <&battery>;
 	power-supplies = <&pmi8950_smbcharger>;
-	//status = "okay";
+	status = "okay";
 };
 
 &pmi8950_smbcharger {
 	monitored-battery = <&battery>;
-	//status = "okay";
+	status = "okay";
 };
 
 &rpm_requests {
@@ -299,7 +300,6 @@
 };
 
 &tlmm {
-	//gpio-reserved-ranges = <0 15>, <17 44>, <66 19>, <86 47>, <134 7>;
 	gpio-reserved-ranges = <0 1>, 
            <1 1>,
            <2 1>,
@@ -377,10 +377,10 @@
            <74 1>,
            <75 1>,
            //<76 1>,
-           <77 1>,
-           <78 1>,
-           <79 1>,
-           <80 1>,
+           //<77 1>,
+           //<78 1>,
+           //<79 1>,
+           //<80 1>,
            <81 1>,
            <82 1>,
            <83 1>,
@@ -442,7 +442,6 @@
            <139 1>,
            <140 1>,
            <141 1>;
-	//gpio-reserved-ranges = <95 5>, <111 1>, <126 1>;
 
 	pmx_mdss_default: pmx-mdss-default-state {
 		pins = "gpio61", "gpio16";
@@ -483,7 +482,7 @@
 };
 
 &wcnss {
-	//status = "okay";
+	status = "okay";
 
 	vddpx-supply = <&pm8953_l5>;
 };

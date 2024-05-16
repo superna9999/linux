@@ -225,8 +225,8 @@ static int visionox_vtdr6130_get_modes(struct drm_panel *panel,
 }
 
 static const struct drm_panel_funcs visionox_vtdr6130_panel_funcs = {
-	.prepare = visionox_vtdr6130_prepare,
-	.unprepare = visionox_vtdr6130_unprepare,
+	//.prepare = visionox_vtdr6130_prepare,
+	//.unprepare = visionox_vtdr6130_unprepare,
 	.get_modes = visionox_vtdr6130_get_modes,
 };
 
@@ -291,10 +291,12 @@ static int visionox_vtdr6130_probe(struct mipi_dsi_device *dsi)
 	drm_panel_init(&ctx->panel, dev, &visionox_vtdr6130_panel_funcs,
 		       DRM_MODE_CONNECTOR_DSI);
 
+#if 0
 	ctx->panel.backlight = visionox_vtdr6130_create_backlight(dsi);
 	if (IS_ERR(ctx->panel.backlight))
 		return dev_err_probe(dev, PTR_ERR(ctx->panel.backlight),
 				     "Failed to create backlight\n");
+#endif
 
 	drm_panel_add(&ctx->panel);
 
