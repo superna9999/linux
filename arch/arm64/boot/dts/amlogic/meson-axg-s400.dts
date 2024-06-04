@@ -268,13 +268,6 @@
 				"Speaker1 Right", "SPK1 OUT_D",
 				"Linein AINL", "Linein",
 				"Linein AINR", "Linein";
-		assigned-clocks = <&clkc CLKID_HIFI_PLL>,
-				  <&clkc CLKID_MPLL0>,
-				  <&clkc CLKID_MPLL1>;
-		assigned-clock-parents = <0>, <0>, <0>;
-		assigned-clock-rates = <589824000>,
-				       <270950400>,
-				       <393216000>;
 
 		dai-link-0 {
 			sound-dai = <&frddr_a>;
@@ -352,6 +345,16 @@
 		clock-frequency = <32768>;
 		pwms = <&pwm_ab 0 30518 0>; /* PWM_A at 32.768KHz */
 	};
+};
+
+&clkc_audio {
+	assigned-clocks = <&clkc CLKID_HIFI_PLL>,
+			  <&clkc CLKID_MPLL0>,
+			  <&clkc CLKID_MPLL1>;
+	assigned-clock-parents = <0>, <0>, <0>;
+	assigned-clock-rates = <589824000>,
+			       <270950400>,
+			       <393216000>;
 };
 
 &ethmac {
