@@ -135,13 +135,6 @@
 	sound {
 		compatible = "amlogic,gx-sound-card";
 		model = "NANOPI-K2";
-		assigned-clocks = <&clkc CLKID_MPLL0>,
-				  <&clkc CLKID_MPLL1>,
-				  <&clkc CLKID_MPLL2>;
-		assigned-clock-parents = <0>, <0>, <0>;
-		assigned-clock-rates = <294912000>,
-				       <270950400>,
-				       <393216000>;
 
 		dai-link-0 {
 			sound-dai = <&aiu AIU_CPU CPU_I2S_FIFO>;
@@ -176,6 +169,16 @@
 	pinctrl-0 = <&ao_cec_pins>;
 	pinctrl-names = "default";
 	hdmi-phandle = <&hdmi_tx>;
+};
+
+&clkc {
+	assigned-clocks = <&clkc CLKID_MPLL0>,
+			  <&clkc CLKID_MPLL1>,
+			  <&clkc CLKID_MPLL2>;
+	assigned-clock-parents = <0>, <0>, <0>;
+	assigned-clock-rates = <294912000>,
+			       <270950400>,
+			       <393216000>;
 };
 
 &cvbs_vdac_port {

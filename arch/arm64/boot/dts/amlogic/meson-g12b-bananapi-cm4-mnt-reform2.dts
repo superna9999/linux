@@ -79,14 +79,6 @@
 				"LINPUT1", "Mic Jack",
 				"Mic Jack", "MICB";
 
-		assigned-clocks = <&clkc CLKID_MPLL2>,
-					<&clkc CLKID_MPLL0>,
-					<&clkc CLKID_MPLL1>;
-		assigned-clock-parents = <0>, <0>, <0>;
-		assigned-clock-rates = <294912000>,
-				       <270950400>,
-				       <393216000>;
-
 		dai-link-0 {
 			sound-dai = <&frddr_a>;
 		};
@@ -251,6 +243,16 @@
 
 &cecb_AO {
 	status = "okay";
+};
+
+&clkc_audio {
+	assigned-clocks = <&clkc CLKID_MPLL2>,
+			  <&clkc CLKID_MPLL0>,
+			  <&clkc CLKID_MPLL1>;
+	assigned-clock-parents = <0>, <0>, <0>;
+	assigned-clock-rates = <294912000>,
+			       <270950400>,
+			       <393216000>;
 };
 
 &ethmac {
