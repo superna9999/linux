@@ -177,6 +177,13 @@ properties:
     minItems: 1
     maxItems: 2
 
+  "#address-cells": true
+
+  "#size-cells": true
+
+patternProperties:
+  "^.*@[0-9a-f]{1,2}$": true
+
 dependencies:
   port: [ usb-role-switch ]
   role-switch-default-mode: [ usb-role-switch ]
