@@ -3462,11 +3462,25 @@ static int qmp_combo_register_clocks(struct qmp_combo *qmp, struct device_node *
 }
 
 #if IS_ENABLED(CONFIG_TYPEC)
+static void qmp_combo_typec_set(struct qmp_combo *qmp)
+{
+	const struct qmp_phy_cfg *cfg = qmp->cfg;
+
+	if (qmp->usb_init_count)
+		qmp_combo_usb_power_off(qmp->usb_phy);
+	qmp_combo_com_exit(qmp, true);
+
+	qmp_combo_com_init(qmp, true);
+	if (qmp->usb_init_count)
+		qmp_combo_usb_power_on(qmp->usb_phy);
+	if (qmp->dp_init_count)
+		cfg->dp_aux_init(qmp);
+}
+
 static int qmp_combo_typec_switch_set(struct typec_switch_dev *sw,
 				      enum typec_orientation orientation)
 {
 	struct qmp_combo *qmp = typec_switch_get_drvdata(sw);
-	const struct qmp_phy_cfg *cfg = qmp->cfg;
 
 	if (orientation == qmp->orientation || orientation == TYPEC_ORIENTATION_NONE)
 		return 0;
@@ -3474,17 +3488,8 @@ static int qmp_combo_typec_switch_set(struct typec_switch_dev *sw,
 	mutex_lock(&qmp->phy_mutex);
 	qmp->orientation = orientation;
 
-	if (qmp->init_count) {
-		if (qmp->usb_init_count)
-			qmp_combo_usb_power_off(qmp->usb_phy);
-		qmp_combo_com_exit(qmp, true);
-
-		qmp_combo_com_init(qmp, true);
-		if (qmp->usb_init_count)
-			qmp_combo_usb_power_on(qmp->usb_phy);
-		if (qmp->dp_init_count)
-			cfg->dp_aux_init(qmp);
-	}
+	if (qmp->init_count)
+		qmp_combo_typec_set(qmp);
 	mutex_unlock(&qmp->phy_mutex);
 
 	return 0;
