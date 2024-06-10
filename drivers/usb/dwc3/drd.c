@@ -451,10 +451,16 @@ static int dwc3_usb_role_switch_set(struct usb_role_switch *sw,
 
 	switch (role) {
 	case USB_ROLE_HOST:
+		pr_info("%s: $$$$$$$$$$$$$$$$$$$$$$$$ USB_ROLE_HOST $$$$$$$$$$$$$$$$$\n", __func__);
 		mode = DWC3_GCTL_PRTCAP_HOST;
 		break;
 	case USB_ROLE_DEVICE:
+		pr_info("%s: $$$$$$$$$$$$$$$$$$$$$$$$ USB_ROLE_DEVICE $$$$$$$$$$$$$$$$$\n", __func__);
 		mode = DWC3_GCTL_PRTCAP_DEVICE;
+		break;
+	case USB_ROLE_NONE:
+		pr_info("%s: $$$$$$$$$$$$$$$$$$$$$$$$ USB_ROLE_NONE $$$$$$$$$$$$$$$$$\n", __func__);
+		mode = 0;
 		break;
 	default:
 		if (dwc->role_switch_default_mode == USB_DR_MODE_HOST)

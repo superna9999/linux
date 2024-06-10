@@ -3473,6 +3473,8 @@ static void qmp_combo_typec_set(struct qmp_combo *qmp, enum qphy_mode new_mode)
 
 	if (qmp->usb_init_count)
 		qmp_combo_usb_power_off(qmp->usb_phy);
+	if (qmp->init_mode != QPHY_MODE_USB_ONLY)
+		writel(DP_PHY_PD_CTL_PSR_PWRDN, qmp->dp_dp_phy + QSERDES_DP_PHY_PD_CTL);
 	qmp_combo_com_exit(qmp, true);
 
 	qmp->init_mode = new_mode;
@@ -3505,12 +3507,8 @@ static int qmp_combo_typec_switch_set(struct typec_switch_dev *sw,
 static int qmp_combo_typec_mux_set(struct typec_mux_dev *mux, struct typec_mux_state *state)
 {
 	struct qmp_combo *qmp = typec_mux_get_drvdata(mux);
-	const struct qmp_phy_cfg *cfg = qmp->cfg;
 	enum qphy_mode new_mode;
 	unsigned int svid;
-
-	if (state->mode == qmp->mux_mode)
-		return 0;
 
 	mutex_lock(&qmp->phy_mutex);
 
