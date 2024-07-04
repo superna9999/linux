@@ -1287,8 +1287,13 @@ static int power_supply_read_temp(struct thermal_zone_device *tzd,
 	WARN_ON(tzd == NULL);
 	psy = thermal_zone_device_priv(tzd);
 	ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_TEMP, &val);
+	/*
+	 * The thermal core expects -EAGAIN as non-fatal error,
+	 * convert -ENODEV as -EAGAIN since -ENODEV is returned
+	 * when a power supply device isn't initialized
+	 */
 	if (ret)
-		return ret;
+		return ret == -ENODEV ? -EAGAIN : ret;
 
 	/* Convert tenths of degree Celsius to milli degree Celsius. */
 	*temp = val.intval * 100;
