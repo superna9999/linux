@@ -44,7 +44,6 @@ required:
   - compatible
   - clocks
   - power-domains
-  - required-opps
   - '#power-domain-cells'
 
 allOf:

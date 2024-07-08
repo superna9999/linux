@@ -57,7 +57,6 @@ required:
   - compatible
   - clocks
   - power-domains
-  - required-opps
 
 unevaluatedProperties: false
 
