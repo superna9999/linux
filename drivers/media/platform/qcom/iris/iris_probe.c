@@ -69,6 +69,19 @@ static int iris_probe(struct platform_device *pdev)
 	if (core->irq < 0)
 		return core->irq;
 
+	core->iris_platform_data = of_device_get_match_data(core->dev);
+	if (!core->iris_platform_data) {
+		ret = -ENODEV;
+		dev_err_probe(core->dev, ret, "init platform failed\n");
+		return ret;
+	}
+
+	ret = iris_init_resources(core);
+	if (ret) {
+		dev_err_probe(core->dev, ret, "init resource failed\n");
+		return ret;
+	}
+
 	ret = v4l2_device_register(dev, &core->v4l2_dev);
 	if (ret)
 		return ret;
@@ -88,8 +101,14 @@ err_v4l2_unreg:
 }
 
 static const struct of_device_id iris_dt_match[] = {
-	{ .compatible = "qcom,sm8550-iris", },
-	{ .compatible = "qcom,sm8250-venus", },
+	{
+		.compatible = "qcom,sm8550-iris",
+		.data = &sm8550_data,
+	},
+	{
+		.compatible = "qcom,sm8250-venus",
+		.data = &sm8250_data,
+	},
 	{ },
 };
 MODULE_DEVICE_TABLE(of, iris_dt_match);

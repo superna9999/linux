@@ -6,7 +6,11 @@
 #ifndef _IRIS_CORE_H_
 #define _IRIS_CORE_H_
 
+#include <linux/types.h>
 #include <media/v4l2-device.h>
+
+#include "iris_platform_common.h"
+#include "iris_resources.h"
 
 /**
  * struct iris_core - holds core parameters valid for all instances
@@ -16,6 +20,13 @@
  * @irq: iris irq
  * @v4l2_dev: a holder for v4l2 device structure
  * @vdev_dec: iris video device structure for decoder
+ * @icc_tbl: table of iris interconnects
+ * @icc_count: count of iris interconnects
+ * @pmdomain_tbl: table of iris power domains
+ * @clock_tbl: table of iris clocks
+ * @clk_count: count of iris clocks
+ * @resets: table of iris reset clocks
+ * @iris_platform_data: a structure for platform data
  */
 
 struct iris_core {
@@ -24,6 +35,13 @@ struct iris_core {
 	int					irq;
 	struct v4l2_device			v4l2_dev;
 	struct video_device			*vdev_dec;
+	struct icc_bulk_data			*icc_tbl;
+	u32					icc_count;
+	struct dev_pm_domain_list		*pmdomain_tbl;
+	struct clk_bulk_data			*clock_tbl;
+	u32					clk_count;
+	struct reset_control_bulk_data		*resets;
+	const struct iris_platform_data		*iris_platform_data;
 };
 
 #endif
