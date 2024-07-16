@@ -8,6 +8,21 @@
 #include "iris_core.h"
 #include "iris_vidc.h"
 
+static inline int iris_init_isr(struct iris_core *core)
+{
+	int ret;
+
+	ret = devm_request_threaded_irq(core->dev, core->irq, iris_hfi_isr,
+					iris_hfi_isr_handler, IRQF_TRIGGER_HIGH, "iris", core);
+	if (ret) {
+		dev_err(core->dev, "failed to allocate irq\n");
+		return ret;
+	}
+	disable_irq_nosync(core->irq);
+
+	return ret;
+}
+
 static int iris_register_video_device(struct iris_core *core)
 {
 	struct video_device *vdev;
@@ -57,6 +72,15 @@ static void iris_remove(struct platform_device *pdev)
 	core->state = IRIS_CORE_DEINIT;
 }
 
+static void iris_sys_error_handler(struct work_struct *work)
+{
+	struct iris_core *core =
+			container_of(work, struct iris_core, sys_error_handler.work);
+
+	iris_core_deinit(core);
+	iris_core_init(core);
+}
+
 static int iris_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -71,6 +95,13 @@ static int iris_probe(struct platform_device *pdev)
 
 	core->state = IRIS_CORE_DEINIT;
 	mutex_init(&core->lock);
+	init_completion(&core->core_init_done);
+
+	core->response_packet = devm_kzalloc(core->dev, IFACEQ_CORE_PKT_SIZE, GFP_KERNEL);
+	if (!core->response_packet)
+		return -ENOMEM;
+
+	INIT_DELAYED_WORK(&core->sys_error_handler, iris_sys_error_handler);
 
 	core->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(core->reg_base))
@@ -80,6 +111,12 @@ static int iris_probe(struct platform_device *pdev)
 	if (core->irq < 0)
 		return core->irq;
 
+	ret = iris_init_isr(core);
+	if (ret) {
+		dev_err_probe(core->dev, ret, "Failed to init isr\n");
+		return ret;
+	}
+
 	core->iris_platform_data = of_device_get_match_data(core->dev);
 	if (!core->iris_platform_data) {
 		ret = -ENODEV;
@@ -88,6 +125,9 @@ static int iris_probe(struct platform_device *pdev)
 	}
 
 	iris_init_ops(core);
+	core->iris_platform_data->init_hfi_command_ops(core);
+	core->iris_platform_data->init_hfi_response_ops(core);
+
 	ret = iris_init_resources(core);
 	if (ret) {
 		dev_err_probe(core->dev, ret, "init resource failed\n");

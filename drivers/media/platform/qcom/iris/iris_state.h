@@ -6,6 +6,8 @@
 #ifndef _IRIS_STATE_H_
 #define _IRIS_STATE_H_
 
+struct iris_core;
+
 /**
  * enum iris_core_state
  *
@@ -38,4 +40,6 @@ enum iris_core_state {
 	IRIS_CORE_ERROR,
 };
 
+void iris_change_core_state(struct iris_core *core,
+			    enum iris_core_state request_state);
 #endif

@@ -4,6 +4,78 @@
  */
 
 #include "iris_hfi_gen2.h"
+#include "iris_hfi_gen2_packet.h"
+
+#define NUM_SYS_INIT_PACKETS 8
+
+static int iris_hfi_gen2_sys_init(struct iris_core *core)
+{
+	struct iris_hfi_header *hdr;
+	u32 packet_size;
+	int ret;
+
+	packet_size = sizeof(*hdr) +
+		NUM_SYS_INIT_PACKETS * (sizeof(struct iris_hfi_packet) + sizeof(u32));
+	hdr = kzalloc(packet_size, GFP_KERNEL);
+	if (!hdr)
+		return -ENOMEM;
+
+	iris_hfi_gen2_packet_sys_init(core, hdr);
+	ret = iris_hfi_queue_cmd_write_locked(core, hdr, hdr->size);
+
+	kfree(hdr);
+
+	return ret;
+}
+
+static int iris_hfi_gen2_sys_image_version(struct iris_core *core)
+{
+	struct iris_hfi_header *hdr;
+	u32 packet_size;
+	int ret;
+
+	packet_size = sizeof(*hdr) + sizeof(struct iris_hfi_packet);
+	hdr = kzalloc(packet_size, GFP_KERNEL);
+	if (!hdr)
+		return -ENOMEM;
+
+	iris_hfi_gen2_packet_image_version(core, hdr);
+	ret = iris_hfi_queue_cmd_write_locked(core, hdr, hdr->size);
+
+	kfree(hdr);
+
+	return ret;
+}
+
+static int iris_hfi_gen2_sys_interframe_powercollapse(struct iris_core *core)
+{
+	struct iris_hfi_header *hdr;
+	u32 packet_size;
+	int ret;
+
+	packet_size = sizeof(*hdr) + sizeof(struct iris_hfi_packet) + sizeof(u32);
+	hdr = kzalloc(packet_size, GFP_KERNEL);
+	if (!hdr)
+		return -ENOMEM;
+
+	iris_hfi_gen2_packet_sys_interframe_powercollapse(core, hdr);
+	ret = iris_hfi_queue_cmd_write_locked(core, hdr, hdr->size);
+
+	kfree(hdr);
+
+	return ret;
+}
+
+static const struct iris_hfi_command_ops iris_hfi_gen2_command_ops = {
+	.sys_init = iris_hfi_gen2_sys_init,
+	.sys_image_version = iris_hfi_gen2_sys_image_version,
+	.sys_interframe_powercollapse = iris_hfi_gen2_sys_interframe_powercollapse,
+};
+
+void iris_hfi_gen2_command_ops_init(struct iris_core *core)
+{
+	core->hfi_ops = &iris_hfi_gen2_command_ops;
+}
 
 struct iris_inst *iris_hfi_gen2_get_instance(void)
 {
