@@ -144,3 +144,8 @@ int iris_fw_unload(struct iris_core *core)
 
 	return ret;
 }
+
+int iris_set_hw_state(struct iris_core *core, bool resume)
+{
+	return qcom_scm_set_remote_state(resume, 0);
+}

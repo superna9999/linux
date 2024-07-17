@@ -66,10 +66,30 @@ static int iris_hfi_gen2_sys_interframe_powercollapse(struct iris_core *core)
 	return ret;
 }
 
+static int iris_hfi_gen2_sys_pc_prep(struct iris_core *core)
+{
+	struct iris_hfi_header *hdr;
+	u32 packet_size;
+	int ret;
+
+	packet_size = sizeof(*hdr) + sizeof(struct iris_hfi_packet);
+	hdr = kzalloc(packet_size, GFP_KERNEL);
+	if (!hdr)
+		return -ENOMEM;
+
+	iris_hfi_gen2_packet_sys_pc_prep(core, hdr);
+	ret = iris_hfi_queue_cmd_write_locked(core, hdr, hdr->size);
+
+	kfree(hdr);
+
+	return ret;
+}
+
 static const struct iris_hfi_command_ops iris_hfi_gen2_command_ops = {
 	.sys_init = iris_hfi_gen2_sys_init,
 	.sys_image_version = iris_hfi_gen2_sys_image_version,
 	.sys_interframe_powercollapse = iris_hfi_gen2_sys_interframe_powercollapse,
+	.sys_pc_prep = iris_hfi_gen2_sys_pc_prep,
 };
 
 void iris_hfi_gen2_command_ops_init(struct iris_core *core)

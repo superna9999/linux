@@ -4,6 +4,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/pm_runtime.h>
 
 #include "iris_core.h"
 #include "iris_vidc.h"
@@ -111,17 +112,25 @@ static int iris_probe(struct platform_device *pdev)
 	if (core->irq < 0)
 		return core->irq;
 
+	pm_runtime_set_autosuspend_delay(core->dev, AUTOSUSPEND_DELAY_VALUE);
+	pm_runtime_use_autosuspend(core->dev);
+	ret = devm_pm_runtime_enable(core->dev);
+	if (ret) {
+		dev_err(core->dev, "failed to enable runtime pm\n");
+		goto err_runtime_disable;
+	}
+
 	ret = iris_init_isr(core);
 	if (ret) {
 		dev_err_probe(core->dev, ret, "Failed to init isr\n");
-		return ret;
+		goto err_runtime_disable;
 	}
 
 	core->iris_platform_data = of_device_get_match_data(core->dev);
 	if (!core->iris_platform_data) {
 		ret = -ENODEV;
 		dev_err_probe(core->dev, ret, "init platform failed\n");
-		return ret;
+		goto err_runtime_disable;
 	}
 
 	iris_init_ops(core);
@@ -131,12 +140,12 @@ static int iris_probe(struct platform_device *pdev)
 	ret = iris_init_resources(core);
 	if (ret) {
 		dev_err_probe(core->dev, ret, "init resource failed\n");
-		return ret;
+		goto err_runtime_disable;
 	}
 
 	ret = v4l2_device_register(dev, &core->v4l2_dev);
 	if (ret)
-		return ret;
+		goto err_runtime_disable;
 
 	ret = iris_register_video_device(core);
 	if (ret)
@@ -159,9 +168,57 @@ err_vdev_unreg:
 	video_unregister_device(core->vdev_dec);
 err_v4l2_unreg:
 	v4l2_device_unregister(&core->v4l2_dev);
+err_runtime_disable:
+	pm_runtime_set_suspended(core->dev);
 
 	return ret;
 }
+
+static int iris_pm_suspend(struct device *dev)
+{
+	struct iris_core *core;
+	int ret;
+
+	if (!dev || !dev->driver)
+		return 0;
+
+	core = dev_get_drvdata(dev);
+
+	mutex_lock(&core->lock);
+	ret = iris_hfi_pm_suspend(core);
+	mutex_unlock(&core->lock);
+
+	return ret;
+}
+
+static int iris_pm_resume(struct device *dev)
+{
+	struct iris_core *core;
+	int ret = 0;
+
+	if (!dev || !dev->driver)
+		return 0;
+
+	core = dev_get_drvdata(dev);
+
+	mutex_lock(&core->lock);
+	if (core->state != IRIS_CORE_INIT)
+		goto exit;
+
+	ret = iris_hfi_pm_resume(core);
+	pm_runtime_mark_last_busy(core->dev);
+
+exit:
+	mutex_unlock(&core->lock);
+
+	return ret;
+}
+
+static const struct dev_pm_ops iris_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
+	SET_RUNTIME_PM_OPS(iris_pm_suspend, iris_pm_resume, NULL)
+};
 
 static const struct of_device_id iris_dt_match[] = {
 	{
@@ -182,6 +239,7 @@ static struct platform_driver qcom_iris_driver = {
 	.driver = {
 		.name = "qcom-iris",
 		.of_match_table = iris_dt_match,
+		.pm = &iris_pm_ops,
 	},
 };
 
