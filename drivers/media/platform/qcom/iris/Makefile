@@ -8,5 +8,6 @@ iris-objs += iris_core.o \
              iris_probe.o \
              iris_resources.o \
              iris_vidc.o \
+             iris_vpu_common.o \
 
 obj-$(CONFIG_VIDEO_QCOM_IRIS) += iris.o
