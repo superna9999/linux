@@ -60,6 +60,28 @@ void iris_vdec_inst_deinit(struct iris_inst *inst)
 	kfree(inst->fmt_src);
 }
 
+int iris_vdec_enum_fmt(struct iris_inst *inst, struct v4l2_fmtdesc *f)
+{
+	if (f->index)
+		return -EINVAL;
+
+	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
+		f->pixelformat = V4L2_PIX_FMT_H264;
+		f->flags = V4L2_FMT_FLAG_COMPRESSED | V4L2_FMT_FLAG_DYN_RESOLUTION;
+		strscpy(f->description, "codec", sizeof(f->description));
+	} else if (V4L2_TYPE_IS_CAPTURE(f->type)) {
+		f->pixelformat = V4L2_PIX_FMT_NV12;
+		strscpy(f->description, "colorformat", sizeof(f->description));
+	}
+
+	if (!f->pixelformat)
+		return -EINVAL;
+
+	memset(f->reserved, 0, sizeof(f->reserved));
+
+	return 0;
+}
+
 int iris_vdec_try_fmt(struct iris_inst *inst, struct v4l2_format *f)
 {
 	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;

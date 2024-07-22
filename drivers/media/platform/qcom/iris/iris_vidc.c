@@ -15,6 +15,10 @@
 
 #define IRIS_DRV_NAME "iris_driver"
 #define IRIS_BUS_NAME "platform:iris_icc"
+#define MIN_FRAME_WIDTH 128
+#define MAX_FRAME_WIDTH 8192
+#define MIN_FRAME_HEIGHT 128
+#define MAX_FRAME_HEIGHT 8192
 #define STEP_WIDTH 1
 #define STEP_HEIGHT 1
 
@@ -255,6 +259,22 @@ int iris_close(struct file *filp)
 	return 0;
 }
 
+static int iris_enum_fmt(struct file *filp, void *fh, struct v4l2_fmtdesc *f)
+{
+	struct iris_inst *inst;
+	int ret;
+
+	inst = iris_get_inst(filp, fh);
+	if (!inst)
+		return -EINVAL;
+
+	mutex_lock(&inst->lock);
+	ret = iris_vdec_enum_fmt(inst, f);
+	mutex_unlock(&inst->lock);
+
+	return ret;
+}
+
 static int iris_try_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_format *f)
 {
 	struct iris_inst *inst;
@@ -304,6 +324,40 @@ static int iris_g_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_format
 	else
 		ret = -EINVAL;
 
+	mutex_unlock(&inst->lock);
+
+	return ret;
+}
+
+static int iris_enum_framesizes(struct file *filp, void *fh,
+				struct v4l2_frmsizeenum *fsize)
+{
+	struct iris_inst *inst;
+	int ret = 0;
+
+	inst = iris_get_inst(filp, fh);
+	if (!inst || !fsize)
+		return -EINVAL;
+
+	if (fsize->index)
+		return -EINVAL;
+
+	mutex_lock(&inst->lock);
+	if (fsize->pixel_format != V4L2_PIX_FMT_H264 &&
+	    fsize->pixel_format != V4L2_PIX_FMT_NV12) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	fsize->stepwise.min_width = MIN_FRAME_WIDTH;
+	fsize->stepwise.max_width = MAX_FRAME_WIDTH;
+	fsize->stepwise.step_width = STEP_WIDTH;
+	fsize->stepwise.min_height = MIN_FRAME_HEIGHT;
+	fsize->stepwise.max_height = MAX_FRAME_HEIGHT;
+	fsize->stepwise.step_height = STEP_HEIGHT;
+
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -362,12 +416,15 @@ static const struct vb2_ops iris_vb2_ops = {
 };
 
 static const struct v4l2_ioctl_ops iris_v4l2_ioctl_ops = {
+	.vidioc_enum_fmt_vid_cap        = iris_enum_fmt,
+	.vidioc_enum_fmt_vid_out        = iris_enum_fmt,
 	.vidioc_try_fmt_vid_cap_mplane  = iris_try_fmt_vid_mplane,
 	.vidioc_try_fmt_vid_out_mplane  = iris_try_fmt_vid_mplane,
 	.vidioc_s_fmt_vid_cap_mplane    = iris_s_fmt_vid_mplane,
 	.vidioc_s_fmt_vid_out_mplane    = iris_s_fmt_vid_mplane,
 	.vidioc_g_fmt_vid_cap_mplane    = iris_g_fmt_vid_mplane,
 	.vidioc_g_fmt_vid_out_mplane    = iris_g_fmt_vid_mplane,
+	.vidioc_enum_framesizes         = iris_enum_framesizes,
 	.vidioc_reqbufs                 = v4l2_m2m_ioctl_reqbufs,
 	.vidioc_g_selection             = iris_g_selection,
 };
