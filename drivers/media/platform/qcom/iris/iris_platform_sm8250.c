@@ -60,4 +60,5 @@ struct iris_platform_data sm8250_data = {
 	.tz_cp_config_data = &tz_cp_config_sm8250,
 	.hw_response_timeout = HW_RESPONSE_TIMEOUT_VALUE,
 	.num_vpp_pipe = 4,
+	.max_session_count = 16,
 };

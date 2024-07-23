@@ -75,6 +75,7 @@ struct iris_platform_data {
 	u32 hw_response_timeout;
 	struct ubwc_config_data *ubwc_config;
 	u32 num_vpp_pipe;
+	u32 max_session_count;
 };
 
 #endif

@@ -74,4 +74,5 @@ struct iris_platform_data sm8550_data = {
 	.hw_response_timeout = HW_RESPONSE_TIMEOUT_VALUE,
 	.ubwc_config = &ubwc_config_sm8550,
 	.num_vpp_pipe = 4,
+	.max_session_count = 16,
 };
