@@ -6,6 +6,7 @@
 #include "iris_core.h"
 #include "iris_platform_common.h"
 #include "iris_resources.h"
+#include "iris_hfi_gen1.h"
 
 static const struct icc_info sm8250_icc_table[] = {
 	{ "cpu-cfg",    1000, 1000     },
@@ -25,6 +26,7 @@ static const struct platform_clk_data sm8250_clk_table[] = {
 };
 
 struct iris_platform_data sm8250_data = {
+	.get_instance = iris_hfi_gen1_get_instance,
 	.icc_tbl = sm8250_icc_table,
 	.icc_tbl_size = ARRAY_SIZE(sm8250_icc_table),
 	.clk_rst_tbl = sm8250_clk_reset_table,

@@ -6,6 +6,7 @@
 #include <linux/module.h>
 
 #include "iris_core.h"
+#include "iris_vidc.h"
 
 static int iris_register_video_device(struct iris_core *core)
 {
@@ -18,6 +19,7 @@ static int iris_register_video_device(struct iris_core *core)
 
 	strscpy(vdev->name, "qcom-iris-decoder", sizeof(vdev->name));
 	vdev->release = video_device_release;
+	vdev->fops = core->iris_v4l2_file_ops;
 	vdev->vfl_dir = VFL_DIR_M2M;
 	vdev->v4l2_dev = &core->v4l2_dev;
 	vdev->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
@@ -76,6 +78,7 @@ static int iris_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	iris_init_ops(core);
 	ret = iris_init_resources(core);
 	if (ret) {
 		dev_err_probe(core->dev, ret, "init resource failed\n");
