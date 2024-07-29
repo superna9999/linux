@@ -44,6 +44,7 @@ iris_hfi_gen1_event_session_error(struct iris_inst *inst, struct hfi_msg_event_n
 			pkt->event_data2, pkt->event_data1,
 			pkt->shdr.session_id);
 		iris_vb2_queue_error(inst);
+		iris_inst_change_state(inst, IRIS_INST_ERROR);
 		break;
 	}
 }
@@ -148,6 +149,26 @@ static const struct iris_hfi_gen1_response_pkt_info pkt_infos[] = {
 	 .pkt = HFI_MSG_SYS_SESSION_END,
 	 .pkt_sz = sizeof(struct hfi_msg_session_hdr_pkt),
 	},
+	{
+	 .pkt = HFI_MSG_SESSION_LOAD_RESOURCES,
+	 .pkt_sz = sizeof(struct hfi_msg_session_hdr_pkt),
+	},
+	{
+	 .pkt = HFI_MSG_SESSION_START,
+	 .pkt_sz = sizeof(struct hfi_msg_session_hdr_pkt),
+	},
+	{
+	 .pkt = HFI_MSG_SESSION_STOP,
+	 .pkt_sz = sizeof(struct hfi_msg_session_hdr_pkt),
+	},
+	{
+	 .pkt = HFI_MSG_SESSION_FLUSH,
+	 .pkt_sz = sizeof(struct hfi_msg_session_flush_done_pkt),
+	},
+	{
+	 .pkt = HFI_MSG_SESSION_RELEASE_RESOURCES,
+	 .pkt_sz = sizeof(struct hfi_msg_session_hdr_pkt),
+	},
 };
 
 static void iris_hfi_gen1_handle_response(struct iris_core *core, void *response)
@@ -155,6 +176,7 @@ static void iris_hfi_gen1_handle_response(struct iris_core *core, void *response
 	const struct iris_hfi_gen1_response_pkt_info *pkt_info;
 	struct device *dev = core->dev;
 	struct hfi_pkt_hdr *hdr;
+	struct completion *done;
 	struct iris_inst *inst;
 	bool found = false;
 	unsigned int i;
@@ -205,7 +227,15 @@ static void iris_hfi_gen1_handle_response(struct iris_core *core, void *response
 		}
 
 		mutex_lock(&inst->lock);
-		complete(&inst->completion);
+		struct hfi_msg_session_hdr_pkt *shdr;
+
+		shdr = (struct hfi_msg_session_hdr_pkt *)hdr;
+		if (shdr->error_type != HFI_ERR_NONE)
+			iris_inst_change_state(inst, IRIS_INST_ERROR);
+
+		done = pkt_info->pkt == HFI_MSG_SESSION_FLUSH ?
+			&inst->flush_completion : &inst->completion;
+		complete(done);
 		mutex_unlock(&inst->lock);
 	}
 }

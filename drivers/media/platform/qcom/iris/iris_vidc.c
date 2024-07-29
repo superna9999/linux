@@ -164,10 +164,12 @@ int iris_open(struct file *filp)
 
 	inst->core = core;
 	inst->session_id = hash32_ptr(inst);
+	inst->state = IRIS_INST_DEINIT;
 
 	mutex_init(&inst->lock);
 	mutex_init(&inst->ctx_q_lock);
 	init_completion(&inst->completion);
+	init_completion(&inst->flush_completion);
 
 	ret = iris_v4l2_fh_init(inst);
 	if (ret)
@@ -221,6 +223,9 @@ static void iris_session_close(struct iris_inst *inst)
 	bool wait_for_response;
 	int ret;
 
+	if (inst->state == IRIS_INST_DEINIT)
+		return;
+
 	wait_for_response = true;
 
 	reinit_completion(&inst->completion);
@@ -230,7 +235,7 @@ static void iris_session_close(struct iris_inst *inst)
 		wait_for_response = false;
 
 	if (wait_for_response)
-		iris_wait_for_session_response(inst);
+		iris_wait_for_session_response(inst, false);
 }
 
 int iris_close(struct file *filp)
@@ -247,6 +252,7 @@ int iris_close(struct file *filp)
 	mutex_lock(&inst->lock);
 	iris_vdec_inst_deinit(inst);
 	iris_session_close(inst);
+	iris_inst_change_state(inst, IRIS_INST_DEINIT);
 	iris_v4l2_fh_deinit(inst);
 	iris_remove_session(inst);
 	mutex_unlock(&inst->lock);
@@ -268,7 +274,14 @@ static int iris_enum_fmt(struct file *filp, void *fh, struct v4l2_fmtdesc *f)
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ret = iris_vdec_enum_fmt(inst, f);
+
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -284,7 +297,14 @@ static int iris_try_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_form
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ret = iris_vdec_try_fmt(inst, f);
+
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -300,7 +320,14 @@ static int iris_s_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_format
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ret = iris_vdec_s_fmt(inst, f);
+
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -316,6 +343,11 @@ static int iris_g_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_format
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	if (V4L2_TYPE_IS_OUTPUT(f->type))
 		memcpy(f, inst->fmt_src, sizeof(*f));
 	else if (V4L2_TYPE_IS_CAPTURE(f->type))
@@ -323,6 +355,7 @@ static int iris_g_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_format
 	else
 		ret = -EINVAL;
 
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -342,6 +375,11 @@ static int iris_enum_framesizes(struct file *filp, void *fh,
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	if (fsize->pixel_format != V4L2_PIX_FMT_H264 &&
 	    fsize->pixel_format != V4L2_PIX_FMT_NV12) {
 		ret = -EINVAL;
@@ -372,10 +410,17 @@ static int iris_querycap(struct file *filp, void *fh, struct v4l2_capability *ca
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	strscpy(cap->driver, IRIS_DRV_NAME, sizeof(cap->driver));
 	strscpy(cap->bus_info, IRIS_BUS_NAME, sizeof(cap->bus_info));
 	memset(cap->reserved, 0, sizeof(cap->reserved));
 	strscpy(cap->card, "iris_decoder", sizeof(cap->card));
+
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -392,6 +437,11 @@ static int iris_queryctrl(struct file *filp, void *fh, struct v4l2_queryctrl *q_
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ctrl = v4l2_ctrl_find(&inst->ctrl_handler, q_ctrl->id);
 	if (!ctrl) {
 		ret = -EINVAL;
@@ -421,6 +471,11 @@ static int iris_querymenu(struct file *filp, void *fh, struct v4l2_querymenu *qm
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ctrl = v4l2_ctrl_find(&inst->ctrl_handler, qmenu->id);
 	if (!ctrl) {
 		ret = -EINVAL;
@@ -458,6 +513,11 @@ static int iris_g_selection(struct file *filp, void *fh, struct v4l2_selection *
 		return -EINVAL;
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
 	    s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		ret = -EINVAL;
@@ -495,7 +555,14 @@ static int iris_subscribe_event(struct v4l2_fh *fh, const struct v4l2_event_subs
 	inst = container_of(fh, struct iris_inst, fh);
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ret = iris_vdec_subscribe_event(inst, sub);
+
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -509,7 +576,14 @@ static int iris_unsubscribe_event(struct v4l2_fh *fh, const struct v4l2_event_su
 	inst = container_of(fh, struct iris_inst, fh);
 
 	mutex_lock(&inst->lock);
+	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ret = v4l2_event_unsubscribe(&inst->fh, sub);
+
+unlock:
 	mutex_unlock(&inst->lock);
 
 	return ret;
@@ -526,6 +600,8 @@ static struct v4l2_file_operations iris_v4l2_file_ops = {
 
 static const struct vb2_ops iris_vb2_ops = {
 	.queue_setup                    = iris_vb2_queue_setup,
+	.start_streaming                = iris_vb2_start_streaming,
+	.stop_streaming                 = iris_vb2_stop_streaming,
 };
 
 static const struct v4l2_ioctl_ops iris_v4l2_ioctl_ops = {
@@ -545,6 +621,8 @@ static const struct v4l2_ioctl_ops iris_v4l2_ioctl_ops = {
 	.vidioc_g_selection             = iris_g_selection,
 	.vidioc_subscribe_event         = iris_subscribe_event,
 	.vidioc_unsubscribe_event       = iris_unsubscribe_event,
+	.vidioc_streamon                = v4l2_m2m_ioctl_streamon,
+	.vidioc_streamoff               = v4l2_m2m_ioctl_streamoff,
 };
 
 void iris_init_ops(struct iris_core *core)

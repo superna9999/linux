@@ -3,8 +3,7 @@
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include "iris_core.h"
-#include "iris_state.h"
+#include "iris_instance.h"
 
 void iris_change_core_state(struct iris_core *core,
 			    enum iris_core_state request_state)
@@ -12,4 +11,106 @@ void iris_change_core_state(struct iris_core *core,
 	mutex_lock(&core->lock);
 	core->state = request_state;
 	mutex_unlock(&core->lock);
+}
+
+static bool iris_allow_inst_state_change(struct iris_inst *inst,
+					 enum iris_inst_state req_state)
+{
+	switch (inst->state) {
+	case IRIS_INST_INIT:
+		if (req_state == IRIS_INST_INPUT_STREAMING ||
+		    req_state == IRIS_INST_OUTPUT_STREAMING ||
+		    req_state == IRIS_INST_DEINIT ||
+		    req_state == IRIS_INST_ERROR)
+			return true;
+		break;
+	case IRIS_INST_INPUT_STREAMING:
+		if (req_state == IRIS_INST_INIT ||
+		    req_state == IRIS_INST_STREAMING ||
+		    req_state == IRIS_INST_DEINIT ||
+		    req_state == IRIS_INST_ERROR)
+			return true;
+		break;
+	case IRIS_INST_OUTPUT_STREAMING:
+		if (req_state == IRIS_INST_INIT ||
+		    req_state == IRIS_INST_STREAMING ||
+		    req_state == IRIS_INST_DEINIT ||
+		    req_state == IRIS_INST_ERROR)
+			return true;
+		break;
+	case IRIS_INST_STREAMING:
+		if (req_state == IRIS_INST_INPUT_STREAMING ||
+		    req_state == IRIS_INST_OUTPUT_STREAMING ||
+		    req_state == IRIS_INST_DEINIT ||
+		    req_state == IRIS_INST_ERROR)
+			return true;
+		break;
+	case IRIS_INST_DEINIT:
+		if (req_state == IRIS_INST_INIT ||
+		    req_state == IRIS_INST_ERROR)
+			return true;
+		break;
+	default:
+		return false;
+	}
+
+	return false;
+}
+
+int iris_inst_change_state(struct iris_inst *inst,
+			   enum iris_inst_state request_state)
+{
+	if (inst->state == IRIS_INST_ERROR)
+		return 0;
+
+	if (inst->state == request_state)
+		return 0;
+
+	if (!iris_allow_inst_state_change(inst, request_state))
+		return -EINVAL;
+
+	dev_dbg(inst->core->dev, "state changed from %x to %x\n",
+		inst->state, request_state);
+
+	inst->state = request_state;
+
+	return 0;
+}
+
+int iris_inst_state_change_streamon(struct iris_inst *inst, u32 plane)
+{
+	enum iris_inst_state new_state = IRIS_INST_ERROR;
+
+	if (V4L2_TYPE_IS_OUTPUT(plane)) {
+		if (inst->state == IRIS_INST_INIT)
+			new_state = IRIS_INST_INPUT_STREAMING;
+		else if (inst->state == IRIS_INST_OUTPUT_STREAMING)
+			new_state = IRIS_INST_STREAMING;
+	} else if (V4L2_TYPE_IS_CAPTURE(plane)) {
+		if (inst->state == IRIS_INST_INIT)
+			new_state = IRIS_INST_OUTPUT_STREAMING;
+		else if (inst->state == IRIS_INST_INPUT_STREAMING)
+			new_state = IRIS_INST_STREAMING;
+	}
+
+	return iris_inst_change_state(inst, new_state);
+}
+
+int iris_inst_state_change_streamoff(struct iris_inst *inst, u32 plane)
+{
+	enum iris_inst_state new_state = IRIS_INST_ERROR;
+
+	if (V4L2_TYPE_IS_OUTPUT(plane)) {
+		if (inst->state == IRIS_INST_INPUT_STREAMING)
+			new_state = IRIS_INST_INIT;
+		else if (inst->state == IRIS_INST_STREAMING)
+			new_state = IRIS_INST_OUTPUT_STREAMING;
+	} else if (V4L2_TYPE_IS_CAPTURE(plane)) {
+		if (inst->state == IRIS_INST_OUTPUT_STREAMING)
+			new_state = IRIS_INST_INIT;
+		else if (inst->state == IRIS_INST_STREAMING)
+			new_state = IRIS_INST_INPUT_STREAMING;
+	}
+
+	return iris_inst_change_state(inst, new_state);
 }
