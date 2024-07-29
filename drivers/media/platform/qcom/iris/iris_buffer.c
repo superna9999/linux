@@ -12,7 +12,6 @@
 #define MAX_WIDTH 4096
 #define MAX_HEIGHT 2304
 #define NUM_MBS_4K (DIV_ROUND_UP(MAX_WIDTH, 16) * DIV_ROUND_UP(MAX_HEIGHT, 16))
-#define BASE_RES_MB_MAX 138240
 
 /*
  * NV12:
@@ -74,7 +73,7 @@ static u32 iris_input_buffer_size(struct iris_inst *inst)
 	num_mbs = iris_get_mbpf(inst);
 	if (num_mbs > NUM_MBS_4K) {
 		div_factor = 4;
-		base_res_mbs = BASE_RES_MB_MAX;
+		base_res_mbs = inst->driver_cap[MBPF].value;
 	} else {
 		base_res_mbs = NUM_MBS_4K;
 		div_factor = 2;

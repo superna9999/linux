@@ -16,10 +16,6 @@
 
 #define IRIS_DRV_NAME "iris_driver"
 #define IRIS_BUS_NAME "platform:iris_icc"
-#define MIN_FRAME_WIDTH 128
-#define MAX_FRAME_WIDTH 8192
-#define MIN_FRAME_HEIGHT 128
-#define MAX_FRAME_HEIGHT 8192
 #define STEP_WIDTH 1
 #define STEP_HEIGHT 1
 
@@ -31,6 +27,7 @@ static int iris_v4l2_fh_init(struct iris_inst *inst)
 		return -EINVAL;
 
 	v4l2_fh_init(&inst->fh, core->vdev_dec);
+	inst->fh.ctrl_handler = &inst->ctrl_handler;
 	v4l2_fh_add(&inst->fh);
 
 	return 0;
@@ -188,7 +185,7 @@ int iris_open(struct file *filp)
 		goto fail_m2m_release;
 	}
 
-	iris_vdec_inst_init(inst);
+	ret = iris_vdec_inst_init(inst);
 	if (ret)
 		goto fail_m2m_ctx_release;
 
@@ -244,6 +241,7 @@ int iris_close(struct file *filp)
 	if (!inst)
 		return -EINVAL;
 
+	v4l2_ctrl_handler_free(&inst->ctrl_handler);
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
 	v4l2_m2m_release(inst->m2m_dev);
 	mutex_lock(&inst->lock);
@@ -351,11 +349,11 @@ static int iris_enum_framesizes(struct file *filp, void *fh,
 	}
 
 	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-	fsize->stepwise.min_width = MIN_FRAME_WIDTH;
-	fsize->stepwise.max_width = MAX_FRAME_WIDTH;
+	fsize->stepwise.min_width = inst->driver_cap[FRAME_WIDTH].min;
+	fsize->stepwise.max_width = inst->driver_cap[FRAME_WIDTH].max;
 	fsize->stepwise.step_width = STEP_WIDTH;
-	fsize->stepwise.min_height = MIN_FRAME_HEIGHT;
-	fsize->stepwise.max_height = MAX_FRAME_HEIGHT;
+	fsize->stepwise.min_height = inst->driver_cap[FRAME_HEIGHT].min;
+	fsize->stepwise.max_height = inst->driver_cap[FRAME_HEIGHT].max;
 	fsize->stepwise.step_height = STEP_HEIGHT;
 
 unlock:

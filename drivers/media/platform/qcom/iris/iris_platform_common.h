@@ -10,6 +10,23 @@
 #define HW_RESPONSE_TIMEOUT_VALUE               (1000) /* milliseconds */
 #define AUTOSUSPEND_DELAY_VALUE			(HW_RESPONSE_TIMEOUT_VALUE + 500) /* milliseconds */
 
+#define REGISTER_BIT_DEPTH(luma, chroma)	((luma) << 16 | (chroma))
+#define BIT_DEPTH_8				REGISTER_BIT_DEPTH(8, 8)
+#define CODED_FRAMES_PROGRESSIVE		0x0
+#define DEFAULT_MAX_HOST_BUF_COUNT		64
+#define DEFAULT_MAX_HOST_BURST_BUF_COUNT	256
+
+enum stage_type {
+	STAGE_1 = 1,
+	STAGE_2 = 2,
+};
+
+enum pipe_type {
+	PIPE_1 = 1,
+	PIPE_2 = 2,
+	PIPE_4 = 4,
+};
+
 extern struct iris_platform_data sm8550_data;
 extern struct iris_platform_data sm8250_data;
 
@@ -41,6 +58,56 @@ struct ubwc_config_data {
 	u32	bank_spreading;
 };
 
+enum platform_inst_driver_cap_type {
+	FRAME_WIDTH = 1,
+	FRAME_HEIGHT,
+	MBPF,
+	INST_DRIVER_CAP_MAX,
+};
+
+enum platform_inst_fw_cap_type {
+	PROFILE = 1,
+	LEVEL,
+	INPUT_BUF_HOST_MAX_COUNT,
+	STAGE,
+	PIPE,
+	POC,
+	CODED_FRAMES,
+	BIT_DEPTH,
+	DEFAULT_HEADER,
+	RAP_FRAME,
+	DEBLOCK,
+	INST_FW_CAP_MAX,
+};
+
+enum platform_inst_cap_flags {
+	CAP_FLAG_NONE			= 0,
+	CAP_FLAG_DYNAMIC_ALLOWED	= BIT(0),
+	CAP_FLAG_MENU			= BIT(1),
+	CAP_FLAG_INPUT_PORT		= BIT(2),
+	CAP_FLAG_OUTPUT_PORT		= BIT(3),
+	CAP_FLAG_CLIENT_SET		= BIT(4),
+	CAP_FLAG_BITMASK		= BIT(5),
+	CAP_FLAG_VOLATILE		= BIT(6),
+};
+
+struct platform_inst_driver_cap {
+	enum platform_inst_driver_cap_type cap_id;
+	u32 min;
+	u32 max;
+	u32 value;
+};
+
+struct platform_inst_fw_cap {
+	enum platform_inst_fw_cap_type cap_id;
+	s64 min;
+	s64 max;
+	s64 step_or_mask;
+	s64 value;
+	u32 hfi_id;
+	enum platform_inst_cap_flags flags;
+};
+
 struct iris_core_power {
 	u64 clk_freq;
 	u64 icc_bw;
@@ -70,6 +137,10 @@ struct iris_platform_data {
 	u64 dma_mask;
 	const char *fwname;
 	u32 pas_id;
+	struct platform_inst_driver_cap *inst_driver_cap_data;
+	u32 inst_driver_cap_data_size;
+	struct platform_inst_fw_cap *inst_fw_cap_data;
+	u32 inst_fw_cap_data_size;
 	struct tz_cp_config *tz_cp_config_data;
 	u32 core_arch;
 	u32 hw_response_timeout;

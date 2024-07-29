@@ -108,6 +108,7 @@ static int iris_hfi_gen2_session_set_default_header(struct iris_inst *inst)
 	struct iris_inst_hfi_gen2 *inst_hfi_gen2 = to_iris_inst_hfi_gen2(inst);
 	u32 default_header = false;
 
+	default_header = inst->fw_cap[DEFAULT_HEADER].value;
 	iris_hfi_gen2_packet_session_property(inst,
 					      HFI_PROP_DEC_DEFAULT_HEADER,
 					      HFI_HOST_FLAGS_NONE,

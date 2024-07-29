@@ -57,6 +57,7 @@
  * @intr_status: interrupt status
  * @sys_error_handler: a delayed work for handling system fatal error
  * @instances: a list_head of all instances
+ * @inst_fw_cap: an array of supported instance capabilities
  */
 
 struct iris_core {
@@ -95,6 +96,7 @@ struct iris_core {
 	u32					intr_status;
 	struct delayed_work			sys_error_handler;
 	struct list_head			instances;
+	struct platform_inst_fw_cap		inst_fw_cap[INST_FW_CAP_MAX];
 };
 
 int iris_core_init(struct iris_core *core);

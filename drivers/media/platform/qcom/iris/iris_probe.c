@@ -7,6 +7,7 @@
 #include <linux/pm_runtime.h>
 
 #include "iris_core.h"
+#include "iris_ctrls.h"
 #include "iris_vidc.h"
 
 static inline int iris_init_isr(struct iris_core *core)
@@ -142,6 +143,12 @@ static int iris_probe(struct platform_device *pdev)
 	ret = iris_init_resources(core);
 	if (ret) {
 		dev_err_probe(core->dev, ret, "init resource failed\n");
+		goto err_runtime_disable;
+	}
+
+	ret = iris_session_init_caps(core);
+	if (ret) {
+		dev_err_probe(core->dev, ret, "init inst caps failed\n");
 		goto err_runtime_disable;
 	}
 
