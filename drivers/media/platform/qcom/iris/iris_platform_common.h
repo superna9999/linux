@@ -6,6 +6,11 @@
 #ifndef _IRIS_PLATFORM_COMMON_H_
 #define _IRIS_PLATFORM_COMMON_H_
 
+#include <linux/bits.h>
+
+struct iris_core;
+struct iris_inst;
+
 #define IRIS_PAS_ID				9
 #define HW_RESPONSE_TIMEOUT_VALUE               (1000) /* milliseconds */
 #define AUTOSUSPEND_DELAY_VALUE			(HW_RESPONSE_TIMEOUT_VALUE + 500) /* milliseconds */
@@ -107,6 +112,8 @@ struct platform_inst_fw_cap {
 	s64 value;
 	u32 hfi_id;
 	enum platform_inst_cap_flags flags;
+	int (*set)(struct iris_inst *inst,
+		   enum platform_inst_fw_cap_type cap_id);
 };
 
 struct iris_core_power {
@@ -148,6 +155,10 @@ struct iris_platform_data {
 	struct ubwc_config_data *ubwc_config;
 	u32 num_vpp_pipe;
 	u32 max_session_count;
+	const u32 *input_config_params;
+	unsigned int input_config_params_size;
+	const u32 *output_config_params;
+	unsigned int output_config_params_size;
 };
 
 #endif

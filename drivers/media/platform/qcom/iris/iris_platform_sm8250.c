@@ -4,6 +4,7 @@
  */
 
 #include "iris_core.h"
+#include "iris_ctrls.h"
 #include "iris_platform_common.h"
 #include "iris_resources.h"
 #include "iris_hfi_gen1.h"
@@ -40,6 +41,7 @@ static struct platform_inst_fw_cap instance_fw_cap_data_sm8250[] = {
 		.value = PIPE_4,
 		.hfi_id = HFI_PROPERTY_PARAM_WORK_ROUTE,
 		.flags = CAP_FLAG_NONE,
+		.set = iris_set_pipe,
 	},
 	{
 		.cap_id = STAGE,
@@ -49,6 +51,7 @@ static struct platform_inst_fw_cap instance_fw_cap_data_sm8250[] = {
 		.value = STAGE_2,
 		.hfi_id = HFI_PROPERTY_PARAM_WORK_MODE,
 		.flags = CAP_FLAG_NONE,
+		.set = iris_set_stage,
 	},
 	{
 		.cap_id = DEBLOCK,
@@ -58,6 +61,7 @@ static struct platform_inst_fw_cap instance_fw_cap_data_sm8250[] = {
 		.value = 0,
 		.hfi_id = HFI_PROPERTY_CONFIG_VDEC_POST_LOOP_DEBLOCKER,
 		.flags = CAP_FLAG_NONE,
+		.set = iris_set_u32,
 	},
 };
 
@@ -90,6 +94,17 @@ static struct tz_cp_config tz_cp_config_sm8250 = {
 	.cp_nonpixel_size = 0x24800000,
 };
 
+static const u32 sm8250_vdec_input_config_param[] = {
+	HFI_PROPERTY_PARAM_FRAME_SIZE,
+	HFI_PROPERTY_CONFIG_VIDEOCORES_USAGE,
+	HFI_PROPERTY_PARAM_UNCOMPRESSED_FORMAT_SELECT,
+	HFI_PROPERTY_PARAM_UNCOMPRESSED_PLANE_ACTUAL_CONSTRAINTS_INFO,
+	HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL,
+	HFI_PROPERTY_PARAM_VDEC_MULTI_STREAM,
+	HFI_PROPERTY_PARAM_BUFFER_SIZE_ACTUAL,
+	HFI_PROPERTY_PARAM_BUFFER_ALLOC_MODE,
+};
+
 struct iris_platform_data sm8250_data = {
 	.get_instance = iris_hfi_gen1_get_instance,
 	.init_hfi_command_ops = &iris_hfi_gen1_command_ops_init,
@@ -117,4 +132,8 @@ struct iris_platform_data sm8250_data = {
 	.hw_response_timeout = HW_RESPONSE_TIMEOUT_VALUE,
 	.num_vpp_pipe = 4,
 	.max_session_count = 16,
+	.input_config_params =
+		sm8250_vdec_input_config_param,
+	.input_config_params_size =
+		ARRAY_SIZE(sm8250_vdec_input_config_param),
 };

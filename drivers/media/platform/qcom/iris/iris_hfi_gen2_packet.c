@@ -7,6 +7,118 @@
 #include "iris_hfi_gen2.h"
 #include "iris_hfi_gen2_packet.h"
 
+u32 iris_hfi_gen2_get_color_primaries(u32 primaries)
+{
+	u32 hfi_primaries = HFI_PRIMARIES_RESERVED;
+
+	switch (primaries) {
+	case V4L2_COLORSPACE_DEFAULT:
+		hfi_primaries = HFI_PRIMARIES_RESERVED;
+		break;
+	case V4L2_COLORSPACE_REC709:
+		hfi_primaries = HFI_PRIMARIES_BT709;
+		break;
+	case V4L2_COLORSPACE_470_SYSTEM_M:
+		hfi_primaries = HFI_PRIMARIES_BT470_SYSTEM_M;
+		break;
+	case V4L2_COLORSPACE_470_SYSTEM_BG:
+		hfi_primaries = HFI_PRIMARIES_BT470_SYSTEM_BG;
+		break;
+	case V4L2_COLORSPACE_SMPTE170M:
+		hfi_primaries = HFI_PRIMARIES_BT601_525;
+		break;
+	case V4L2_COLORSPACE_SMPTE240M:
+		hfi_primaries = HFI_PRIMARIES_SMPTE_ST240M;
+		break;
+	case V4L2_COLORSPACE_BT2020:
+		hfi_primaries = HFI_PRIMARIES_BT2020;
+		break;
+	case V4L2_COLORSPACE_DCI_P3:
+		hfi_primaries = HFI_PRIMARIES_SMPTE_RP431_2;
+		break;
+	default:
+		break;
+	}
+
+	return hfi_primaries;
+}
+
+u32 iris_hfi_gen2_get_transfer_char(u32 characterstics)
+{
+	u32 hfi_characterstics = HFI_TRANSFER_RESERVED;
+
+	switch (characterstics) {
+	case V4L2_XFER_FUNC_DEFAULT:
+		hfi_characterstics = HFI_TRANSFER_RESERVED;
+		break;
+	case V4L2_XFER_FUNC_709:
+		hfi_characterstics = HFI_TRANSFER_BT709;
+		break;
+	case V4L2_XFER_FUNC_SMPTE240M:
+		hfi_characterstics = HFI_TRANSFER_SMPTE_ST240M;
+		break;
+	case V4L2_XFER_FUNC_SRGB:
+		hfi_characterstics = HFI_TRANSFER_SRGB_SYCC;
+		break;
+	case V4L2_XFER_FUNC_SMPTE2084:
+		hfi_characterstics = HFI_TRANSFER_SMPTE_ST2084_PQ;
+		break;
+	default:
+		break;
+	}
+
+	return hfi_characterstics;
+}
+
+u32 iris_hfi_gen2_get_matrix_coefficients(u32 coefficients)
+{
+	u32 hfi_coefficients = HFI_MATRIX_COEFF_RESERVED;
+
+	switch (coefficients) {
+	case V4L2_YCBCR_ENC_DEFAULT:
+		hfi_coefficients = HFI_MATRIX_COEFF_RESERVED;
+		break;
+	case V4L2_YCBCR_ENC_709:
+		hfi_coefficients = HFI_MATRIX_COEFF_BT709;
+		break;
+	case V4L2_YCBCR_ENC_XV709:
+		hfi_coefficients = HFI_MATRIX_COEFF_BT709;
+		break;
+	case V4L2_YCBCR_ENC_XV601:
+		hfi_coefficients = HFI_MATRIX_COEFF_BT470_SYS_BG_OR_BT601_625;
+		break;
+	case V4L2_YCBCR_ENC_601:
+		hfi_coefficients = HFI_MATRIX_COEFF_BT601_525_BT1358_525_OR_625;
+		break;
+	case V4L2_YCBCR_ENC_SMPTE240M:
+		hfi_coefficients = HFI_MATRIX_COEFF_SMPTE_ST240;
+		break;
+	case V4L2_YCBCR_ENC_BT2020:
+		hfi_coefficients = HFI_MATRIX_COEFF_BT2020_NON_CONSTANT;
+		break;
+	case V4L2_YCBCR_ENC_BT2020_CONST_LUM:
+		hfi_coefficients = HFI_MATRIX_COEFF_BT2020_CONSTANT;
+		break;
+	default:
+		break;
+	}
+
+	return hfi_coefficients;
+}
+
+u32 iris_hfi_gen2_get_color_info(u32 matrix_coeff, u32 transfer_char, u32 primaries,
+				 u32 colour_description_present_flag, u32 full_range,
+				 u32 video_format, u32 video_signal_type_present_flag)
+{
+	return (matrix_coeff & 0xFF) |
+		((transfer_char << 8) & 0xFF00) |
+		((primaries << 16) & 0xFF0000) |
+		((colour_description_present_flag << 24) & 0x1000000) |
+		((full_range << 25) & 0x2000000) |
+		((video_format << 26) & 0x1C000000) |
+		((video_signal_type_present_flag << 29) & 0x20000000);
+}
+
 static void iris_hfi_gen2_create_header(struct iris_hfi_header *hdr,
 					u32 session_id, u32 header_id)
 {
