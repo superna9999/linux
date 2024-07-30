@@ -8,6 +8,8 @@
 #include "iris_hfi_gen2.h"
 #include "iris_hfi_gen2_defines.h"
 #include "iris_hfi_gen2_packet.h"
+#include "iris_vdec.h"
+#include "iris_vpu_buffer.h"
 #include "iris_vpu_common.h"
 
 struct iris_hfi_gen2_core_hfi_range {
@@ -200,6 +202,10 @@ static int iris_hfi_gen2_handle_session_info(struct iris_inst *inst,
 		info = "buffer overflow";
 		inst_hfi_gen2->hfi_frame_info.overflow = 1;
 		break;
+	case HFI_INFO_HFI_FLAG_PSC_LAST:
+		info = "drc last flag";
+		ret = iris_inst_sub_state_change_drc_last(inst);
+		break;
 	default:
 		info = "unknown";
 		break;
@@ -323,6 +329,12 @@ static int iris_hfi_gen2_handle_output_buffer(struct iris_inst *inst,
 	int ret = 0;
 	bool found = false;
 
+	if (hfi_buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST) {
+		ret = iris_inst_sub_state_change_drc_last(inst);
+		if (ret)
+			return ret;
+	}
+
 	v4l2_m2m_for_each_dst_buf_safe(m2m_ctx, m2m_buffer, n) {
 		buf = to_iris_buffer(&m2m_buffer->vb);
 		if (buf->index == hfi_buffer->index &&
@@ -445,6 +457,108 @@ static int iris_hfi_gen2_handle_session_buffer(struct iris_inst *inst,
 		return iris_hfi_gen2_handle_release_internal_buffer(inst, buffer);
 }
 
+static void iris_hfi_gen2_read_input_subcr_params(struct iris_inst *inst)
+{
+	struct iris_inst_hfi_gen2 *inst_hfi_gen2 = to_iris_inst_hfi_gen2(inst);
+	struct v4l2_pix_format_mplane *pixmp_ip, *pixmp_op;
+	u32 primaries, matrix_coeff, transfer_char;
+	struct hfi_subscription_params subsc_params;
+	u32 colour_description_present_flag = 0;
+	u32 video_signal_type_present_flag = 0;
+	struct iris_core *core = inst->core;
+	u32 full_range = 0;
+	u32 width, height;
+
+	subsc_params = inst_hfi_gen2->src_subcr_params;
+	pixmp_ip = &inst->fmt_src->fmt.pix_mp;
+	pixmp_op = &inst->fmt_dst->fmt.pix_mp;
+	width = (subsc_params.bitstream_resolution &
+		HFI_BITMASK_BITSTREAM_WIDTH) >> 16;
+	height = subsc_params.bitstream_resolution &
+		HFI_BITMASK_BITSTREAM_HEIGHT;
+
+	pixmp_ip->width = width;
+	pixmp_ip->height = height;
+
+	pixmp_op->width = ALIGN(width, 128);
+	pixmp_op->height = ALIGN(height, 32);
+	pixmp_op->plane_fmt[0].bytesperline = ALIGN(width, 128);
+	pixmp_op->plane_fmt[0].sizeimage = iris_get_buffer_size(inst, BUF_OUTPUT);
+
+	matrix_coeff = subsc_params.color_info & 0xFF;
+	transfer_char = (subsc_params.color_info & 0xFF00) >> 8;
+	primaries = (subsc_params.color_info & 0xFF0000) >> 16;
+	colour_description_present_flag =
+		(subsc_params.color_info & 0x1000000) >> 24;
+	full_range = (subsc_params.color_info & 0x2000000) >> 25;
+	video_signal_type_present_flag =
+		(subsc_params.color_info & 0x20000000) >> 29;
+
+	pixmp_op->colorspace = V4L2_COLORSPACE_DEFAULT;
+	pixmp_op->xfer_func = V4L2_XFER_FUNC_DEFAULT;
+	pixmp_op->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
+	pixmp_op->quantization = V4L2_QUANTIZATION_DEFAULT;
+
+	if (video_signal_type_present_flag) {
+		pixmp_op->quantization =
+			full_range ?
+			V4L2_QUANTIZATION_FULL_RANGE :
+			V4L2_QUANTIZATION_LIM_RANGE;
+		if (colour_description_present_flag) {
+			pixmp_op->colorspace =
+				iris_hfi_get_v4l2_color_primaries(primaries);
+			pixmp_op->xfer_func =
+				iris_hfi_get_v4l2_transfer_char(transfer_char);
+			pixmp_op->ycbcr_enc =
+				iris_hfi_get_v4l2_matrix_coefficients(matrix_coeff);
+		}
+	}
+
+	pixmp_ip->colorspace = pixmp_op->colorspace;
+	pixmp_ip->xfer_func = pixmp_op->xfer_func;
+	pixmp_ip->ycbcr_enc = pixmp_op->ycbcr_enc;
+	pixmp_ip->quantization = pixmp_op->quantization;
+
+	inst->crop.top = subsc_params.crop_offsets[0] & 0xFFFF;
+	inst->crop.left = (subsc_params.crop_offsets[0] >> 16) & 0xFFFF;
+	inst->crop.height = pixmp_ip->height -
+		(subsc_params.crop_offsets[1] & 0xFFFF) - inst->crop.top;
+	inst->crop.width = pixmp_ip->width -
+		((subsc_params.crop_offsets[1] >> 16) & 0xFFFF) - inst->crop.left;
+
+	inst->fw_cap[PROFILE].value = subsc_params.profile;
+	inst->fw_cap[LEVEL].value = subsc_params.level;
+	inst->fw_cap[POC].value = subsc_params.pic_order_cnt;
+
+	if (subsc_params.bit_depth != BIT_DEPTH_8 ||
+	    !(subsc_params.coded_frames & HFI_BITMASK_FRAME_MBS_ONLY_FLAG)) {
+		dev_err(core->dev, "unsupported content, bit depth: %x, pic_struct = %x\n",
+			subsc_params.bit_depth, subsc_params.coded_frames);
+		iris_inst_change_state(inst, IRIS_INST_ERROR);
+	}
+
+	inst->fw_min_count = subsc_params.fw_min_count;
+	inst->buffers[BUF_OUTPUT].min_count = iris_vpu_buf_count(inst, BUF_OUTPUT);
+}
+
+static int iris_hfi_gen2_handle_src_change(struct iris_inst *inst,
+					   struct iris_hfi_packet *pkt)
+{
+	int ret;
+
+	if (pkt->port != HFI_PORT_BITSTREAM)
+		return 0;
+
+	ret = iris_inst_sub_state_change_drc(inst);
+	if (ret)
+		return ret;
+
+	iris_hfi_gen2_read_input_subcr_params(inst);
+	iris_vdec_src_change(inst);
+
+	return 0;
+}
+
 static int iris_hfi_gen2_handle_session_command(struct iris_inst *inst,
 						struct iris_hfi_packet *pkt)
 {
@@ -459,6 +573,9 @@ static int iris_hfi_gen2_handle_session_command(struct iris_inst *inst,
 		break;
 	case HFI_CMD_BUFFER:
 		ret = iris_hfi_gen2_handle_session_buffer(inst, pkt);
+		break;
+	case HFI_CMD_SETTINGS_CHANGE:
+		ret = iris_hfi_gen2_handle_src_change(inst, pkt);
 		break;
 	default:
 		break;
@@ -603,6 +720,56 @@ static int iris_hfi_gen2_handle_system_response(struct iris_core *core,
 	return ret;
 }
 
+static void iris_hfi_gen2_init_src_change_param(struct iris_inst *inst)
+{
+	struct iris_inst_hfi_gen2 *inst_hfi_gen2 = to_iris_inst_hfi_gen2(inst);
+	u32 left_offset, top_offset, right_offset, bottom_offset;
+	struct v4l2_pix_format_mplane *pixmp_ip, *pixmp_op;
+	u32 primaries, matrix_coeff, transfer_char;
+	struct hfi_subscription_params *subsc_params;
+	u32 colour_description_present_flag = 0;
+	u32 video_signal_type_present_flag = 0;
+	u32 full_range = 0, video_format = 0;
+
+	subsc_params = &inst_hfi_gen2->src_subcr_params;
+	pixmp_ip = &inst->fmt_src->fmt.pix_mp;
+	pixmp_op = &inst->fmt_dst->fmt.pix_mp;
+
+	subsc_params->bitstream_resolution =
+		pixmp_ip->width << 16 | pixmp_ip->height;
+
+	left_offset = inst->crop.left;
+	top_offset = inst->crop.top;
+	right_offset = (pixmp_ip->width - inst->crop.width);
+	bottom_offset = (pixmp_ip->height - inst->crop.height);
+	subsc_params->crop_offsets[0] =
+			left_offset << 16 | top_offset;
+	subsc_params->crop_offsets[1] =
+			right_offset << 16 | bottom_offset;
+
+	subsc_params->fw_min_count = inst->buffers[BUF_OUTPUT].min_count;
+
+	primaries = iris_hfi_gen2_get_color_primaries(pixmp_op->colorspace);
+	matrix_coeff = iris_hfi_gen2_get_matrix_coefficients(pixmp_op->ycbcr_enc);
+	transfer_char = iris_hfi_gen2_get_transfer_char(pixmp_op->xfer_func);
+	full_range = pixmp_op->quantization == V4L2_QUANTIZATION_FULL_RANGE ? 1 : 0;
+	subsc_params->color_info =
+		iris_hfi_gen2_get_color_info(matrix_coeff, transfer_char, primaries,
+					     colour_description_present_flag,
+					     full_range, video_format,
+					     video_signal_type_present_flag);
+
+	subsc_params->profile = inst->fw_cap[PROFILE].value;
+	subsc_params->level = inst->fw_cap[LEVEL].value;
+	subsc_params->pic_order_cnt = inst->fw_cap[POC].value;
+	subsc_params->bit_depth = inst->fw_cap[BIT_DEPTH].value;
+	if (inst->fw_cap[CODED_FRAMES].value ==
+			CODED_FRAMES_PROGRESSIVE)
+		subsc_params->coded_frames = HFI_BITMASK_FRAME_MBS_ONLY_FLAG;
+	else
+		subsc_params->coded_frames = 0;
+}
+
 static int iris_hfi_gen2_handle_session_response(struct iris_core *core,
 						 struct iris_hfi_header *hdr)
 {
@@ -631,6 +798,18 @@ static int iris_hfi_gen2_handle_session_response(struct iris_core *core,
 	mutex_lock(&inst->lock);
 	inst_hfi_gen2 = to_iris_inst_hfi_gen2(inst);
 	memset(&inst_hfi_gen2->hfi_frame_info, 0, sizeof(struct iris_hfi_frame_info));
+
+	pkt = (u8 *)((u8 *)hdr + sizeof(*hdr));
+	for (i = 0; i < hdr->num_packets; i++) {
+		packet = (struct iris_hfi_packet *)pkt;
+		if (packet->type == HFI_CMD_SETTINGS_CHANGE) {
+			if (packet->port == HFI_PORT_BITSTREAM) {
+				iris_hfi_gen2_init_src_change_param(inst);
+				break;
+			}
+		}
+		pkt += packet->size;
+	}
 
 	start_pkt = (u8 *)((u8 *)hdr + sizeof(*hdr));
 	for (i = 0; i < ARRAY_SIZE(range); i++) {

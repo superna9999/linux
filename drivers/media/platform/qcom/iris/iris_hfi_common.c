@@ -11,6 +11,102 @@
 #include "iris_power.h"
 #include "iris_vpu_common.h"
 
+u32 iris_hfi_get_v4l2_color_primaries(u32 hfi_primaries)
+{
+	u32 primaries = V4L2_COLORSPACE_DEFAULT;
+
+	switch (hfi_primaries) {
+	case HFI_PRIMARIES_RESERVED:
+		primaries = V4L2_COLORSPACE_DEFAULT;
+		break;
+	case HFI_PRIMARIES_BT709:
+		primaries = V4L2_COLORSPACE_REC709;
+		break;
+	case HFI_PRIMARIES_BT470_SYSTEM_M:
+		primaries = V4L2_COLORSPACE_470_SYSTEM_M;
+		break;
+	case HFI_PRIMARIES_BT470_SYSTEM_BG:
+		primaries = V4L2_COLORSPACE_470_SYSTEM_BG;
+		break;
+	case HFI_PRIMARIES_BT601_525:
+		primaries = V4L2_COLORSPACE_SMPTE170M;
+		break;
+	case HFI_PRIMARIES_SMPTE_ST240M:
+		primaries = V4L2_COLORSPACE_SMPTE240M;
+		break;
+	case HFI_PRIMARIES_BT2020:
+		primaries = V4L2_COLORSPACE_BT2020;
+		break;
+	case V4L2_COLORSPACE_DCI_P3:
+		primaries = HFI_PRIMARIES_SMPTE_RP431_2;
+		break;
+	default:
+		break;
+	}
+
+	return primaries;
+}
+
+u32 iris_hfi_get_v4l2_transfer_char(u32 hfi_characterstics)
+{
+	u32 characterstics = V4L2_XFER_FUNC_DEFAULT;
+
+	switch (hfi_characterstics) {
+	case HFI_TRANSFER_RESERVED:
+		characterstics = V4L2_XFER_FUNC_DEFAULT;
+		break;
+	case HFI_TRANSFER_BT709:
+		characterstics = V4L2_XFER_FUNC_709;
+		break;
+	case HFI_TRANSFER_SMPTE_ST240M:
+		characterstics = V4L2_XFER_FUNC_SMPTE240M;
+		break;
+	case HFI_TRANSFER_SRGB_SYCC:
+		characterstics = V4L2_XFER_FUNC_SRGB;
+		break;
+	case HFI_TRANSFER_SMPTE_ST2084_PQ:
+		characterstics = V4L2_XFER_FUNC_SMPTE2084;
+		break;
+	default:
+		break;
+	}
+
+	return characterstics;
+}
+
+u32 iris_hfi_get_v4l2_matrix_coefficients(u32 hfi_coefficients)
+{
+	u32 coefficients = V4L2_YCBCR_ENC_DEFAULT;
+
+	switch (hfi_coefficients) {
+	case HFI_MATRIX_COEFF_RESERVED:
+		coefficients = V4L2_YCBCR_ENC_DEFAULT;
+		break;
+	case HFI_MATRIX_COEFF_BT709:
+		coefficients = V4L2_YCBCR_ENC_709;
+		break;
+	case HFI_MATRIX_COEFF_BT470_SYS_BG_OR_BT601_625:
+		coefficients = V4L2_YCBCR_ENC_XV601;
+		break;
+	case HFI_MATRIX_COEFF_BT601_525_BT1358_525_OR_625:
+		coefficients = V4L2_YCBCR_ENC_601;
+		break;
+	case HFI_MATRIX_COEFF_SMPTE_ST240:
+		coefficients = V4L2_YCBCR_ENC_SMPTE240M;
+		break;
+	case HFI_MATRIX_COEFF_BT2020_NON_CONSTANT:
+		coefficients = V4L2_YCBCR_ENC_BT2020;
+		break;
+	case HFI_MATRIX_COEFF_BT2020_CONSTANT:
+		coefficients = V4L2_YCBCR_ENC_BT2020_CONST_LUM;
+		break;
+	default:
+		break;
+	}
+
+	return coefficients;
+}
+
 int iris_hfi_core_init(struct iris_core *core)
 {
 	const struct iris_hfi_command_ops *hfi_ops = core->hfi_ops;
