@@ -256,6 +256,67 @@ int iris_vdec_subscribe_event(struct iris_inst *inst, const struct v4l2_event_su
 	return ret;
 }
 
+static int iris_vdec_get_num_queued_buffers(struct iris_inst *inst,
+					    enum iris_buffer_type type)
+{
+	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
+	struct v4l2_m2m_buffer *buffer, *n;
+	struct iris_buffer *buf = NULL;
+	int count = 0;
+
+	if (type == BUF_INPUT) {
+		v4l2_m2m_for_each_src_buf_safe(m2m_ctx, buffer, n) {
+			buf = to_iris_buffer(&buffer->vb);
+			if (!(buf->attr & BUF_ATTR_QUEUED))
+				continue;
+			count++;
+		}
+	} else if (type == BUF_OUTPUT) {
+		v4l2_m2m_for_each_dst_buf_safe(m2m_ctx, buffer, n) {
+			buf = to_iris_buffer(&buffer->vb);
+			if (!(buf->attr & BUF_ATTR_QUEUED))
+				continue;
+			count++;
+		}
+	} else {
+		return count;
+	}
+
+	return count;
+}
+
+static void iris_vdec_flush_deferred_buffers(struct iris_inst *inst,
+					     enum iris_buffer_type type)
+{
+	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
+	struct v4l2_m2m_buffer *buffer, *n;
+	struct iris_buffer *buf = NULL;
+
+	if (type == BUF_INPUT) {
+		v4l2_m2m_for_each_src_buf_safe(m2m_ctx, buffer, n) {
+			buf = to_iris_buffer(&buffer->vb);
+			if (buf->attr & BUF_ATTR_DEFERRED) {
+				if (!(buf->attr & BUF_ATTR_BUFFER_DONE)) {
+					buf->attr |= BUF_ATTR_BUFFER_DONE;
+					buf->data_size = 0;
+					iris_vb2_buffer_done(inst, buf);
+				}
+			}
+		}
+	} else {
+		v4l2_m2m_for_each_dst_buf_safe(m2m_ctx, buffer, n) {
+			buf = to_iris_buffer(&buffer->vb);
+			if (buf->attr & BUF_ATTR_DEFERRED) {
+				if (!(buf->attr & BUF_ATTR_BUFFER_DONE)) {
+					buf->attr |= BUF_ATTR_BUFFER_DONE;
+					buf->data_size = 0;
+					iris_vb2_buffer_done(inst, buf);
+				}
+			}
+		}
+	}
+}
+
 static void iris_vdec_kill_session(struct iris_inst *inst)
 {
 	const struct iris_hfi_command_ops *hfi_ops = inst->core->hfi_ops;
@@ -267,23 +328,43 @@ static void iris_vdec_kill_session(struct iris_inst *inst)
 	iris_inst_change_state(inst, IRIS_INST_ERROR);
 }
 
-void iris_vdec_session_streamoff(struct iris_inst *inst, u32 plane)
+int iris_vdec_session_streamoff(struct iris_inst *inst, u32 plane)
 {
 	const struct iris_hfi_command_ops *hfi_ops = inst->core->hfi_ops;
+	enum iris_buffer_type buffer_type;
+	int count = 0;
 	int ret;
+
+	if (V4L2_TYPE_IS_OUTPUT(plane))
+		buffer_type = BUF_INPUT;
+	else if (V4L2_TYPE_IS_CAPTURE(plane))
+		buffer_type = BUF_OUTPUT;
+	else
+		return -EINVAL;
 
 	ret = hfi_ops->session_stop(inst, plane);
 	if (ret)
 		goto error;
 
+	count = iris_vdec_get_num_queued_buffers(inst, buffer_type);
+	if (count) {
+		ret = -EINVAL;
+		goto error;
+	}
+
 	ret = iris_inst_state_change_streamoff(inst, plane);
 	if (ret)
 		goto error;
 
-	return;
+	iris_vdec_flush_deferred_buffers(inst, buffer_type);
+
+	return 0;
 
 error:
 	iris_vdec_kill_session(inst);
+	iris_vdec_flush_deferred_buffers(inst, buffer_type);
+
+	return ret;
 }
 
 static int iris_vdec_process_streamon_input(struct iris_inst *inst)
@@ -376,4 +457,48 @@ error:
 	iris_vdec_session_streamoff(inst, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
 	return ret;
+}
+
+static int
+iris_vdec_vb2_buffer_to_driver(struct vb2_buffer *vb2, struct iris_buffer *buf)
+{
+	struct vb2_v4l2_buffer *vbuf;
+	u32 buf_type;
+
+	if (!vb2 || !buf)
+		return -EINVAL;
+
+	vbuf = to_vb2_v4l2_buffer(vb2);
+
+	buf->fd = vb2->planes[0].m.fd;
+	buf->data_offset = vb2->planes[0].data_offset;
+	buf->data_size = vb2->planes[0].bytesused - vb2->planes[0].data_offset;
+	buf->buffer_size = vb2->planes[0].length;
+	buf->timestamp = vb2->timestamp;
+	buf->flags = vbuf->flags;
+	buf->attr = 0;
+
+	buf_type = iris_v4l2_type_to_driver(vb2->type);
+	if (buf_type == -EINVAL)
+		return -EINVAL;
+
+	buf->type = iris_v4l2_type_to_driver(vb2->type);
+	buf->index = vb2->index;
+
+	return 0;
+}
+
+int iris_vdec_qbuf(struct iris_inst *inst, struct vb2_v4l2_buffer *vbuf)
+{
+	struct vb2_buffer *vb2 = &vbuf->vb2_buf;
+	struct iris_buffer *buf = NULL;
+	int ret = 0;
+
+	buf = to_iris_buffer(vbuf);
+
+	ret = iris_vdec_vb2_buffer_to_driver(vb2, buf);
+	if (ret)
+		return ret;
+
+	return iris_queue_buffer(inst, buf);
 }
