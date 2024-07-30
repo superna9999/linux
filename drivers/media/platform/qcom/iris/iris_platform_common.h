@@ -68,6 +68,7 @@ enum platform_inst_driver_cap_type {
 	FRAME_WIDTH = 1,
 	FRAME_HEIGHT,
 	MBPF,
+	NUM_COMV,
 	INST_DRIVER_CAP_MAX,
 };
 
@@ -163,6 +164,10 @@ struct iris_platform_data {
 	unsigned int dec_input_prop_size;
 	const u32 *dec_output_prop;
 	unsigned int dec_output_prop_size;
+	const u32 *dec_ip_int_buf_tbl;
+	unsigned int dec_ip_int_buf_tbl_size;
+	const u32 *dec_op_int_buf_tbl;
+	unsigned int dec_op_int_buf_tbl_size;
 };
 
 #endif

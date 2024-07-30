@@ -32,6 +32,12 @@ static struct platform_inst_driver_cap instance_driver_cap_data_sm8550[] = {
 		.max = 138240,
 		.value = 138240,
 	},
+	{
+		.cap_id = NUM_COMV,
+		.min = 0,
+		.max = INT_MAX,
+		.value = 0,
+	},
 };
 
 static struct platform_inst_fw_cap instance_fw_cap_data_sm8550[] = {
@@ -216,6 +222,17 @@ static const u32 sm8550_vdec_subscribe_output_properties[] = {
 	HFI_PROP_CABAC_SESSION,
 };
 
+static const u32 sm8550_dec_ip_int_buf_tbl[] = {
+	BUF_BIN,
+	BUF_COMV,
+	BUF_NON_COMV,
+	BUF_LINE,
+};
+
+static const u32 sm8550_dec_op_int_buf_tbl[] = {
+	BUF_DPB,
+};
+
 struct iris_platform_data sm8550_data = {
 	.get_instance = iris_hfi_gen2_get_instance,
 	.init_hfi_command_ops = iris_hfi_gen2_command_ops_init,
@@ -257,4 +274,9 @@ struct iris_platform_data sm8550_data = {
 	.dec_input_prop_size = ARRAY_SIZE(sm8550_vdec_subscribe_input_properties),
 	.dec_output_prop = sm8550_vdec_subscribe_output_properties,
 	.dec_output_prop_size = ARRAY_SIZE(sm8550_vdec_subscribe_output_properties),
+
+	.dec_ip_int_buf_tbl = sm8550_dec_ip_int_buf_tbl,
+	.dec_ip_int_buf_tbl_size = ARRAY_SIZE(sm8550_dec_ip_int_buf_tbl),
+	.dec_op_int_buf_tbl = sm8550_dec_op_int_buf_tbl,
+	.dec_op_int_buf_tbl_size = ARRAY_SIZE(sm8550_dec_op_int_buf_tbl),
 };
