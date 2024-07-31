@@ -229,8 +229,10 @@ void iris_vb2_buf_queue(struct vb2_buffer *vb2)
 	}
 
 	if (V4L2_TYPE_IS_CAPTURE(vb2->vb2_queue->type)) {
-		if (inst->sub_state & IRIS_INST_SUB_DRC &&
-		    inst->sub_state & IRIS_INST_SUB_DRC_LAST) {
+		if ((inst->sub_state & IRIS_INST_SUB_DRC &&
+		     inst->sub_state & IRIS_INST_SUB_DRC_LAST) ||
+		    (inst->sub_state & IRIS_INST_SUB_DRAIN &&
+		     inst->sub_state & IRIS_INST_SUB_DRAIN_LAST)) {
 			vbuf->flags |= V4L2_BUF_FLAG_LAST;
 			vbuf->field = V4L2_FIELD_NONE;
 			vb2_set_plane_payload(vb2, 0, 0);

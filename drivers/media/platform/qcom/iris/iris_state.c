@@ -160,6 +160,21 @@ int iris_inst_sub_state_change_drc(struct iris_inst *inst)
 	return iris_inst_change_sub_state(inst, 0, set_sub_state);
 }
 
+int iris_inst_sub_state_change_drain_last(struct iris_inst *inst)
+{
+	enum iris_inst_sub_state set_sub_state = IRIS_INST_SUB_NONE;
+
+	if (inst->sub_state & IRIS_INST_SUB_DRAIN_LAST)
+		return -EINVAL;
+
+	if (!(inst->sub_state & IRIS_INST_SUB_DRAIN))
+		return -EINVAL;
+
+	set_sub_state = IRIS_INST_SUB_DRAIN_LAST | IRIS_INST_SUB_OUTPUT_PAUSE;
+
+	return iris_inst_change_sub_state(inst, 0, set_sub_state);
+}
+
 int iris_inst_sub_state_change_drc_last(struct iris_inst *inst)
 {
 	enum iris_inst_sub_state set_sub_state = IRIS_INST_SUB_NONE;
@@ -175,6 +190,27 @@ int iris_inst_sub_state_change_drc_last(struct iris_inst *inst)
 		return 0;
 
 	set_sub_state = IRIS_INST_SUB_DRC_LAST | IRIS_INST_SUB_OUTPUT_PAUSE;
+
+	return iris_inst_change_sub_state(inst, 0, set_sub_state);
+}
+
+int iris_inst_sub_state_change_pause(struct iris_inst *inst, u32 plane)
+{
+	enum iris_inst_sub_state set_sub_state = IRIS_INST_SUB_NONE;
+
+	if (V4L2_TYPE_IS_OUTPUT(plane)) {
+		if (inst->sub_state & IRIS_INST_SUB_DRC &&
+		    !(inst->sub_state & IRIS_INST_SUB_DRC_LAST))
+			return -EINVAL;
+
+		if (inst->sub_state & IRIS_INST_SUB_DRAIN &&
+		    !(inst->sub_state & IRIS_INST_SUB_DRAIN_LAST))
+			return -EINVAL;
+
+		set_sub_state = IRIS_INST_SUB_INPUT_PAUSE;
+	} else {
+		set_sub_state = IRIS_INST_SUB_OUTPUT_PAUSE;
+	}
 
 	return iris_inst_change_sub_state(inst, 0, set_sub_state);
 }
