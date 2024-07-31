@@ -316,6 +316,11 @@ static int iris_try_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_form
 		goto unlock;
 	}
 
+	if (!iris_allow_s_fmt(inst, f->type)) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
 	ret = iris_vdec_try_fmt(inst, f);
 
 unlock:
@@ -335,6 +340,11 @@ static int iris_s_fmt_vid_mplane(struct file *filp, void *fh, struct v4l2_format
 
 	mutex_lock(&inst->lock);
 	if (inst->state == IRIS_INST_ERROR) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
+	if (!iris_allow_s_fmt(inst, f->type)) {
 		ret = -EBUSY;
 		goto unlock;
 	}
@@ -623,6 +633,11 @@ static int iris_dec_cmd(struct file *filp, void *fh,
 
 	if (inst->state == IRIS_INST_DEINIT)
 		goto unlock;
+
+	if (!iris_allow_cmd(inst, dec->cmd)) {
+		ret = -EBUSY;
+		goto unlock;
+	}
 
 	if (dec->cmd == V4L2_DEC_CMD_START)
 		ret = iris_vdec_start_cmd(inst);

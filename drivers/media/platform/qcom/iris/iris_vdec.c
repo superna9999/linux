@@ -603,6 +603,11 @@ int iris_vdec_qbuf(struct iris_inst *inst, struct vb2_v4l2_buffer *vbuf)
 	if (ret)
 		return ret;
 
+	if (!iris_allow_qbuf(inst, vb2->type)) {
+		buf->attr |= BUF_ATTR_DEFERRED;
+		return 0;
+	}
+
 	iris_scale_power(inst);
 
 	return iris_queue_buffer(inst, buf);

@@ -81,6 +81,9 @@ static int iris_vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 	if (!iris_valid_cap_id(cap_id))
 		return -EINVAL;
 
+	if (!iris_allow_s_ctrl(inst, cap_id))
+		return -EBUSY;
+
 	cap[cap_id].flags |= CAP_FLAG_CLIENT_SET;
 
 	inst->fw_cap[cap_id].value = ctrl->val;

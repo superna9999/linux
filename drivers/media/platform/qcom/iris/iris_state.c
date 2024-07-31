@@ -77,6 +77,56 @@ int iris_inst_change_state(struct iris_inst *inst,
 	return 0;
 }
 
+bool iris_allow_s_fmt(struct iris_inst *inst, u32 type)
+{
+	return (inst->state == IRIS_INST_DEINIT) ||
+		(inst->state == IRIS_INST_INIT) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_INPUT_STREAMING) ||
+		(V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_OUTPUT_STREAMING);
+}
+
+bool iris_allow_reqbufs(struct iris_inst *inst, u32 type)
+{
+	return (inst->state == IRIS_INST_DEINIT) ||
+		(inst->state == IRIS_INST_INIT) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_INPUT_STREAMING) ||
+		(V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_OUTPUT_STREAMING);
+}
+
+bool iris_allow_qbuf(struct iris_inst *inst, u32 type)
+{
+	return (V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_INPUT_STREAMING) ||
+		(V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_STREAMING) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_OUTPUT_STREAMING) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_STREAMING);
+}
+
+bool iris_allow_streamon(struct iris_inst *inst, u32 type)
+{
+	return (V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_INIT) ||
+		(V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_OUTPUT_STREAMING) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_INIT) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_INPUT_STREAMING);
+}
+
+bool iris_allow_streamoff(struct iris_inst *inst, u32 type)
+{
+	return (V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_INPUT_STREAMING) ||
+		(V4L2_TYPE_IS_OUTPUT(type) && inst->state == IRIS_INST_STREAMING) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_OUTPUT_STREAMING) ||
+		(V4L2_TYPE_IS_CAPTURE(type) && inst->state == IRIS_INST_STREAMING) ||
+		inst->state == IRIS_INST_ERROR;
+}
+
+bool iris_allow_s_ctrl(struct iris_inst *inst, u32 cap_id)
+{
+	return ((inst->state == IRIS_INST_DEINIT) ||
+		(inst->state == IRIS_INST_INIT) ||
+		((inst->fw_cap[cap_id].flags & CAP_FLAG_DYNAMIC_ALLOWED) &&
+		(inst->state == IRIS_INST_INPUT_STREAMING ||
+		inst->state == IRIS_INST_STREAMING)));
+}
+
 int iris_inst_state_change_streamon(struct iris_inst *inst, u32 plane)
 {
 	enum iris_inst_state new_state = IRIS_INST_ERROR;
@@ -213,4 +263,34 @@ int iris_inst_sub_state_change_pause(struct iris_inst *inst, u32 plane)
 	}
 
 	return iris_inst_change_sub_state(inst, 0, set_sub_state);
+}
+
+static inline bool iris_drc_pending(struct iris_inst *inst)
+{
+	return inst->sub_state & IRIS_INST_SUB_DRC &&
+		inst->sub_state & IRIS_INST_SUB_DRC_LAST;
+}
+
+static inline bool iris_drain_pending(struct iris_inst *inst)
+{
+	return inst->sub_state & IRIS_INST_SUB_DRAIN &&
+		inst->sub_state & IRIS_INST_SUB_DRAIN_LAST;
+}
+
+bool iris_allow_cmd(struct iris_inst *inst, u32 cmd)
+{
+	if (cmd == V4L2_DEC_CMD_START) {
+		if (inst->state == IRIS_INST_INPUT_STREAMING ||
+		    inst->state == IRIS_INST_OUTPUT_STREAMING ||
+		    inst->state == IRIS_INST_STREAMING)
+			if (iris_drc_pending(inst) || iris_drain_pending(inst))
+				return true;
+	} else if (cmd == V4L2_DEC_CMD_STOP) {
+		if (inst->state == IRIS_INST_INPUT_STREAMING ||
+		    inst->state == IRIS_INST_STREAMING)
+			if (inst->sub_state != IRIS_INST_SUB_DRAIN)
+				return true;
+	}
+
+	return false;
 }

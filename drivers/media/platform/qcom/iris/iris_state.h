@@ -133,10 +133,20 @@ int iris_inst_change_state(struct iris_inst *inst,
 int iris_inst_change_sub_state(struct iris_inst *inst,
 			       enum iris_inst_sub_state clear_sub_state,
 			       enum iris_inst_sub_state set_sub_state);
+
+bool iris_allow_s_fmt(struct iris_inst *inst, u32 type);
+bool iris_allow_reqbufs(struct iris_inst *inst, u32 type);
+bool iris_allow_qbuf(struct iris_inst *inst, u32 type);
+bool iris_allow_streamon(struct iris_inst *inst, u32 type);
+bool iris_allow_streamoff(struct iris_inst *inst, u32 type);
+bool iris_allow_s_ctrl(struct iris_inst *inst, u32 cap_id);
+
 int iris_inst_state_change_streamon(struct iris_inst *inst, u32 plane);
 int iris_inst_state_change_streamoff(struct iris_inst *inst, u32 plane);
 int iris_inst_sub_state_change_drc(struct iris_inst *inst);
 int iris_inst_sub_state_change_drain_last(struct iris_inst *inst);
 int iris_inst_sub_state_change_drc_last(struct iris_inst *inst);
 int iris_inst_sub_state_change_pause(struct iris_inst *inst, u32 plane);
+bool iris_allow_cmd(struct iris_inst *inst, u32 cmd);
+
 #endif
