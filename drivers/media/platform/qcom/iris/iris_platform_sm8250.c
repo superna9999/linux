@@ -30,6 +30,18 @@ static struct platform_inst_driver_cap instance_driver_cap_data_sm8250[] = {
 		.max = 138240,
 		.value = 138240,
 	},
+	{
+		.cap_id = MB_CYCLES_VPP,
+		.min = 200,
+		.max = 200,
+		.value = 200,
+	},
+	{
+		.cap_id = MB_CYCLES_VSP,
+		.min = 25,
+		.max = 25,
+		.value = 25,
+	},
 };
 
 static struct platform_inst_fw_cap instance_fw_cap_data_sm8250[] = {
@@ -76,6 +88,13 @@ static const struct icc_info sm8250_icc_table[] = {
 };
 
 static const char * const sm8250_clk_reset_table[] = { "bus", "core" };
+
+static const struct bw_info sm8250_bw_table_dec[] = {
+	{ ((4096 * 2160) / 256) * 60, 2403000 },
+	{ ((4096 * 2160) / 256) * 30, 1224000 },
+	{ ((1920 * 1080) / 256) * 60,  812000 },
+	{ ((1920 * 1080) / 256) * 30,  416000 },
+};
 
 static const char * const sm8250_pmdomain_table[] = { "venus", "vcodec0" };
 
@@ -124,6 +143,8 @@ struct iris_platform_data sm8250_data = {
 	.icc_tbl_size = ARRAY_SIZE(sm8250_icc_table),
 	.clk_rst_tbl = sm8250_clk_reset_table,
 	.clk_rst_tbl_size = ARRAY_SIZE(sm8250_clk_reset_table),
+	.bw_tbl_dec = sm8250_bw_table_dec,
+	.bw_tbl_dec_size = ARRAY_SIZE(sm8250_bw_table_dec),
 	.pmdomain_tbl = sm8250_pmdomain_table,
 	.pmdomain_tbl_size = ARRAY_SIZE(sm8250_pmdomain_table),
 	.opp_pd_tbl = sm8250_opp_pd_table,

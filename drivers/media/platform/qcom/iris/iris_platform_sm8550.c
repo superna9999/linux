@@ -33,6 +33,24 @@ static struct platform_inst_driver_cap instance_driver_cap_data_sm8550[] = {
 		.value = 138240,
 	},
 	{
+		.cap_id = MB_CYCLES_VPP,
+		.min = 200,
+		.max = 200,
+		.value = 200,
+	},
+	{
+		.cap_id = MB_CYCLES_FW,
+		.min = 489583,
+		.max = 489583,
+		.value = 489583,
+	},
+	{
+		.cap_id = MB_CYCLES_FW_VPP,
+		.min = 66234,
+		.max = 66234,
+		.value = 66234,
+	},
+	{
 		.cap_id = NUM_COMV,
 		.min = 0,
 		.max = INT_MAX,
@@ -170,6 +188,13 @@ static const struct icc_info sm8550_icc_table[] = {
 
 static const char * const sm8550_clk_reset_table[] = { "bus" };
 
+static const struct bw_info sm8550_bw_table_dec[] = {
+	{ ((4096 * 2160) / 256) * 60, 1608000 },
+	{ ((4096 * 2160) / 256) * 30,  826000 },
+	{ ((1920 * 1080) / 256) * 60,  567000 },
+	{ ((1920 * 1080) / 256) * 30,  294000 },
+};
+
 static const char * const sm8550_pmdomain_table[] = { "venus", "vcodec0" };
 
 static const char * const sm8550_opp_pd_table[] = { "mxc", "mmcx", NULL };
@@ -243,6 +268,8 @@ struct iris_platform_data sm8550_data = {
 	.icc_tbl_size = ARRAY_SIZE(sm8550_icc_table),
 	.clk_rst_tbl = sm8550_clk_reset_table,
 	.clk_rst_tbl_size = ARRAY_SIZE(sm8550_clk_reset_table),
+	.bw_tbl_dec = sm8550_bw_table_dec,
+	.bw_tbl_dec_size = ARRAY_SIZE(sm8550_bw_table_dec),
 	.pmdomain_tbl = sm8550_pmdomain_table,
 	.pmdomain_tbl_size = ARRAY_SIZE(sm8550_pmdomain_table),
 	.opp_pd_tbl = sm8550_opp_pd_table,

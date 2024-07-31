@@ -9,6 +9,7 @@
 #include "iris_buffer.h"
 #include "iris_ctrls.h"
 #include "iris_instance.h"
+#include "iris_power.h"
 #include "iris_vdec.h"
 #include "iris_vpu_buffer.h"
 
@@ -388,6 +389,8 @@ static int iris_vdec_process_streamon_input(struct iris_inst *inst)
 	enum iris_inst_sub_state set_sub_state = IRIS_INST_SUB_NONE;
 	int ret;
 
+	iris_scale_power(inst);
+
 	ret = hfi_ops->session_start(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 	if (ret)
 		return ret;
@@ -460,6 +463,8 @@ static int iris_vdec_process_streamon_output(struct iris_inst *inst)
 	enum iris_inst_sub_state clear_sub_state = IRIS_INST_SUB_NONE;
 	bool drain_active = false, drc_active = false;
 	int ret;
+
+	iris_scale_power(inst);
 
 	drain_active = inst->sub_state & IRIS_INST_SUB_DRAIN &&
 		inst->sub_state & IRIS_INST_SUB_DRAIN_LAST;
@@ -597,6 +602,8 @@ int iris_vdec_qbuf(struct iris_inst *inst, struct vb2_v4l2_buffer *vbuf)
 	ret = iris_vdec_vb2_buffer_to_driver(vb2, buf);
 	if (ret)
 		return ret;
+
+	iris_scale_power(inst);
 
 	return iris_queue_buffer(inst, buf);
 }

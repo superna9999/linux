@@ -68,6 +68,10 @@ enum platform_inst_driver_cap_type {
 	FRAME_WIDTH = 1,
 	FRAME_HEIGHT,
 	MBPF,
+	MB_CYCLES_VPP,
+	MB_CYCLES_VSP,
+	MB_CYCLES_FW,
+	MB_CYCLES_FW_VPP,
 	NUM_COMV,
 	INST_DRIVER_CAP_MAX,
 };
@@ -117,9 +121,24 @@ struct platform_inst_fw_cap {
 		   enum platform_inst_fw_cap_type cap_id);
 };
 
+struct bw_info {
+	u32 mbs_per_sec;
+	u32 bw_ddr;
+};
+
 struct iris_core_power {
 	u64 clk_freq;
 	u64 icc_bw;
+};
+
+struct iris_inst_power {
+	u64 min_freq;
+	u32 icc_bw;
+};
+
+struct icc_vote_data {
+	int height, width;
+	u32 fps;
 };
 
 enum platform_pm_domain_type {
@@ -135,6 +154,8 @@ struct iris_platform_data {
 	void (*set_preset_registers)(struct iris_core *core);
 	const struct icc_info *icc_tbl;
 	unsigned int icc_tbl_size;
+	const struct bw_info *bw_tbl_dec;
+	unsigned int bw_tbl_dec_size;
 	const char * const *pmdomain_tbl;
 	unsigned int pmdomain_tbl_size;
 	const char * const *opp_pd_tbl;
