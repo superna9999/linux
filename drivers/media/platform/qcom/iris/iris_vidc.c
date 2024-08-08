@@ -685,6 +685,7 @@ static const struct v4l2_ioctl_ops iris_v4l2_ioctl_ops = {
 	.vidioc_prepare_buf             = v4l2_m2m_ioctl_prepare_buf,
 	.vidioc_qbuf                    = v4l2_m2m_ioctl_qbuf,
 	.vidioc_dqbuf                   = v4l2_m2m_ioctl_dqbuf,
+	.vidioc_expbuf			= v4l2_m2m_ioctl_expbuf,
 	.vidioc_querycap                = iris_querycap,
 	.vidioc_queryctrl               = iris_queryctrl,
 	.vidioc_querymenu               = iris_querymenu,
