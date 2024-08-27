@@ -34,6 +34,7 @@ enum pipe_type {
 };
 
 extern struct iris_platform_data sm8550_data;
+extern struct iris_platform_data sm8650_data;
 extern struct iris_platform_data sm8250_data;
 
 enum platform_clk_type {

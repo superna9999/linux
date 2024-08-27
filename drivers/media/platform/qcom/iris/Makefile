@@ -11,6 +11,7 @@ iris-objs += iris_buffer.o \
              iris_hfi_queue.o \
              iris_platform_sm8250.o \
              iris_platform_sm8550.o \
+             iris_platform_sm8650.o \
              iris_power.o \
              iris_probe.o \
              iris_resources.o \

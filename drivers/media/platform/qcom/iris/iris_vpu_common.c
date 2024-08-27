@@ -122,6 +122,8 @@ int iris_vpu_boot_firmware(struct iris_core *core)
 	writel(0x1, core->reg_base + CPU_CS_H2XSOFTINTEN);
 	writel(0x0, core->reg_base + CPU_CS_X2RPMH);
 
+	writel(0x0, core->reg_base + WRAPPER_CORE_POWER_STATUS + 4);
+
 	return 0;
 }
 
