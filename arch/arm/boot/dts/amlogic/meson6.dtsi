@@ -47,6 +47,11 @@
 
 /delete-node/ &ao_arc_rproc;
 
+&ethmac {
+	clocks = <0>;
+	clock-names = "stmmaceth";
+};
+
 &efuse {
 	status = "disabled";
 };
