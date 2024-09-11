@@ -16,8 +16,8 @@ properties:
           - amlogic,meson8-clkc
           - amlogic,meson8b-clkc
       - items:
-          - const: amlogic,meson8-clkc
           - const: amlogic,meson8m2-clkc
+          - const: amlogic,meson8-clkc
 
   clocks:
     minItems: 2
