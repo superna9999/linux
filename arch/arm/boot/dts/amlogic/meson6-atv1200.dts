@@ -30,4 +30,5 @@
 
 &ethmac {
 	status = "okay";
+	phy-mode = "rmii";
 };
