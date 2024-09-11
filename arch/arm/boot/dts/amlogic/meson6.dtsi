@@ -43,6 +43,10 @@
 	};
 }; /* end of / */
 
+/delete-node/ &aiu;
+
+/delete-node/ &ao_arc_rproc;
+
 &efuse {
 	status = "disabled";
 };
@@ -71,3 +75,15 @@
 	clocks = <&xtal>, <&clk81>, <&clk81>;
 	clock-names = "xtal", "pclk", "baud";
 };
+
+/delete-node/ &pwm_ab;
+/delete-node/ &pwm_cd;
+
+/delete-node/ &sdhc;
+/delete-node/ &sdio;
+
+/delete-node/ &usb0;
+/delete-node/ &usb1;
+
+/delete-node/ &usb0_phy;
+/delete-node/ &usb1_phy;
