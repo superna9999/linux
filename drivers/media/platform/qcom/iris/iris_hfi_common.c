@@ -120,7 +120,7 @@ int iris_hfi_core_init(struct iris_core *core)
 	if (ret)
 		return ret;
 
-	return hfi_ops->sys_interframe_powercollapse(core);
+	return 0; //hfi_ops->sys_interframe_powercollapse(core);
 }
 
 irqreturn_t iris_hfi_isr(int irq, void *data)

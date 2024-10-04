@@ -194,7 +194,7 @@ static int iris_pm_suspend(struct device *dev)
 	core = dev_get_drvdata(dev);
 
 	mutex_lock(&core->lock);
-	ret = iris_hfi_pm_suspend(core);
+	ret = -EAGAIN; //iris_hfi_pm_suspend(core);
 	mutex_unlock(&core->lock);
 
 	return ret;
