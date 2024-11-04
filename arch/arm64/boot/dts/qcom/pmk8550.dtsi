@@ -7,6 +7,11 @@
 #include <dt-bindings/input/linux-event-codes.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/spmi/spmi.h>
+#include <dt-bindings/iio/adc/qcom,spmi-adc5-gen3-pmk8550.h>
+#include <dt-bindings/iio/adc/qcom,spmi-adc5-gen3-pm8550.h>
+#include <dt-bindings/iio/adc/qcom,spmi-adc5-gen3-pm8550b.h>
+#include <dt-bindings/iio/adc/qcom,spmi-adc5-gen3-pm8550vx.h>
+#include <dt-bindings/iio/adc/qcom,spmi-vadc.h>
 
 / {
 	reboot-mode {
@@ -72,6 +77,38 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+		};
+
+		pmk8550_vadc: vadc@9000 {
+			compatible = "qcom,spmi-adc5-gen3";
+			reg = <0x9000>;
+			qcom,debug-base = <0x7600>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupt-names = "adc-sdam0";
+			interrupts = <0x0 0x90 0x1 IRQ_TYPE_EDGE_RISING>;
+			#thermal-sensor-cells = <1>;
+			#io-channel-cells = <1>;
+			io-channel-ranges;
+
+			/* PMK8550 Channel nodes */
+			pmk8550_offset_ref {
+				reg = <PMK8550_ADC5_GEN3_REF_GND(0)>;
+				label = "pmk8550_offset_ref";
+				qcom,pre-scaling = <1 1>;
+			};
+
+			pmk8550_vref_1p25 {
+				reg = <PMK8550_ADC5_GEN3_1P25VREF(0)>;
+				label = "pmk8550_vref_1p25";
+				qcom,pre-scaling = <1 1>;
+			};
+
+			pmk8550_die_temp {
+				reg = <PMK8550_ADC5_GEN3_DIE_TEMP(0)>;
+				label = "pmk8550_die_temp";
+				qcom,pre-scaling = <1 1>;
+			};
 		};
 	};
 };
