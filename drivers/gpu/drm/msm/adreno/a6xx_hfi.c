@@ -722,7 +722,7 @@ int a6xx_hfi_set_freq(struct a6xx_gmu *gmu, int index)
 
 	msg.ack_type = 1; /* blocking */
 	msg.freq = index;
-	msg.bw = 0; /* TODO: bus scaling */
+	msg.bw = 0x9; /* TODO: bus scaling */
 
 	return a6xx_hfi_send_msg(gmu, HFI_H2F_MSG_GX_BW_PERF_VOTE, &msg,
 		sizeof(msg), NULL, 0);
