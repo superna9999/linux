@@ -1380,6 +1380,19 @@ static const struct adreno_info a7xx_gpus[] = {
 			.protect = &a730_protect,
 			.gmu_chipid = 0x7090100,
 			.gmu_cgc_mode = 0x00020202,
+			/* GMU Bandwidth table, should be in sync with a750_build_bw_table */
+			.gpu_bw_table = (const u32[]) {
+				2136718,
+				3000000,
+				6074218,
+				6671875,
+				8171875,
+				10687500,
+				12449218,
+				14398437,
+				16500000,
+			},
+			.nr_gpu_bws = 9,
 		},
 		.address_space_size = SZ_16G,
 	}

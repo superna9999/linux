@@ -581,7 +581,57 @@ static void a740_build_bw_table(struct a6xx_hfi_msg_bw_table *msg)
 	msg->ddr_cmds_data[0][1] = 0x40000000;
 	msg->ddr_cmds_data[0][2] = 0x40000000;
 
-	/* TODO: add a proper dvfs table */
+	/* TODO */
+
+	msg->cnoc_cmds_num = 1;
+	msg->cnoc_wait_bitmask = 0x1;
+
+	msg->cnoc_cmds_addrs[0] = cmd_db_read_addr("CN0");
+	msg->cnoc_cmds_data[0][0] = 0x40000000;
+	msg->cnoc_cmds_data[1][0] = 0x60000001;
+}
+
+static void a750_build_bw_table(struct a6xx_hfi_msg_bw_table *msg)
+{
+	msg->bw_level_num = 10;
+
+	msg->ddr_cmds_num = 3;
+	msg->ddr_wait_bitmask = 0x7;
+
+	msg->ddr_cmds_addrs[0] = cmd_db_read_addr("SH0");
+	msg->ddr_cmds_addrs[1] = cmd_db_read_addr("MC0");
+	msg->ddr_cmds_addrs[2] = cmd_db_read_addr("ACV");
+
+	msg->ddr_cmds_data[0][0] = 0x40000000;
+	msg->ddr_cmds_data[0][1] = 0x40000000;
+	msg->ddr_cmds_data[0][2] = 0x40000000;
+	msg->ddr_cmds_data[1][0] = 0x61fc87f2;
+	msg->ddr_cmds_data[1][1] = 0x61fc87f2;
+	msg->ddr_cmds_data[1][2] = 0x60000000;
+	msg->ddr_cmds_data[2][0] = 0x62ca4b29;
+	msg->ddr_cmds_data[2][1] = 0x62ca4b29;
+	msg->ddr_cmds_data[2][2] = 0x60000000;
+	msg->ddr_cmds_data[3][0] = 0x65a61698;
+	msg->ddr_cmds_data[3][1] = 0x65a61698;
+	msg->ddr_cmds_data[3][2] = 0x60000000;
+	msg->ddr_cmds_data[4][0] = 0x663498d2;
+	msg->ddr_cmds_data[4][1] = 0x663498d2;
+	msg->ddr_cmds_data[4][2] = 0x60000000;
+	msg->ddr_cmds_data[5][0] = 0x67999e66;
+	msg->ddr_cmds_data[5][1] = 0x67999e66;
+	msg->ddr_cmds_data[5][2] = 0x60000000;
+	msg->ddr_cmds_data[6][0] = 0x69f0a7c2;
+	msg->ddr_cmds_data[6][1] = 0x69f0a7c2;
+	msg->ddr_cmds_data[6][2] = 0x60000006;
+	msg->ddr_cmds_data[7][0] = 0x6b942e50;
+	msg->ddr_cmds_data[7][1] = 0x6b942e50;
+	msg->ddr_cmds_data[7][2] = 0x60000006;
+	msg->ddr_cmds_data[8][0] = 0x6d643590;
+	msg->ddr_cmds_data[8][1] = 0x6d643590;
+	msg->ddr_cmds_data[8][2] = 0x60000006;
+	msg->ddr_cmds_data[9][0] = 0x6f58bd62;
+	msg->ddr_cmds_data[9][1] = 0x6f58bd62;
+	msg->ddr_cmds_data[9][2] = 0x60000006;
 
 	msg->cnoc_cmds_num = 1;
 	msg->cnoc_wait_bitmask = 0x1;
@@ -651,6 +701,8 @@ static int a6xx_hfi_send_bw_table(struct a6xx_gmu *gmu)
 		a690_build_bw_table(&msg);
 	else if (adreno_is_a730(adreno_gpu))
 		a730_build_bw_table(&msg);
+	else if (adreno_is_a750(adreno_gpu))
+		a750_build_bw_table(&msg);
 	else if (adreno_is_a740_family(adreno_gpu))
 		a740_build_bw_table(&msg);
 	else
