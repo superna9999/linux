@@ -112,6 +112,7 @@ void a6xx_gmu_set_freq(struct msm_gpu *gpu, struct dev_pm_opp *opp,
 	struct a6xx_gpu *a6xx_gpu = to_a6xx_gpu(adreno_gpu);
 	struct a6xx_gmu *gmu = &a6xx_gpu->gmu;
 	u32 perf_index;
+	u32 bw_index = 0;
 	unsigned long gpu_freq;
 	int ret = 0;
 
@@ -123,6 +124,19 @@ void a6xx_gmu_set_freq(struct msm_gpu *gpu, struct dev_pm_opp *opp,
 	for (perf_index = 0; perf_index < gmu->nr_gpu_freqs - 1; perf_index++)
 		if (gpu_freq == gmu->gpu_freqs[perf_index])
 			break;
+
+	if (adreno_gpu->info && adreno_gpu->info->a6xx) {
+		unsigned int bw = dev_pm_opp_get_bandwidth(opp, true, 0);
+		const struct a6xx_info *info = adreno_gpu->info->a6xx;
+		unsigned int index;
+
+		for (index = 0; bw && index < info->nr_gpu_bws - 1; index++) {
+			if (bw < info->gpu_bw_table[index])
+				break;
+			/* Bandwidth index starts at 1 */
+			bw_index = index + 1;
+		}
+	}
 
 	gmu->current_perf_index = perf_index;
 	gmu->freq = gmu->gpu_freqs[perf_index];
@@ -139,7 +153,7 @@ void a6xx_gmu_set_freq(struct msm_gpu *gpu, struct dev_pm_opp *opp,
 		return;
 
 	if (!gmu->legacy) {
-		a6xx_hfi_set_freq(gmu, perf_index);
+		a6xx_hfi_set_freq(gmu, perf_index, bw_index);
 		dev_pm_opp_set_opp(&gpu->pdev->dev, opp);
 		return;
 	}

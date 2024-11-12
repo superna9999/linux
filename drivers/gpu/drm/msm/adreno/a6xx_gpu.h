@@ -24,6 +24,8 @@ struct a6xx_info {
 	u32 gmu_chipid;
 	u32 gmu_cgc_mode;
 	u32 prim_fifo_threshold;
+	u32 nr_gpu_bws;
+	const u32 *gpu_bw_table;
 };
 
 struct a6xx_gpu {
