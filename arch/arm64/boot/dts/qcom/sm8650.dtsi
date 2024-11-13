@@ -2652,91 +2652,102 @@
 				opp-231000000 {
 					opp-hz = /bits/ 64 <231000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS_D2>;
+					qcom,opp-acd-level = <0xc82f5ffd>;
 					opp-peak-kBps = <2136718>;
 				};
 
 				opp-310000000 {
 					opp-hz = /bits/ 64 <310000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS_D1>;
-					opp-peak-kBps = <2136718>;
+					qcom,opp-acd-level = <0xc82c5ffd>;
+					opp-peak-kBps = <6074218>;
 				};
 
 				opp-366000000 {
 					opp-hz = /bits/ 64 <366000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS_D0>;
-					qcom,opp-acd-level = <0xc02f5ffd>;
+					qcom,opp-acd-level = <0xc02e5ffd>;
 					opp-peak-kBps = <6074218>;
 				};
 
 				opp-422000000 {
 					opp-hz = /bits/ 64 <422000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
-					qcom,opp-acd-level = <0xc02f5ffd>;
+					qcom,opp-acd-level = <0xc02d5ffd>;
 					opp-peak-kBps = <8171875>;
 				};
 
 				opp-500000000 {
 					opp-hz = /bits/ 64 <500000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS_L1>;
-					qcom,opp-acd-level = <0xc02c5ffd>;
+					qcom,opp-acd-level = <0xc02a5ffd>;
 					opp-peak-kBps = <8171875>;
 				};
 
 				opp-578000000 {
 					opp-hz = /bits/ 64 <578000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_SVS>;
-					qcom,opp-acd-level = <0xc02a5ffd>;
-					opp-peak-kBps = <8171875>;
+					qcom,opp-acd-level = <0x882c5ffd>;
+					opp-peak-kBps = <12449218>;
 				};
 
 				opp-629000000 {
 					opp-hz = /bits/ 64 <629000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_SVS_L0>;
-					qcom,opp-acd-level = <0xc02a5ffd>;
-					opp-peak-kBps = <10687500>;
+					qcom,opp-acd-level = <0x882a5ffd>;
+					opp-peak-kBps = <12449218>;
 				};
 
 				opp-680000000 {
 					opp-hz = /bits/ 64 <680000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
-					qcom,opp-acd-level = <0xe0295ffd>;
-					opp-peak-kBps = <12449218>;
+					qcom,opp-acd-level = <0x882a5ffd>;
+					opp-peak-kBps = <16500000>;
 				};
 
 				opp-720000000 {
 					opp-hz = /bits/ 64 <720000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_SVS_L2>;
-					qcom,opp-acd-level = <0xe0295ffd>;
-					opp-peak-kBps = <12449218>;
+					qcom,opp-acd-level = <0x882a5ffd>;
+					opp-peak-kBps = <16500000>;
 				};
 
 				opp-770000000 {
 					opp-hz = /bits/ 64 <770000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_NOM>;
-					qcom,opp-acd-level = <0xc0285ffd>;
-					opp-peak-kBps = <12449218>;
+					qcom,opp-acd-level = <0x882a5ffd>;
+					opp-peak-kBps = <16500000>;
 				};
 
 				opp-834000000 {
 					opp-hz = /bits/ 64 <834000000>;
 					opp-level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
-					qcom,opp-acd-level = <0x882f5ffd>;
-					opp-peak-kBps = <14398437>;
-				};
-
-				opp-869000000 {
-					opp-hz = /bits/ 64 <869000000>;
-					opp-level = <RPMH_REGULATOR_LEVEL_TURBO>;
-					qcom,opp-acd-level = <0x882f5ffd>;
-					opp-peak-kBps = <14398437>;
+					qcom,opp-acd-level = <0x882a5ffd>;
+					opp-peak-kBps = <16500000>;
 				};
 
 				opp-903000000 {
 					opp-hz = /bits/ 64 <903000000>;
-					opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
-					qcom,opp-acd-level = <0x882f5ffd>;
+					opp-level = <RPMH_REGULATOR_LEVEL_TURBO>;
+					qcom,opp-acd-level = <0x882a5ffd>;
 					opp-peak-kBps = <16500000>;
 				};
+
+/*
+				opp-950000000 {
+					opp-hz = /bits/ 64 <950000000>;
+					opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
+					qcom,opp-acd-level = <0x882a5ffd>;
+					opp-peak-kBps = <14398437>;
+				};
+
+				opp-1000000000 {
+					opp-hz = /bits/ 64 <1000000000>;
+					opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
+					qcom,opp-acd-level = <0x882a5ffd>;
+					opp-peak-kBps = <16500000>;
+				};
+*/
 			};
 		};
 
