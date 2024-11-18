@@ -55,9 +55,9 @@ enum adreno_family {
 #define ADRENO_QUIRK_FAULT_DETECT_MASK		BIT(1)
 #define ADRENO_QUIRK_LMLOADKILL_DISABLE		BIT(2)
 
-#define ADRENO_FEAT_HAS_HW_APRIV		BIT(3)
-#define ADRENO_FEAT_HAS_CACHED_COHERENT		BIT(4)
-#define ADRENO_FEAT_PREEMPTION			BIT(5)
+#define ADRENO_FEAT_HAS_HW_APRIV		BIT(0)
+#define ADRENO_FEAT_HAS_CACHED_COHERENT		BIT(1)
+#define ADRENO_FEAT_PREEMPTION			BIT(2)
 
 /* Helper for formating the chip_id in the way that userspace tools like
  * crashdec expect.
@@ -98,6 +98,7 @@ struct adreno_info {
 	uint32_t revn;
 	const char *fw[ADRENO_FW_MAX];
 	uint32_t gmem;
+	u64 features;
 	u64 quirks;
 	struct msm_gpu *(*init)(struct drm_device *dev);
 	const char *zapfw;
