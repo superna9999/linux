@@ -54,9 +54,10 @@ enum adreno_family {
 #define ADRENO_QUIRK_TWO_PASS_USE_WFI		BIT(0)
 #define ADRENO_QUIRK_FAULT_DETECT_MASK		BIT(1)
 #define ADRENO_QUIRK_LMLOADKILL_DISABLE		BIT(2)
-#define ADRENO_QUIRK_HAS_HW_APRIV		BIT(3)
-#define ADRENO_QUIRK_HAS_CACHED_COHERENT	BIT(4)
-#define ADRENO_QUIRK_PREEMPTION			BIT(5)
+
+#define ADRENO_FEAT_HAS_HW_APRIV		BIT(3)
+#define ADRENO_FEAT_HAS_CACHED_COHERENT		BIT(4)
+#define ADRENO_FEAT_PREEMPTION			BIT(5)
 
 /* Helper for formating the chip_id in the way that userspace tools like
  * crashdec expect.
