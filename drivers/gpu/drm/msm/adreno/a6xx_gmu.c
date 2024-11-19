@@ -136,6 +136,10 @@ void a6xx_gmu_set_freq(struct msm_gpu *gpu, struct dev_pm_opp *opp,
 			/* Bandwidth index starts at 1 */
 			bw_index = index + 1;
 		}
+
+		/* Add max AB vote */
+		if (bw_index)
+			bw_index |= (FIELD_PREP(GENMASK(31, 16), (0xFFFF - 1)) | FIELD_PREP(GENMASK(15, 8), 1));
 	}
 
 	gmu->current_perf_index = perf_index;
@@ -154,7 +158,9 @@ void a6xx_gmu_set_freq(struct msm_gpu *gpu, struct dev_pm_opp *opp,
 
 	if (!gmu->legacy) {
 		a6xx_hfi_set_freq(gmu, perf_index, bw_index);
-		dev_pm_opp_set_opp(&gpu->pdev->dev, opp);
+		/* With Bandwidth voting, we now vote for all resources, so skip OPP set */
+		if (!bw_index)
+			dev_pm_opp_set_opp(&gpu->pdev->dev, opp);
 		return;
 	}
 
