@@ -5946,8 +5946,6 @@
 		};
 
 		nsphvx0-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens2 6>;
 
 			trips {
@@ -5966,8 +5964,6 @@
 		};
 
 		nsphvx1-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens2 7>;
 
 			trips {
@@ -5986,8 +5982,6 @@
 		};
 
 		nsphmx0-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens2 8>;
 
 			trips {
@@ -6006,8 +6000,6 @@
 		};
 
 		nsphmx1-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens2 9>;
 
 			trips {
@@ -6026,8 +6018,6 @@
 		};
 
 		nsphmx2-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens2 10>;
 
 			trips {
@@ -6046,8 +6036,6 @@
 		};
 
 		nsphmx3-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens2 11>;
 
 			trips {
@@ -6066,8 +6054,6 @@
 		};
 
 		video-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens1 12>;
 
 			trips {
@@ -6086,8 +6072,6 @@
 		};
 
 		ddr-thermal {
-			polling-delay-passive = <10>;
-
 			thermal-sensors = <&tsens1 13>;
 
 			trips {
