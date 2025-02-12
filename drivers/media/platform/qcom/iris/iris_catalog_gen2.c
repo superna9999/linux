@@ -186,3 +186,4 @@ static const u32 sm8550_dec_op_int_buf_tbl[] = {
 
 /* platforms catalogs */
 #include "iris_catalog_sm8550.h"
+#include "iris_catalog_sm8650.h"
