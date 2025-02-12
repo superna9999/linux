@@ -211,12 +211,12 @@ skip_power_off:
 	return -EAGAIN;
 }
 
-static void iris_vpu_power_off_controller_begin(struct iris_core *core)
+void iris_vpu_power_off_controller_begin(struct iris_core *core)
 {
 	writel(MSK_SIGNAL_FROM_TENSILICA | MSK_CORE_POWER_ON, core->reg_base + CPU_CS_X2RPMH);
 }
 
-static int iris_vpu_power_off_controller_end(struct iris_core *core)
+int iris_vpu_power_off_controller_end(struct iris_core *core)
 {
 	u32 val = 0;
 	int ret;
