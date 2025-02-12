@@ -211,7 +211,7 @@ skip_power_off:
 	return -EAGAIN;
 }
 
-static int iris_vpu_power_off_controller(struct iris_core *core)
+int iris_vpu_power_off_controller(struct iris_core *core)
 {
 	u32 val = 0;
 	int ret;
@@ -264,23 +264,29 @@ void iris_vpu_power_off(struct iris_core *core)
 {
 	dev_pm_opp_set_rate(core->dev, 0);
 	core->iris_platform_data->vpu_ops->power_off_hw(core);
-	iris_vpu_power_off_controller(core);
+	core->iris_platform_data->vpu_ops->power_off_controller(core);
 	iris_unset_icc_bw(core);
 
 	if (!iris_vpu_watchdog(core, core->intr_status))
 		disable_irq_nosync(core->irq);
 }
 
-static int iris_vpu_power_on_controller(struct iris_core *core)
+int iris_vpu_reset_controller(struct iris_core *core)
 {
 	u32 rst_tbl_size = core->iris_platform_data->clk_rst_tbl_size;
+
+	return reset_control_bulk_reset(rst_tbl_size, core->resets);
+}
+
+static int iris_vpu_power_on_controller(struct iris_core *core)
+{
 	int ret;
 
 	ret = iris_enable_power_domains(core, core->pmdomain_tbl->pd_devs[IRIS_CTRL_POWER_DOMAIN]);
 	if (ret)
 		return ret;
 
-	ret = reset_control_bulk_reset(rst_tbl_size, core->resets);
+	ret = core->iris_platform_data->vpu_ops->reset_controller(core);
 	if (ret)
 		goto err_disable_power;
 
