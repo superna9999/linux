@@ -894,6 +894,11 @@
 	status = "okay";
 };
 
+&iris {
+	firmware-name = "qcom/vpu/vpu33_p4.mbn";
+	status = "okay";
+};
+
 &gpu {
 	status = "okay";
 
