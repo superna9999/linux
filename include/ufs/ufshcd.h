@@ -893,6 +893,7 @@ enum ufshcd_mcq_opr {
  * @ufshcd_state: UFSHCD state
  * @eh_flags: Error handling flags
  * @intr_mask: Interrupt Mask Bits
+ * @intr_en: Saved Interrupt Enable Bits
  * @ee_ctrl_mask: Exception event control mask
  * @ee_drv_mask: Exception event mask for driver
  * @ee_usr_mask: Exception event mask for user (set via debugfs)
@@ -1040,6 +1041,7 @@ struct ufs_hba {
 	enum ufshcd_state ufshcd_state;
 	u32 eh_flags;
 	u32 intr_mask;
+	u32 intr_en;
 	u16 ee_ctrl_mask;
 	u16 ee_drv_mask;
 	u16 ee_usr_mask;
