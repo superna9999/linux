@@ -689,6 +689,12 @@ enum ufshcd_quirks {
 	 * single doorbell mode.
 	 */
 	UFSHCD_QUIRK_BROKEN_LSDBS_CAP			= 1 << 25,
+
+	/*
+	 * This quirk indicates that the controller fails to properly
+	 * scale gear along the clock.
+	 */
+	UFSHCD_QUIRK_BROKEN_GEAR_SCALING		= 1 << 26,
 };
 
 enum ufshcd_caps {

@@ -1426,7 +1426,8 @@ static int ufshcd_devfreq_scale(struct ufs_hba *hba, unsigned long freq,
 	u32 new_gear = 0;
 	int ret = 0;
 
-	new_gear = ufshcd_vops_freq_to_gear_speed(hba, freq);
+	if (!(hba->quirks & UFSHCD_QUIRK_BROKEN_GEAR_SCALING))
+		new_gear = ufshcd_vops_freq_to_gear_speed(hba, freq);
 
 	ret = ufshcd_clock_scaling_prepare(hba, 1 * USEC_PER_SEC);
 	if (ret)
