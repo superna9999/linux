@@ -1093,13 +1093,13 @@ void adreno_gpu_ocmem_cleanup(struct adreno_ocmem *adreno_ocmem)
 			   adreno_ocmem->hdl);
 }
 
-int adreno_read_speedbin(struct adreno_gpu *adreno_gpu,
-			 struct device *dev, u32 *fuse)
+static int adreno_read_speedbin(struct adreno_gpu *adreno_gpu,
+				struct device *dev, u32 *fuse)
 {
 	int ret;
 
 	/*
-	 * Try reading the speedbin via a nvmem cell first
+	 * Try reading the speedbin via a nvmem cell first.
 	 * -ENOENT means "no nvmem-cells" and essentially means "old DT" or
 	 * "nvmem fuse is irrelevant", simply assume it's fine.
 	 */
@@ -1114,8 +1114,7 @@ int adreno_read_speedbin(struct adreno_gpu *adreno_gpu,
 
 	/*
 	 * Only check the feature code - the product code only matters for
-	 * proto SoCs unavailable outside Qualcomm labs, as far as GPU bin
-	 * matching is concerned.
+	 * prototype SoCs, as far as GPU bin matching is concerned.
 	 *
 	 * Ignore EOPNOTSUPP, as not all SoCs expose this info through SMEM.
 	 */
@@ -1126,7 +1125,70 @@ int adreno_read_speedbin(struct adreno_gpu *adreno_gpu,
 		return dev_err_probe(dev, ret, "Couldn't get feature code from SMEM\n");
 #endif
 
-	return ret;
+	return 0;
+}
+
+#define ADRENO_SPEEDBIN_FUSE_NODATA	0xFFFF /* Made-up large value, expected by mesa */
+static int adreno_set_speedbin(struct adreno_gpu *adreno_gpu, struct device *dev)
+{
+	const struct adreno_info *info = adreno_gpu->info;
+	u32 fuse = ADRENO_SPEEDBIN_FUSE_NODATA;
+	u32 supp_hw = UINT_MAX;
+	int ret;
+
+	/* No speedbins defined for this GPU SKU => allow all defined OPPs. */
+	if (!info->speedbins) {
+		/*
+		 * Due to OPP framework's safety assumptions, the speedbin data
+		 * must be defined either in both the driver catalog and DT, or
+		 * in neither.
+		 *
+		 * This means that having a too old DT (with no opp-supported-hw)
+		 * or a "too new" one (with opp-supported-hw, but the kernel not
+		 * having the fuse matching tables) becomes a problem.
+		 *
+		 * We can only work around one of these at a time, so choose the
+		 * more real issue of outdated DT and skip setting compatibility
+		 * constraints so as not to trip off any alarms in _opp_is_supported()
+		 */
+		adreno_gpu->speedbin = ADRENO_SPEEDBIN_FUSE_NODATA;
+
+		return 0;
+	}
+
+	/*
+	 * If a real error (not counting older devicetrees having no nvmem references)
+	 * occurs when trying to get the fuse value, bail out.
+	 */
+	ret = adreno_read_speedbin(adreno_gpu, dev, &fuse);
+	if (ret) {
+		return ret;
+	} else if (fuse == ADRENO_SPEEDBIN_FUSE_NODATA) {
+		/* The info struct has speedbin data, but the DT doesn't => allow all OPPs */
+		DRM_DEV_INFO(dev, "No GPU speed bin fuse, please update your device tree\n");
+
+		/*
+		 * In this case, the DT doesn't point us to speedbin info.
+		 * We can then assume the opp-supported-hw properties are missing as well,
+		 * as having one in place but not the other would be rather invalid anyway.
+		 *
+		 * We're not calling set_supported_hw(ALLOW_ALL_OPPS) here, as OPP APIs
+		 * would then still expect opp-supported-hw, which we may lack
+		 */
+		return 0;
+	}
+
+	adreno_gpu->speedbin = fuse;
+
+	/* Traverse the known speedbins */
+	for (int i = 0; info->speedbins[i].fuse != SHRT_MAX; i++) {
+		if (info->speedbins[i].fuse == fuse) {
+			supp_hw = BIT(info->speedbins[i].speedbin);
+			return devm_pm_opp_set_supported_hw(dev, &supp_hw, 1);
+		}
+	}
+
+	return dev_err_probe(dev, -EINVAL, "Unknown speed bin fuse value: 0x%x\n", fuse);
 }
 
 int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
@@ -1138,7 +1200,6 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 	struct msm_gpu_config adreno_gpu_config  = { 0 };
 	struct msm_gpu *gpu = &adreno_gpu->base;
 	const char *gpu_name;
-	u32 speedbin;
 	int ret;
 
 	adreno_gpu->funcs = funcs;
@@ -1166,9 +1227,9 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 			devm_pm_opp_set_clkname(dev, "core");
 	}
 
-	if (adreno_read_speedbin(adreno_gpu, dev, &speedbin) || !speedbin)
-		speedbin = 0xffff;
-	adreno_gpu->speedbin = speedbin;
+	ret = adreno_set_speedbin(adreno_gpu, dev);
+	if (ret)
+		return ret;
 
 	gpu_name = devm_kasprintf(dev, GFP_KERNEL, "%"ADRENO_CHIPID_FMT,
 			ADRENO_CHIPID_ARGS(config->chip_id));
