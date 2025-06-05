@@ -1533,6 +1533,12 @@ config REGULATOR_SUN20I
 	help
 	  This driver supports the internal LDOs in the Allwinner D1 SoC.
 
+config REGULATOR_SGM3804
+	tristate "SGMicro sgm3804 voltage regulator"
+	depends on I2C && OF
+	help
+	  This driver supports SGMicro sgm3804 voltage regulator.
+
 config REGULATOR_SY7636A
 	tristate "Silergy SY7636A voltage regulator"
 	depends on MFD_SY7636A
