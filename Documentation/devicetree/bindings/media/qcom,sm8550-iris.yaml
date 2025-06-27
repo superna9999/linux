@@ -65,9 +65,30 @@ properties:
       - const: core
 
   iommus:
+    minItems: 1
     maxItems: 2
 
   dma-coherent: true
+
+  non-pixel:
+    type: object
+    additionalProperties: false
+
+    description:
+      Non pixel context bank is needed when video hardware have distinct iommus
+      for non pixel buffers. Non pixel buffers are mainly compressed and
+      internal buffers.
+
+    properties:
+      iommus:
+        maxItems: 1
+
+      memory-region:
+        maxItems: 1
+
+    required:
+      - iommus
+      - memory-region
 
   operating-points-v2: true
 
@@ -86,6 +107,7 @@ required:
 
 allOf:
   - $ref: qcom,venus-common.yaml#
+  - $ref: /schemas/reserved-memory/reserved-memory.yaml
   - if:
       properties:
         compatible:
@@ -117,6 +139,16 @@ examples:
     #include <dt-bindings/power/qcom-rpmpd.h>
     #include <dt-bindings/power/qcom,rpmhpd.h>
 
+    reserved-memory {
+      #address-cells = <2>;
+      #size-cells = <2>;
+
+      iris_resv: reservation-iris {
+        iommu-addresses = <&iris_non_pixel 0x0 0x0 0x0 0x25800000>,
+                          <&iris_non_pixel 0x0 0xe0000000 0x0 0x20000000>;
+      };
+    };
+
     video-codec@aa00000 {
         compatible = "qcom,sm8550-iris";
         reg = <0x0aa00000 0xf0000>;
@@ -144,11 +176,15 @@ examples:
         resets = <&gcc GCC_VIDEO_AXI0_CLK_ARES>;
         reset-names = "bus";
 
-        iommus = <&apps_smmu 0x1940 0x0000>,
-                 <&apps_smmu 0x1947 0x0000>;
+        iommus = <&apps_smmu 0x1947 0x0000>;
         dma-coherent;
 
         operating-points-v2 = <&iris_opp_table>;
+
+        iris_non_pixel: non-pixel {
+            iommus = <&apps_smmu 0x1940 0x0000>;
+            memory-region = <&iris_resv>;
+        };
 
         iris_opp_table: opp-table {
             compatible = "operating-points-v2";
