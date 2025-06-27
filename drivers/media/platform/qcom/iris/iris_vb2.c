@@ -159,6 +159,10 @@ int iris_vb2_queue_setup(struct vb2_queue *q,
 	*num_planes = 1;
 	sizes[0] = f->fmt.pix_mp.plane_fmt[0].sizeimage;
 
+	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT ||
+	    q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		q->dev = core->np_dev ? core->np_dev : core->dev;
+
 unlock:
 	mutex_unlock(&inst->lock);
 
