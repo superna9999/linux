@@ -265,6 +265,7 @@ static int iris_create_internal_buffer(struct iris_inst *inst,
 	struct iris_buffers *buffers = &inst->buffers[buffer_type];
 	struct iris_core *core = inst->core;
 	struct iris_buffer *buffer;
+	struct device *dev;
 
 	if (!buffers->size)
 		return 0;
@@ -280,7 +281,11 @@ static int iris_create_internal_buffer(struct iris_inst *inst,
 	buffer->dma_attrs = DMA_ATTR_WRITE_COMBINE | DMA_ATTR_NO_KERNEL_MAPPING;
 	list_add_tail(&buffer->list, &buffers->list);
 
-	buffer->kvaddr = dma_alloc_attrs(core->dev, buffer->buffer_size,
+	dev = core->np_dev ? core->np_dev : core->dev;
+	if (buffer->type == BUF_DPB)
+		dev = core->dev;
+
+	buffer->kvaddr = dma_alloc_attrs(dev, buffer->buffer_size,
 					 &buffer->device_addr, GFP_KERNEL, buffer->dma_attrs);
 	if (!buffer->kvaddr)
 		return -ENOMEM;
@@ -367,9 +372,15 @@ int iris_queue_internal_buffers(struct iris_inst *inst, u32 plane)
 int iris_destroy_internal_buffer(struct iris_inst *inst, struct iris_buffer *buffer)
 {
 	struct iris_core *core = inst->core;
+	struct device *dev;
+
+	dev = core->np_dev ? core->np_dev : core->dev;
+
+	if (buffer->type == BUF_DPB)
+		dev = core->dev;
 
 	list_del(&buffer->list);
-	dma_free_attrs(core->dev, buffer->buffer_size, buffer->kvaddr,
+	dma_free_attrs(dev, buffer->buffer_size, buffer->kvaddr,
 		       buffer->device_addr, buffer->dma_attrs);
 	kfree(buffer);
 
