@@ -65,6 +65,7 @@ struct icc_info {
  * @sys_error_handler: a delayed work for handling system fatal error
  * @instances: a list_head of all instances
  * @inst_fw_caps: an array of supported instance capabilities
+ * @np_dev: device to represent non pixel node
  */
 
 struct iris_core {
@@ -105,6 +106,7 @@ struct iris_core {
 	struct delayed_work			sys_error_handler;
 	struct list_head			instances;
 	struct platform_inst_fw_cap		inst_fw_caps[INST_FW_CAP_MAX];
+	struct device				*np_dev;
 };
 
 int iris_core_init(struct iris_core *core);

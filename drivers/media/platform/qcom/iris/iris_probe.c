@@ -6,6 +6,8 @@
 #include <linux/clk.h>
 #include <linux/interconnect.h>
 #include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/pm_domain.h>
 #include <linux/pm_opp.h>
 #include <linux/pm_runtime.h>
@@ -127,6 +129,46 @@ static int iris_init_resets(struct iris_core *core)
 				     core->iris_platform_data->controller_rst_tbl_size);
 }
 
+static int iris_init_non_pixel_node(struct iris_core *core)
+{
+	struct platform_device_info info;
+	struct platform_device *pdev;
+	struct device_node *np_node;
+	int ret;
+
+	np_node = of_get_child_by_name(core->dev->of_node, "non_pixel");
+	if (!np_node)
+		return 0;
+
+	memset(&info, 0, sizeof(info));
+	info.fwnode = &np_node->fwnode;
+	info.parent = core->dev;
+	info.name = np_node->name;
+	info.dma_mask = DMA_BIT_MASK(32);
+
+	pdev = platform_device_register_full(&info);
+	if (IS_ERR(pdev)) {
+		of_node_put(np_node);
+		return PTR_ERR(pdev);
+	}
+	pdev->dev.of_node = np_node;
+
+	ret = of_dma_configure(&pdev->dev, np_node, true);
+	if (ret)
+		goto err_unregister;
+
+	core->np_dev = &pdev->dev;
+
+	of_node_put(np_node);
+
+	return 0;
+
+err_unregister:
+	platform_device_unregister(pdev);
+	of_node_put(np_node);
+	return ret;
+}
+
 static int iris_init_resources(struct iris_core *core)
 {
 	int ret;
@@ -143,7 +185,11 @@ static int iris_init_resources(struct iris_core *core)
 	if (ret)
 		return ret;
 
-	return iris_init_resets(core);
+	ret = iris_init_resets(core);
+	if (ret)
+		return ret;
+
+	return iris_init_non_pixel_node(core);
 }
 
 static int iris_register_video_device(struct iris_core *core)
@@ -187,6 +233,8 @@ static void iris_remove(struct platform_device *pdev)
 		return;
 
 	iris_core_deinit(core);
+
+	platform_device_unregister(to_platform_device(core->np_dev));
 
 	video_unregister_device(core->vdev_dec);
 
