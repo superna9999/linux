@@ -6,6 +6,7 @@
 #include "sm8550.dtsi"
 
 /delete-node/ &reserved_memory;
+/delete-node/ &iris_non_pixel;
 
 / {
 	reserved_memory: reserved-memory {

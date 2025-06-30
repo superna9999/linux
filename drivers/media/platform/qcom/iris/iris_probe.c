@@ -136,7 +136,7 @@ static int iris_init_non_pixel_node(struct iris_core *core)
 	struct device_node *np_node;
 	int ret;
 
-	np_node = of_get_child_by_name(core->dev->of_node, "non_pixel");
+	np_node = of_get_child_by_name(core->dev->of_node, "non-pixel");
 	if (!np_node)
 		return 0;
 
