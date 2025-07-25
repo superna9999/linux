@@ -22,6 +22,7 @@ struct x1e80100_snd_data {
 	struct snd_soc_jack jack;
 	struct snd_soc_jack dp_jack[8];
 	bool jack_setup;
+	bool lr_swapped;
 };
 
 static int x1e80100_snd_init(struct snd_soc_pcm_runtime *rtd)
@@ -95,26 +96,44 @@ static int x1e80100_snd_hw_params(struct snd_pcm_substream *substream,
 	return qcom_snd_sdw_hw_params(substream, params, &data->sruntime[cpu_dai->id]);
 }
 
-static int x1e80100_snd_hw_map_channels(unsigned int *ch_map, int num)
+static int x1e80100_snd_hw_map_channels(unsigned int *ch_map, int num,
+					struct x1e80100_snd_data *data)
 {
 	switch (num) {
 	case 1:
 		ch_map[0] = PCM_CHANNEL_FC;
 		break;
 	case 2:
-		ch_map[0] = PCM_CHANNEL_FL;
-		ch_map[1] = PCM_CHANNEL_FR;
+		if (data->lr_swapped) {
+			ch_map[0] = PCM_CHANNEL_FR;
+			ch_map[1] = PCM_CHANNEL_FL;
+		} else {
+			ch_map[0] = PCM_CHANNEL_FL;
+			ch_map[1] = PCM_CHANNEL_FR;
+		}
 		break;
 	case 3:
-		ch_map[0] = PCM_CHANNEL_FL;
-		ch_map[1] = PCM_CHANNEL_FR;
+		if (data->lr_swapped) {
+			ch_map[0] = PCM_CHANNEL_FR;
+			ch_map[1] = PCM_CHANNEL_FL;
+		} else {
+			ch_map[0] = PCM_CHANNEL_FL;
+			ch_map[1] = PCM_CHANNEL_FR;
+		}
 		ch_map[2] = PCM_CHANNEL_FC;
 		break;
 	case 4:
-		ch_map[0] = PCM_CHANNEL_FL;
-		ch_map[1] = PCM_CHANNEL_LB;
-		ch_map[2] = PCM_CHANNEL_FR;
-		ch_map[3] = PCM_CHANNEL_RB;
+		if (data->lr_swapped) {
+			ch_map[0] = PCM_CHANNEL_FR;
+			ch_map[1] = PCM_CHANNEL_RB;
+			ch_map[2] = PCM_CHANNEL_FL;
+			ch_map[3] = PCM_CHANNEL_LB;
+		} else {
+			ch_map[0] = PCM_CHANNEL_FL;
+			ch_map[1] = PCM_CHANNEL_LB;
+			ch_map[2] = PCM_CHANNEL_FR;
+			ch_map[3] = PCM_CHANNEL_RB;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -136,7 +155,7 @@ static int x1e80100_snd_prepare(struct snd_pcm_substream *substream)
 	switch (cpu_dai->id) {
 	case WSA_CODEC_DMA_RX_0:
 	case WSA_CODEC_DMA_RX_1:
-		ret = x1e80100_snd_hw_map_channels(rx_slot, channels);
+		ret = x1e80100_snd_hw_map_channels(rx_slot, channels, data);
 		if (ret)
 			return ret;
 
@@ -209,6 +228,9 @@ static int x1e80100_platform_probe(struct platform_device *pdev)
 	ret = qcom_snd_parse_of(card);
 	if (ret)
 		return ret;
+
+	if (of_property_present(dev->of_node, "channels-swapped"))
+		data->lr_swapped = true;
 
 	card->driver_name = "x1e80100";
 	x1e80100_add_be_ops(card);
