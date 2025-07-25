@@ -59,6 +59,10 @@ properties:
       List of phandles pointing to auxiliary devices, such
       as amplifiers, to be added to the sound card.
 
+  channels-swapped:
+    $ref: /schemas/types.yaml#/definitions/flag
+    description: Marks the channels as left-right swapped.
+
   model:
     $ref: /schemas/types.yaml#/definitions/string
     description: User visible long sound card name
