@@ -863,9 +863,18 @@ static inline
 u32 size_vpss_line_buf(u32 num_vpp_pipes_enc, u32 frame_height_coded,
 		       u32 frame_width_coded)
 {
-	return ALIGN(((((((8192) >> 2) << 5) * (num_vpp_pipes_enc)) + 64) +
-		      (((((max_t(u32, (frame_width_coded),
-				 (frame_height_coded)) + 3) >> 2) << 5) + 256) * 16)), 256);
+	u32 vpss_4tap_top = 0, vpss_4tap_left = 0, vpss_div2_top = 0, vpss_div2_left = 0, vpss_top_lb = 0, vpss_left_lb = 0, size_left = 0, size_top = 0;
+
+	vpss_4tap_top = ((((max_t(u32, frame_width_coded, frame_height_coded) * 2) + 3) >> 2) << 4) + 256;
+	vpss_4tap_left = (((8192 + 3) >> 2) << 5) + 64;
+	vpss_div2_top = (((max_t(u32,frame_width_coded, frame_height_coded) + 3) >> 2) << 4) + 256;
+	vpss_div2_left = ((((max_t(u32, frame_width_coded, frame_height_coded)* 2) + 3) >> 2) << 5) + 64;
+	vpss_top_lb = (frame_width_coded + 1) << 3;
+	vpss_left_lb = (frame_height_coded << 3) * num_vpp_pipes_enc;
+	size_left = (vpss_4tap_left + vpss_div2_left) * 2 * num_vpp_pipes_enc;
+	size_top = (vpss_4tap_top + vpss_div2_top) * 2;
+
+	return ALIGN(size_left + size_top + vpss_top_lb + vpss_left_lb, DMA_ALIGNMENT);
 }
 
 static inline
