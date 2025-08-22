@@ -986,6 +986,14 @@
 	};
 };
 
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		firmware-name = "qcom/sm8650/ayaneo/ps2/gen70900_zap.mbn";
+	};
+};
+
 &i2c3 {
 	clock-frequency = <100000>;
 
@@ -1013,6 +1021,31 @@
 				};
 			};
 		};
+	};
+};
+
+&i2c4 {
+	clock-frequency = <400000>;
+
+	status = "okay";
+
+	touchscreen@5d {
+		reg = <0x5d>;
+		status = "okay";
+		compatible = "goodix,gt911";
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <162 IRQ_TYPE_EDGE_FALLING>;
+
+		reset-gpios = <&tlmm 161 GPIO_ACTIVE_HIGH>;
+		VDDIO-supply = <&vreg_l14b_3p2>;
+		AVDD28-supply = <&vreg_l14b_3p2>;
+
+		touchscreen-size-x = <1440>;
+		touchscreen-size-y = <2560>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts_reset_default>, <&ts_irq_default>;
 	};
 };
 
@@ -1053,6 +1086,33 @@
 	};
 };
 
+&i2c9 {
+	status = "okay";
+
+	/* Screen power */
+	sgm3804: regulator@3e {
+		compatible = "sgmicro,sgm3804";
+		reg = <0x3e>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&panel_pwr_active>;
+		regulator-name = "panel-avdd";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		reset-gpios = <&tlmm 59 GPIO_ACTIVE_HIGH>,
+					<&tlmm 58 GPIO_ACTIVE_HIGH>,
+					<&tlmm 163 GPIO_ACTIVE_HIGH>,
+					<&tlmm 164 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	/* Backlight */
+	sy7758_bl: sy7758@2e {
+		compatible = "silergy,sy7758";
+		reg = <0x2e>;
+		status = "okay";
+	};
+};
+
 &iris {
 	status = "okay";
 };
@@ -1062,6 +1122,80 @@
 };
 
 &mdss {
+	status = "okay";
+};
+
+&mdss_dsi0 {
+	status = "okay";
+	qcom,master-dsi;
+	qcom,dual-dsi-mode;
+	qcom,sync-dual-dsi;
+	vdda-supply = <&vreg_l3i_1p2>;
+
+	panel@0 {
+		status = "okay";
+		compatible = "ayaneo,wt0630-2k";
+		reg = <0>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&disp0_reset_n_active>;
+		pinctrl-1 = <&disp0_reset_n_suspend>;
+		vddio-supply = <&vreg_l12b_1p8>;
+		vci-supply = <&vreg_l13b_3p0>;
+		vdd-supply = <&vreg_l11b_1p2>;
+		avdd-supply = <&sgm3804>;
+
+		reset-gpios = <&tlmm 133 GPIO_ACTIVE_LOW>;
+		backlight = <&sy7758_bl>;
+		rotation = <90>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				panel0_in_0: endpoint {
+					remote-endpoint = <&mdss_dsi0_out>;
+				};
+			};
+
+			port@1{
+				reg = <1>;
+				panel0_in_1: endpoint {
+					remote-endpoint = <&mdss_dsi1_out>;
+				};
+			};
+		};
+	};
+};
+
+&mdss_dsi0_out {
+	remote-endpoint = <&panel0_in_0>;
+	data-lanes = <0 1 2 3>;
+};
+
+&mdss_dsi0_phy {
+	vdds-supply = <&vreg_l1i_0p88>;
+
+	status = "okay";
+};
+
+&mdss_dsi1 {
+	vdda-supply = <&vreg_l3i_1p2>;
+	qcom,dual-dsi-mode;
+	qcom,sync-dual-dsi;
+	assigned-clock-parents = <&mdss_dsi0_phy DSI_BYTE_PLL_CLK>, <&mdss_dsi0_phy DSI_PIXEL_PLL_CLK>;
+	status = "okay";
+};
+
+&mdss_dsi1_out {
+	remote-endpoint = <&panel0_in_1>;
+	data-lanes = <0 1 2 3>;
+};
+
+&mdss_dsi1_phy {
+	vdds-supply = <&vreg_l1i_0p88>;
+
 	status = "okay";
 };
 
@@ -1411,6 +1545,42 @@
 		bias-pull-up;
 	};
 
+	panel_pwr_active: panel-pwr-active-state {
+		pins = "gpio58", "gpio59", "gpio164", "gpio163";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+		output-high;
+	};
+
+	disp0_reset_n_active: disp0-reset-n-active-state {
+		pins = "gpio133";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
+	disp0_reset_n_suspend: disp0-reset-n-suspend-state {
+		pins = "gpio133";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	mdp_vsync_active: mdp-vsync-active-state {
+		pins = "gpio86";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	mdp_vsync_suspend: mdp-vsync-suspend-state {
+		pins = "gpio86";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
 	upd720201_avdd33: upd720201-avdd33-state {
 		pins = "gpio123";
 		function = "gpio";
@@ -1452,6 +1622,22 @@
 		function = "gpio";
 		drive-strength = <16>;
 		bias-disable;
+	};
+
+	ts_irq_default: ts-irq-active-state {
+		pins = "gpio162";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-disable;
+		input-enable;
+	};
+
+	ts_reset_default: ts-reset-active-state {
+		pins = "gpio161";
+		function = "gpio";
+		drive-strength = <8>;
+		input-enable;
+		bias-pull-down;
 	};
 
 	wcd_default: wcd-reset-n-active-state {
