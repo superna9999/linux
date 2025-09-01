@@ -160,6 +160,14 @@ static const struct ftr_set_desc pfr1 __prel64_initconst = {
 	},
 };
 
+static const struct ftr_set_desc isar0 __prel64_initconst = {
+	.name		= "id_aa64isar0",
+	.override	= &id_aa64isar0_override,
+	.fields		= {
+		FIELD("atomic", ID_AA64ISAR0_EL1_ATOMIC_SHIFT, NULL),
+		{}
+	},
+};
 static const struct ftr_set_desc isar1 __prel64_initconst = {
 	.name		= "id_aa64isar1",
 	.override	= &id_aa64isar1_override,
@@ -222,6 +230,7 @@ PREL64(const struct ftr_set_desc, reg) regs[] __prel64_initconst = {
 	{ &mmfr2	},
 	{ &pfr0 	},
 	{ &pfr1 	},
+	{ &isar0	},
 	{ &isar1	},
 	{ &isar2	},
 	{ &smfr0	},
