@@ -64,6 +64,27 @@ properties:
     $ref: /schemas/types.yaml#/definitions/string
     description: User visible long sound card name
 
+  clocks:
+    minItems: 2
+    maxItems: 12
+
+  clock-names:
+    minItems: 2
+    items:
+      # mclk is the I2S Master Clock, mi2s the I2S Bit Clock
+      - const: primary-mi2s
+      - const: primary-mclk
+      - const: secondary-mi2s
+      - const: secondary-mclk
+      - const: tertiary-mi2s
+      - const: tertiary-mclk
+      - const: quaternary-mi2s
+      - const: quaternary-mclk
+      - const: quinary-mi2s
+      - const: quinary-mclk
+      - const: senary-mi2s
+      - const: senary-mclk
+
 patternProperties:
   ".*-dai-link$":
     description:
