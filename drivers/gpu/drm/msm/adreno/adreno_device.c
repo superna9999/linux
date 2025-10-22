@@ -415,12 +415,16 @@ void __init adreno_register(void)
 		return;
 
 	platform_driver_register(&adreno_driver);
+
+	a6xx_gmu_register();
 }
 
 void __exit adreno_unregister(void)
 {
 	if (skip_gpu)
 		return;
+
+	a6xx_gmu_unregister();
 
 	platform_driver_unregister(&adreno_driver);
 }

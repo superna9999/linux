@@ -998,17 +998,29 @@ static const struct of_device_id msm_gpu_match[] = {
 	{ },
 };
 
+static const struct of_device_id msm_gmu_match[] = {
+	{ .compatible = "qcom,adreno-gmu" },
+	{ .compatible = "qcom,adreno-gmu-wrapper" },
+	{ },
+};
+
 static int add_gpu_components(struct device *dev,
 			      struct component_match **matchptr)
 {
-	struct device_node *np;
+	struct device_node *np, *gmu;
 
 	np = of_find_matching_node(NULL, msm_gpu_match);
 	if (!np)
 		return 0;
 
-	if (of_device_is_available(np) && adreno_has_gpu(np))
+	if (of_device_is_available(np) && adreno_has_gpu(np)) {
 		drm_of_component_match_add(dev, matchptr, component_compare_of, np);
+
+		gmu = of_find_matching_node(NULL, msm_gmu_match);
+		if (of_device_is_available(gmu))
+			drm_of_component_match_add(dev, matchptr, component_compare_of, gmu);
+		of_node_put(gmu);
+	}
 
 	of_node_put(np);
 

@@ -678,6 +678,10 @@ struct msm_gpu *a3xx_gpu_init(struct drm_device *dev);
 struct msm_gpu *a4xx_gpu_init(struct drm_device *dev);
 struct msm_gpu *a5xx_gpu_init(struct drm_device *dev);
 struct msm_gpu *a6xx_gpu_init(struct drm_device *dev);
+struct msm_gpu *a6xx_gpu_init(struct drm_device *dev);
+
+void __init a6xx_gmu_register(void);
+void __exit a6xx_gmu_unregister(void);
 
 static inline uint32_t get_wptr(struct msm_ringbuffer *ring)
 {
