@@ -5032,6 +5032,8 @@
 
 			bus-width = <4>;
 
+			max-sd-hs-hz = <37500000>;
+
 			qcom,dll-config = <0x0007642c>;
 			qcom,ddr-config = <0x80040868>;
 
