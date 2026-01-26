@@ -11,6 +11,16 @@ config PCI_PWRCTRL_PWRSEQ
 	select POWER_SEQUENCING
 	select PCI_PWRCTRL
 
+config PCI_PWRCTRL_UPD720201
+	tristate "PCI Power Control driver for the UPD720201 USB3 Host Controller"
+	select PCI_PWRCTRL
+	help
+	  Say Y here to enable the PCI Power Control driver of the UPD720201
+	  USB3 Host Controller.
+
+	  The voltage regulators powering the rails of the PCI slots
+	  are expected to be defined in the devicetree node of the PCI device.
+
 config PCI_PWRCTRL_SLOT
 	tristate "PCI Power Control driver for PCI slots"
 	select PCI_PWRCTRL
