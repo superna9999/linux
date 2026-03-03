@@ -1826,3 +1826,31 @@
 &xo_board {
 	clock-frequency = <76800000>;
 };
+
+&gpu_opp_table {
+/* Additional speedbin for Adreno A33
+	903000000 	RPMH_REGULATOR_LEVEL_TURBO		ACD_LEVEL_TURBO(0x882a5ffd)
+	1000000000 	RPMH_REGULATOR_LEVEL_TURBO_L1	ACD_LEVEL_TURBO_L1(0x882a5ffd)
+	1050000000 	RPMH_REGULATOR_LEVEL_TURBO_L2	ACD_LEVEL_TURBO_L2(0x882a5ffd)
+*/
+	opp-903000000 {
+		opp-hz = /bits/ 64 <903000000>;
+		opp-level = <RPMH_REGULATOR_LEVEL_TURBO>;
+		opp-peak-kBps = <14398437>;
+		qcom,opp-acd-level = <0x882a5ffd>;
+	};
+
+	opp-1000000000 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L1>;
+		opp-peak-kBps = <16500000>;
+		qcom,opp-acd-level = <0x882a5ffd>;
+	};
+
+	opp-1050000000 {
+		opp-hz = /bits/ 64 <1050000000>;
+		opp-level = <RPMH_REGULATOR_LEVEL_TURBO_L2>;
+		opp-peak-kBps = <16500000>;
+		qcom,opp-acd-level = <0x882a5ffd>;
+	};
+};
