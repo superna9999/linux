@@ -1408,6 +1408,26 @@
 
 &qupv3_id_1 {
 	status = "okay";
+
+	/* AYANEO Controller serial interface */
+        uart13: serial@894000 {
+                compatible = "qcom,geni-uart";
+                reg = <0 0x00894000 0 0x4000>;
+                interrupts = <GIC_SPI 587 IRQ_TYPE_LEVEL_HIGH 0>;
+                clocks = <&gcc GCC_QUPV3_WRAP2_S5_CLK>;
+                clock-names = "se";
+                interconnects = <&clk_virt MASTER_QUP_CORE_2 QCOM_ICC_TAG_ALWAYS
+                                        &clk_virt SLAVE_QUP_CORE_2 QCOM_ICC_TAG_ALWAYS>,
+                                        <&gem_noc MASTER_APPSS_PROC QCOM_ICC_TAG_ACTIVE_ONLY
+                                        &config_noc SLAVE_QUP_2 QCOM_ICC_TAG_ACTIVE_ONLY>;
+                interconnect-names = "qup-core",
+                                                "qup-config";
+                power-domains = <&rpmhpd RPMHPD_CX>;
+                operating-points-v2 = <&qup_opp_table_100mhz>;
+                pinctrl-0 = <&qup_uart13_default>;
+                pinctrl-names = "default";
+                status = "okay";
+        };
 };
 
 &remoteproc_adsp {
@@ -1706,6 +1726,22 @@
 		pins = "gpio16";
 		function = "gpio";
 		drive-strength = <8>;
+		bias-pull-down;
+	};
+
+	qup_uart13_default: qup-uart13-default-state {
+		/* TX, RX */
+		pins = "gpio22", "gpio23";
+		function = "qup2_se5";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	qup_uart13_sleep: qup-uart13-sleep-state {
+		/* TX, RX */
+		pins = "gpio22", "gpio23";
+		function = "gpio";
+		drive-strength = <2>;
 		bias-pull-down;
 	};
 };
