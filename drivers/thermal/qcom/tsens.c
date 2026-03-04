@@ -1172,7 +1172,7 @@ static const struct thermal_zone_device_ops tsens_of_ops = {
 };
 
 static int tsens_register_irq(struct tsens_priv *priv, char *irqname,
-			      irq_handler_t thread_fn)
+			      irq_handler_t thread_fn, unsigned long irqflags)
 {
 	struct platform_device *pdev;
 	int ret, irq;
@@ -1192,19 +1192,19 @@ static int tsens_register_irq(struct tsens_priv *priv, char *irqname,
 		if (tsens_version(priv) == VER_0)
 			ret = devm_request_threaded_irq(&pdev->dev, irq,
 							thread_fn, NULL,
-							IRQF_TRIGGER_RISING,
+							IRQF_TRIGGER_RISING | irqflags,
 							dev_name(&pdev->dev),
 							priv);
 		else
 			ret = devm_request_threaded_irq(&pdev->dev, irq, NULL,
-							thread_fn, IRQF_ONESHOT,
+							thread_fn, IRQF_ONESHOT | irqflags,
 							dev_name(&pdev->dev),
 							priv);
 
 		if (ret)
 			dev_err(&pdev->dev, "%s: failed to get irq\n",
 				__func__);
-		else
+		else if (!(irqflags & IRQF_NO_SUSPEND)) 
 			enable_irq_wake(irq);
 	}
 
@@ -1276,15 +1276,15 @@ static int tsens_register(struct tsens_priv *priv)
 
 	if (priv->feat->combo_int) {
 		ret = tsens_register_irq(priv, "combined",
-					 tsens_combined_irq_thread);
+					 tsens_combined_irq_thread, 0);
 	} else {
-		ret = tsens_register_irq(priv, "uplow", tsens_irq_thread);
+		ret = tsens_register_irq(priv, "uplow", tsens_irq_thread, IRQF_NO_SUSPEND);
 		if (ret < 0)
 			return ret;
 
 		if (priv->feat->crit_int)
 			ret = tsens_register_irq(priv, "critical",
-						 tsens_critical_irq_thread);
+						 tsens_critical_irq_thread, 0);
 	}
 
 	return ret;
