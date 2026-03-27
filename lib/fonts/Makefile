@@ -2,6 +2,7 @@
 # Font handling
 
 font-y := fonts.o
+font-$(CONFIG_FRAMEBUFFER_CONSOLE_ROTATION) += font_rotate.o
 
 # Built-in fonts
 font-$(CONFIG_FONT_10x18)     += font_10x18.o
