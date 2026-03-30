@@ -101,6 +101,10 @@ struct dm_crypt_request {
 	struct scatterlist sg_in[4];
 	struct scatterlist sg_out[4];
 	u64 iv_sector;
+	struct scatterlist *__sg_in;
+	struct scatterlist *__sg_out;
+	bool sg_in_pooled;
+	bool sg_out_pooled;
 };
 
 struct crypt_config;
@@ -216,6 +220,9 @@ struct crypt_config {
 	unsigned int key_extra_size; /* additional keys length */
 	unsigned int key_mac_size;   /* MAC key size for authenc(...) */
 
+	unsigned int io_alignment;
+	mempool_t sg_in_pool;
+	mempool_t sg_out_pool;
 	unsigned int integrity_tag_size;
 	unsigned int integrity_iv_size;
 	unsigned int used_tag_size;
@@ -1349,22 +1356,89 @@ static int crypt_convert_block_aead(struct crypt_config *cc,
 	return r;
 }
 
+static void crypt_free_sg(struct scatterlist *sg, struct scatterlist *inline_sg,
+			  mempool_t *pool, bool from_pool)
+{
+	if (sg == inline_sg)
+		return;
+	if (from_pool)
+		mempool_free(sg, pool);
+	else
+		kfree(sg);
+}
+
+static void crypt_free_sgls(struct crypt_config *cc,
+			    struct dm_crypt_request *dmreq)
+{
+	crypt_free_sg(dmreq->__sg_in, dmreq->sg_in,
+		      &cc->sg_in_pool, dmreq->sg_in_pooled);
+	crypt_free_sg(dmreq->__sg_out, dmreq->sg_out,
+		      &cc->sg_out_pool, dmreq->sg_out_pooled);
+	dmreq->__sg_in = NULL;
+	dmreq->__sg_out = NULL;
+}
+
+static int crypt_build_sgl(struct crypt_config *cc, struct scatterlist **psg,
+			   struct bvec_iter *iter, struct bio *bio,
+			   int max_segs, mempool_t *pool, bool *pooled)
+{
+	unsigned int bytes = cc->sector_size;
+	struct scatterlist *sg = *psg;
+	struct bvec_iter tmp = *iter;
+	int segs, i = 0;
+
+	*pooled = false;
+	bio_advance_iter(bio, &tmp, bytes);
+	segs = tmp.bi_idx - iter->bi_idx + !!tmp.bi_bvec_done;
+	if (segs > max_segs) {
+		if (unlikely(segs > BIO_MAX_VECS))
+			return -EIO;
+		sg = kmalloc_array(segs, sizeof(struct scatterlist),
+				   GFP_NOWAIT | __GFP_NOMEMALLOC);
+		if (!sg) {
+			sg = mempool_alloc(pool, GFP_NOIO);
+			*pooled = true;
+		}
+	}
+
+	sg_init_table(sg, segs);
+	do {
+		struct bio_vec bv = mp_bvec_iter_bvec(bio->bi_io_vec, *iter);
+		int len = min(bytes, bv.bv_len);
+
+		/* Reject unexpected unaligned bio. */
+		if (unlikely((len | bv.bv_offset) & cc->io_alignment))
+			goto error;
+
+		sg_set_page(&sg[i++], bv.bv_page, len, bv.bv_offset);
+		bio_advance_iter_single(bio, iter, len);
+		bytes -= len;
+	} while (bytes);
+
+	if (WARN_ON_ONCE(i != segs))
+		goto error;
+	*psg = sg;
+	return 0;
+error:
+	if (sg != *psg) {
+		if (*pooled)
+			mempool_free(sg, pool);
+		else
+			kfree(sg);
+	}
+	return -EIO;
+}
+
 static int crypt_convert_block_skcipher(struct crypt_config *cc,
 					struct convert_context *ctx,
 					struct skcipher_request *req,
 					unsigned int tag_offset)
 {
-	struct bio_vec bv_in = bio_iter_iovec(ctx->bio_in, ctx->iter_in);
-	struct bio_vec bv_out = bio_iter_iovec(ctx->bio_out, ctx->iter_out);
 	struct scatterlist *sg_in, *sg_out;
 	struct dm_crypt_request *dmreq;
 	u8 *iv, *org_iv, *tag_iv;
 	__le64 *sector;
-	int r = 0;
-
-	/* Reject unexpected unaligned bio. */
-	if (unlikely(bv_in.bv_len & (cc->sector_size - 1)))
-		return -EIO;
+	int r;
 
 	dmreq = dmreq_of_req(cc, req);
 	dmreq->iv_sector = ctx->cc_sector;
@@ -1381,15 +1455,23 @@ static int crypt_convert_block_skcipher(struct crypt_config *cc,
 	sector = org_sector_of_dmreq(cc, dmreq);
 	*sector = cpu_to_le64(ctx->cc_sector - cc->iv_offset);
 
-	/* For skcipher we use only the first sg item */
-	sg_in  = &dmreq->sg_in[0];
-	sg_out = &dmreq->sg_out[0];
+	dmreq->__sg_in = &dmreq->sg_in[0];
+	dmreq->__sg_out = &dmreq->sg_out[0];
 
-	sg_init_table(sg_in, 1);
-	sg_set_page(sg_in, bv_in.bv_page, cc->sector_size, bv_in.bv_offset);
+	r = crypt_build_sgl(cc, &dmreq->__sg_in, &ctx->iter_in, ctx->bio_in,
+			    ARRAY_SIZE(dmreq->sg_in), &cc->sg_in_pool,
+			    &dmreq->sg_in_pooled);
+	if (r < 0)
+		return r;
 
-	sg_init_table(sg_out, 1);
-	sg_set_page(sg_out, bv_out.bv_page, cc->sector_size, bv_out.bv_offset);
+	r = crypt_build_sgl(cc, &dmreq->__sg_out, &ctx->iter_out, ctx->bio_out,
+			    ARRAY_SIZE(dmreq->sg_out), &cc->sg_out_pool,
+			    &dmreq->sg_out_pooled);
+	if (r < 0)
+		goto out;
+
+	sg_in = dmreq->__sg_in;
+	sg_out = dmreq->__sg_out;
 
 	if (cc->iv_gen_ops) {
 		/* For READs use IV stored in integrity metadata */
@@ -1398,7 +1480,7 @@ static int crypt_convert_block_skcipher(struct crypt_config *cc,
 		} else {
 			r = cc->iv_gen_ops->generator(cc, org_iv, dmreq);
 			if (r < 0)
-				return r;
+				goto out;
 			/* Data can be already preprocessed in generator */
 			if (test_bit(CRYPT_ENCRYPT_PREPROCESS, &cc->cipher_flags))
 				sg_in = sg_out;
@@ -1420,8 +1502,9 @@ static int crypt_convert_block_skcipher(struct crypt_config *cc,
 	if (!r && cc->iv_gen_ops && cc->iv_gen_ops->post)
 		cc->iv_gen_ops->post(cc, org_iv, dmreq);
 
-	bio_advance_iter(ctx->bio_in, &ctx->iter_in, cc->sector_size);
-	bio_advance_iter(ctx->bio_out, &ctx->iter_out, cc->sector_size);
+out:
+	if (r != -EINPROGRESS && r != -EBUSY)
+		crypt_free_sgls(cc, dmreq);
 
 	return r;
 }
@@ -1487,7 +1570,9 @@ static void crypt_free_req_skcipher(struct crypt_config *cc,
 				    struct skcipher_request *req, struct bio *base_bio)
 {
 	struct dm_crypt_io *io = dm_per_bio_data(base_bio, cc->per_bio_data_size);
+	struct dm_crypt_request *dmreq = dmreq_of_req(cc, req);
 
+	crypt_free_sgls(cc, dmreq);
 	if ((struct skcipher_request *)(io + 1) != req)
 		mempool_free(req, &cc->req_pool);
 }
@@ -2717,6 +2802,8 @@ static void crypt_dtr(struct dm_target *ti)
 
 	mempool_exit(&cc->page_pool);
 	mempool_exit(&cc->req_pool);
+	mempool_exit(&cc->sg_in_pool);
+	mempool_exit(&cc->sg_out_pool);
 	mempool_exit(&cc->tag_pool);
 
 	WARN_ON(percpu_counter_sum(&cc->n_allocated_pages) != 0);
@@ -2751,9 +2838,10 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 {
 	struct crypt_config *cc = ti->private;
 
-	if (crypt_integrity_aead(cc))
+	if (crypt_integrity_aead(cc)) {
 		cc->iv_size = crypto_aead_ivsize(any_tfm_aead(cc));
-	else
+		cc->io_alignment = cc->sector_size - 1;
+	} else
 		cc->iv_size = crypto_skcipher_ivsize(any_tfm(cc));
 
 	if (cc->iv_size)
@@ -2789,6 +2877,7 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 		if (cc->key_extra_size > ELEPHANT_MAX_KEY_SIZE)
 			return -EINVAL;
 		set_bit(CRYPT_ENCRYPT_PREPROCESS, &cc->cipher_flags);
+		cc->io_alignment = cc->sector_size - 1;
 	} else if (strcmp(ivmode, "lmk") == 0) {
 		cc->iv_gen_ops = &crypt_iv_lmk_ops;
 		/*
@@ -2801,10 +2890,12 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 			cc->key_parts++;
 			cc->key_extra_size = cc->key_size / cc->key_parts;
 		}
+		cc->io_alignment = cc->sector_size - 1;
 	} else if (strcmp(ivmode, "tcw") == 0) {
 		cc->iv_gen_ops = &crypt_iv_tcw_ops;
 		cc->key_parts += 2; /* IV + whitening */
 		cc->key_extra_size = cc->iv_size + TCW_WHITENING_SIZE;
+		cc->io_alignment = cc->sector_size - 1;
 	} else if (strcmp(ivmode, "random") == 0) {
 		cc->iv_gen_ops = &crypt_iv_random_ops;
 		/* Need storage space in integrity fields. */
@@ -3271,6 +3362,20 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ALIGN(sizeof(struct dm_crypt_io) + cc->dmreq_start + additional_req_size,
 		      ARCH_DMA_MINALIGN);
 
+	ret = mempool_init_kmalloc_pool(&cc->sg_in_pool, MIN_IOS,
+			BIO_MAX_VECS * sizeof(struct scatterlist));
+	if (ret) {
+		ti->error = "Cannot allocate crypt scatterlist mempool";
+		goto bad;
+	}
+
+	ret = mempool_init_kmalloc_pool(&cc->sg_out_pool, MIN_IOS,
+			BIO_MAX_VECS * sizeof(struct scatterlist));
+	if (ret) {
+		ti->error = "Cannot allocate crypt scatterlist mempool";
+		goto bad;
+	}
+
 	ret = mempool_init(&cc->page_pool, BIO_MAX_VECS, crypt_page_alloc, crypt_page_free, cc);
 	if (ret) {
 		ti->error = "Cannot allocate page mempool";
@@ -3680,7 +3785,9 @@ static void crypt_io_hints(struct dm_target *ti, struct queue_limits *limits)
 	struct crypt_config *cc = ti->private;
 
 	dm_stack_bs_limits(limits, cc->sector_size);
-	limits->dma_alignment = limits->logical_block_size - 1;
+	limits->dma_alignment = max(bdev_dma_alignment(cc->dev->bdev),
+				    cc->io_alignment);
+	cc->io_alignment = limits->dma_alignment;
 
 	/*
 	 * For zoned dm-crypt targets, there will be no internal splitting of
