@@ -931,6 +931,7 @@ void gfs2_ail_drain(struct gfs2_sbd *sdp)
 {
 	struct gfs2_trans *tr;
 
+	down_write(&sdp->sd_log_flush_lock);
 	spin_lock(&sdp->sd_ail_lock);
 	/*
 	 * For transactions on the sd_ail1_list we need to drain both the
@@ -956,6 +957,7 @@ void gfs2_ail_drain(struct gfs2_sbd *sdp)
 	}
 	gfs2_drain_revokes(sdp);
 	spin_unlock(&sdp->sd_ail_lock);
+	up_write(&sdp->sd_log_flush_lock);
 }
 
 /**
