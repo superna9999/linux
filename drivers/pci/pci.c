@@ -120,17 +120,7 @@ unsigned long pci_hotplug_bus_size = DEFAULT_HOTPLUG_BUS_SIZE;
 
 
 /* PCIe MPS/MRRS strategy; can be overridden by kernel command-line param */
-#ifdef CONFIG_PCIE_BUS_TUNE_OFF
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_TUNE_OFF;
-#elif defined CONFIG_PCIE_BUS_SAFE
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_SAFE;
-#elif defined CONFIG_PCIE_BUS_PERFORMANCE
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_PERFORMANCE;
-#elif defined CONFIG_PCIE_BUS_PEER2PEER
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_PEER2PEER;
-#else
 enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_DEFAULT;
-#endif
 
 /*
  * The default CLS is used if arch didn't set CLS explicitly and not
@@ -949,7 +939,7 @@ static void __pci_config_acs(struct pci_dev *dev, struct pci_acs *caps,
 
 		ret = pci_dev_str_match(dev, p, &p);
 		if (ret < 0) {
-			pr_info_once("PCI: Can't parse ACS command line parameter\n");
+			pr_warn_once("PCI: Can't parse ACS command line parameter\n");
 			break;
 		} else if (ret == 1) {
 			/* Found a match */
