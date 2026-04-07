@@ -16,8 +16,9 @@
 // Please see https://github.com/Rust-for-Linux/linux/issues/2 for details on
 // the unstable features in use.
 //
-// Stable since Rust 1.84.0.
-#![feature(strict_provenance)]
+//
+// Stable since Rust 1.89.0.
+#![feature(generic_arg_infer)]
 //
 // Expected to become stable.
 #![feature(arbitrary_self_types)]
@@ -72,12 +73,15 @@ pub mod faux;
 pub mod firmware;
 pub mod fmt;
 pub mod fs;
+#[cfg(CONFIG_GPU_BUDDY = "y")]
+pub mod gpu;
 #[cfg(CONFIG_I2C = "y")]
 pub mod i2c;
 pub mod id_pool;
 #[doc(hidden)]
 pub mod impl_flags;
 pub mod init;
+pub mod interop;
 pub mod io;
 pub mod ioctl;
 pub mod iommu;
