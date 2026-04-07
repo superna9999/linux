@@ -5368,15 +5368,15 @@ static void unaccount_freq_event(void)
 
 
 static struct perf_ctx_data *
-alloc_perf_ctx_data(struct kmem_cache *ctx_cache, bool global)
+alloc_perf_ctx_data(struct kmem_cache *ctx_cache, bool global, gfp_t gfp_flags)
 {
 	struct perf_ctx_data *cd;
 
-	cd = kzalloc_obj(*cd);
+	cd = kzalloc_obj(*cd, gfp_flags);
 	if (!cd)
 		return NULL;
 
-	cd->data = kmem_cache_zalloc(ctx_cache, GFP_KERNEL);
+	cd->data = kmem_cache_zalloc(ctx_cache, gfp_flags);
 	if (!cd->data) {
 		kfree(cd);
 		return NULL;
@@ -5410,11 +5410,11 @@ static inline void perf_free_ctx_data_rcu(struct perf_ctx_data *cd)
 
 static int
 attach_task_ctx_data(struct task_struct *task, struct kmem_cache *ctx_cache,
-		     bool global)
+		     bool global, gfp_t gfp_flags)
 {
 	struct perf_ctx_data *cd, *old = NULL;
 
-	cd = alloc_perf_ctx_data(ctx_cache, global);
+	cd = alloc_perf_ctx_data(ctx_cache, global, gfp_flags);
 	if (!cd)
 		return -ENOMEM;
 
@@ -5487,6 +5487,12 @@ again:
 					cd = NULL;
 			}
 			if (!cd) {
+				/*
+				 * Try to allocate context quickly before
+				 * traversing the whole thread list again.
+				 */
+				if (!attach_task_ctx_data(p, ctx_cache, true, GFP_NOWAIT))
+					continue;
 				get_task_struct(p);
 				goto alloc;
 			}
@@ -5497,7 +5503,7 @@ again:
 
 	return 0;
 alloc:
-	ret = attach_task_ctx_data(p, ctx_cache, true);
+	ret = attach_task_ctx_data(p, ctx_cache, true, GFP_KERNEL);
 	put_task_struct(p);
 	if (ret) {
 		__detach_global_ctx_data();
@@ -5517,7 +5523,7 @@ attach_perf_ctx_data(struct perf_event *event)
 		return -ENOMEM;
 
 	if (task)
-		return attach_task_ctx_data(task, ctx_cache, false);
+		return attach_task_ctx_data(task, ctx_cache, false, GFP_KERNEL);
 
 	ret = attach_global_ctx_data(ctx_cache);
 	if (ret)
@@ -5552,22 +5558,15 @@ static void __detach_global_ctx_data(void)
 	struct task_struct *g, *p;
 	struct perf_ctx_data *cd;
 
-again:
 	scoped_guard (rcu) {
 		for_each_process_thread(g, p) {
 			cd = rcu_dereference(p->perf_ctx_data);
-			if (!cd || !cd->global)
-				continue;
-			cd->global = 0;
-			get_task_struct(p);
-			goto detach;
+			if (cd && cd->global) {
+				cd->global = 0;
+				detach_task_ctx_data(p);
+			}
 		}
 	}
-	return;
-detach:
-	detach_task_ctx_data(p);
-	put_task_struct(p);
-	goto again;
 }
 
 static void detach_global_ctx_data(void)
@@ -9238,7 +9237,7 @@ perf_event_alloc_task_data(struct task_struct *child,
 
 	return;
 attach:
-	attach_task_ctx_data(child, ctx_cache, true);
+	attach_task_ctx_data(child, ctx_cache, true, GFP_KERNEL);
 }
 
 void perf_event_fork(struct task_struct *task)
