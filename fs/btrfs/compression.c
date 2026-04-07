@@ -292,7 +292,7 @@ static void end_bbio_compressed_write(struct btrfs_bio *bbio)
 	struct compressed_bio *cb = to_compressed_bio(bbio);
 	struct folio_iter fi;
 
-	btrfs_finish_ordered_extent(cb->bbio.ordered, NULL, cb->start, cb->len,
+	btrfs_finish_ordered_extent(cb->bbio.ordered, cb->start, cb->len,
 				    cb->bbio.bio.bi_status == BLK_STS_OK);
 
 	if (cb->writeback)
@@ -330,7 +330,6 @@ void btrfs_submit_compressed_write(struct btrfs_ordered_extent *ordered,
 	cb->start = ordered->file_offset;
 	cb->len = ordered->num_bytes;
 	ASSERT(cb->bbio.bio.bi_iter.bi_size == ordered->disk_num_bytes);
-	cb->compressed_len = ordered->disk_num_bytes;
 	cb->bbio.bio.bi_iter.bi_sector = ordered->disk_bytenr >> SECTOR_SHIFT;
 	cb->bbio.ordered = ordered;
 
@@ -560,7 +559,6 @@ void btrfs_submit_compressed_read(struct btrfs_bio *bbio)
 	em_start = em->start;
 
 	cb->len = bbio->bio.bi_iter.bi_size;
-	cb->compressed_len = compressed_len;
 	cb->compress_type = btrfs_extent_map_compression(em);
 	cb->orig_bbio = bbio;
 	cb->bbio.csum_search_commit_root = bbio->csum_search_commit_root;
