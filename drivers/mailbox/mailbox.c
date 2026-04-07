@@ -18,8 +18,6 @@
 #include <linux/property.h>
 #include <linux/spinlock.h>
 
-#include "mailbox.h"
-
 static LIST_HEAD(mbox_cons);
 static DEFINE_MUTEX(con_mutex);
 
@@ -52,7 +50,7 @@ static void msg_submit(struct mbox_chan *chan)
 	int err = -EBUSY;
 
 	scoped_guard(spinlock_irqsave, &chan->lock) {
-		if (!chan->msg_count || chan->active_req)
+		if (!chan->msg_count || chan->active_req != MBOX_NO_MSG)
 			break;
 
 		count = chan->msg_count;
@@ -87,13 +85,13 @@ static void tx_tick(struct mbox_chan *chan, int r)
 
 	scoped_guard(spinlock_irqsave, &chan->lock) {
 		mssg = chan->active_req;
-		chan->active_req = NULL;
+		chan->active_req = MBOX_NO_MSG;
 	}
 
 	/* Submit next message */
 	msg_submit(chan);
 
-	if (!mssg)
+	if (mssg == MBOX_NO_MSG)
 		return;
 
 	/* Notify the client */
@@ -114,7 +112,7 @@ static enum hrtimer_restart txdone_hrtimer(struct hrtimer *hrtimer)
 	for (i = 0; i < mbox->num_chans; i++) {
 		struct mbox_chan *chan = &mbox->chans[i];
 
-		if (chan->active_req && chan->cl) {
+		if (chan->active_req != MBOX_NO_MSG && chan->cl) {
 			txdone = chan->mbox->ops->last_tx_done(chan);
 			if (txdone)
 				tx_tick(chan, 0);
@@ -219,6 +217,29 @@ bool mbox_client_peek_data(struct mbox_chan *chan)
 EXPORT_SYMBOL_GPL(mbox_client_peek_data);
 
 /**
+ * mbox_chan_tx_slots_available - Query the number of available TX queue slots.
+ * @chan: Mailbox channel to query.
+ *
+ * Clients may call this to check how many messages can be queued via
+ * mbox_send_message() before the channel's TX queue is full. This helps
+ * clients avoid the -ENOBUFS error without needing to increase
+ * MBOX_TX_QUEUE_LEN.
+ * This can be called from atomic context.
+ *
+ * Return: Number of available slots in the channel's TX queue.
+ */
+unsigned int mbox_chan_tx_slots_available(struct mbox_chan *chan)
+{
+	unsigned int ret;
+
+	guard(spinlock_irqsave)(&chan->lock);
+	ret = MBOX_TX_QUEUE_LEN - chan->msg_count;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mbox_chan_tx_slots_available);
+
+/**
  * mbox_send_message -	For client to submit a message to be
  *				sent to the remote.
  * @chan: Mailbox channel assigned to this client.
@@ -246,7 +267,7 @@ int mbox_send_message(struct mbox_chan *chan, void *mssg)
 {
 	int t;
 
-	if (!chan || !chan->cl)
+	if (!chan || !chan->cl || mssg == MBOX_NO_MSG)
 		return -EINVAL;
 
 	t = add_to_rbuf(chan, mssg);
@@ -319,7 +340,7 @@ static int __mbox_bind_client(struct mbox_chan *chan, struct mbox_client *cl)
 	scoped_guard(spinlock_irqsave, &chan->lock) {
 		chan->msg_free = 0;
 		chan->msg_count = 0;
-		chan->active_req = NULL;
+		chan->active_req = MBOX_NO_MSG;
 		chan->cl = cl;
 		init_completion(&chan->tx_complete);
 
@@ -341,7 +362,7 @@ static int __mbox_bind_client(struct mbox_chan *chan, struct mbox_client *cl)
 }
 
 /**
- * mbox_bind_client - Request a mailbox channel.
+ * mbox_bind_client - Bind client to a mailbox channel.
  * @chan: The mailbox channel to bind the client to.
  * @cl: Identity of the client requesting the channel.
  *
@@ -477,7 +498,7 @@ void mbox_free_channel(struct mbox_chan *chan)
 	/* The queued TX requests are simply aborted, no callbacks are made */
 	scoped_guard(spinlock_irqsave, &chan->lock) {
 		chan->cl = NULL;
-		chan->active_req = NULL;
+		chan->active_req = MBOX_NO_MSG;
 		if (chan->txdone_method == TXDONE_BY_ACK)
 			chan->txdone_method = TXDONE_BY_POLL;
 	}
@@ -532,6 +553,7 @@ int mbox_controller_register(struct mbox_controller *mbox)
 
 		chan->cl = NULL;
 		chan->mbox = mbox;
+		chan->active_req = MBOX_NO_MSG;
 		chan->txdone_method = txdone;
 		spin_lock_init(&chan->lock);
 	}
