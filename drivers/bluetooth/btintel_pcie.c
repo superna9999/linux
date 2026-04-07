@@ -9,7 +9,9 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/firmware.h>
+#include <linux/overflow.h>
 #include <linux/pci.h>
+#include <linux/string.h>
 #include <linux/wait.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
@@ -45,6 +47,10 @@ static const struct pci_device_id btintel_pcie_table[] = {
 	{ BTINTEL_PCI_DEVICE(0xE376, PCI_ANY_ID) },
 	 /* Scorpious, Panther Lake-H404 */
 	{ BTINTEL_PCI_DEVICE(0xE476, PCI_ANY_ID) },
+	 /* Scorpious2, Nova Lake-PCD-H */
+	{ BTINTEL_PCI_DEVICE(0xD346, PCI_ANY_ID) },
+	 /* Scorpious2, Nova Lake-PCD-S */
+	{ BTINTEL_PCI_DEVICE(0x6E74, PCI_ANY_ID) },
 	{ 0 }
 };
 MODULE_DEVICE_TABLE(pci, btintel_pcie_table);
@@ -71,6 +77,9 @@ struct btintel_pcie_dev_recovery {
 
 #define BTINTEL_PCIE_SCP_HWEXP_SIZE		4096
 #define BTINTEL_PCIE_SCP_HWEXP_DMP_ADDR		0xB030F800
+
+#define BTINTEL_PCIE_SCP2_HWEXP_SIZE		4096
+#define BTINTEL_PCIE_SCP2_HWEXP_DMP_ADDR	0xB031D000
 
 #define BTINTEL_PCIE_MAGIC_NUM	0xA5A5A5A5
 
@@ -268,7 +277,7 @@ static inline void btintel_pcie_dump_debug_registers(struct hci_dev *hdev)
 	if (!skb)
 		return;
 
-	snprintf(buf, sizeof(buf), "%s", "---- Dump of debug registers ---");
+	strscpy(buf, "---- Dump of debug registers ---");
 	bt_dev_dbg(hdev, "%s", buf);
 	skb_put_data(skb, buf, strlen(buf));
 
@@ -1224,11 +1233,16 @@ static void btintel_pcie_read_hwexp(struct btintel_pcie_data *data)
 			return;
 		len = BTINTEL_PCIE_BLZR_HWEXP_SIZE; /* exception data length */
 		addr = BTINTEL_PCIE_BLZR_HWEXP_DMP_ADDR;
-	break;
+		break;
 	case BTINTEL_CNVI_SCP:
 		len = BTINTEL_PCIE_SCP_HWEXP_SIZE;
 		addr = BTINTEL_PCIE_SCP_HWEXP_DMP_ADDR;
-	break;
+		break;
+	case BTINTEL_CNVI_SCP2:
+	case BTINTEL_CNVI_SCP2F:
+		len = BTINTEL_PCIE_SCP2_HWEXP_SIZE;
+		addr = BTINTEL_PCIE_SCP2_HWEXP_DMP_ADDR;
+		break;
 	default:
 		bt_dev_err(data->hdev, "Unsupported cnvi 0x%8.8x", data->dmp_hdr.cnvi_top);
 		return;
@@ -2093,6 +2107,8 @@ static int btintel_pcie_setup_internal(struct hci_dev *hdev)
 	switch (INTEL_HW_VARIANT(ver_tlv.cnvi_bt)) {
 	case 0x1e:	/* BzrI */
 	case 0x1f:	/* ScP  */
+	case 0x20:	/* ScP2 */
+	case 0x21:	/* ScP2 F */
 	case 0x22:	/* BzrIW */
 		/* Display version information of TLV type */
 		btintel_version_info_tlv(hdev, &ver_tlv);
@@ -2372,7 +2388,7 @@ static int btintel_pcie_hci_drv_read_info(struct hci_dev *hdev, void *data,
 	u16 opcode, num_supported_commands =
 		ARRAY_SIZE(btintel_pcie_hci_drv_supported_commands);
 
-	rp_size = sizeof(*rp) + num_supported_commands * 2;
+	rp_size = struct_size(rp, supported_commands, num_supported_commands);
 
 	rp = kmalloc(rp_size, GFP_KERNEL);
 	if (!rp)
