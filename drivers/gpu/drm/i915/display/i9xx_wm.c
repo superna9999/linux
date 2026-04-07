@@ -19,6 +19,7 @@
 #include "intel_display_utils.h"
 #include "intel_dram.h"
 #include "intel_fb.h"
+#include "intel_mchbar.h"
 #include "intel_mchbar_regs.h"
 #include "intel_wm.h"
 #include "skl_watermark.h"
@@ -118,41 +119,41 @@ static void chv_set_memory_dvfs(struct intel_display *display, bool enable)
 	u32 val;
 	int ret;
 
-	vlv_punit_get(display->drm);
+	vlv_punit_get(display);
 
-	val = vlv_punit_read(display->drm, PUNIT_REG_DDR_SETUP2);
+	val = vlv_punit_read(display, PUNIT_REG_DDR_SETUP2);
 	if (enable)
 		val &= ~FORCE_DDR_HIGH_FREQ;
 	else
 		val |= FORCE_DDR_HIGH_FREQ;
 	val &= ~FORCE_DDR_LOW_FREQ;
 	val |= FORCE_DDR_FREQ_REQ_ACK;
-	vlv_punit_write(display->drm, PUNIT_REG_DDR_SETUP2, val);
+	vlv_punit_write(display, PUNIT_REG_DDR_SETUP2, val);
 
-	ret = poll_timeout_us(val = vlv_punit_read(display->drm, PUNIT_REG_DDR_SETUP2),
+	ret = poll_timeout_us(val = vlv_punit_read(display, PUNIT_REG_DDR_SETUP2),
 			      (val & FORCE_DDR_FREQ_REQ_ACK) == 0,
 			      500, 3000, false);
 	if (ret)
 		drm_err(display->drm,
 			"timed out waiting for Punit DDR DVFS request\n");
 
-	vlv_punit_put(display->drm);
+	vlv_punit_put(display);
 }
 
 static void chv_set_memory_pm5(struct intel_display *display, bool enable)
 {
 	u32 val;
 
-	vlv_punit_get(display->drm);
+	vlv_punit_get(display);
 
-	val = vlv_punit_read(display->drm, PUNIT_REG_DSPSSPM);
+	val = vlv_punit_read(display, PUNIT_REG_DSPSSPM);
 	if (enable)
 		val |= DSP_MAXFIFO_PM5_ENABLE;
 	else
 		val &= ~DSP_MAXFIFO_PM5_ENABLE;
-	vlv_punit_write(display->drm, PUNIT_REG_DSPSSPM, val);
+	vlv_punit_write(display, PUNIT_REG_DSPSSPM, val);
 
-	vlv_punit_put(display->drm);
+	vlv_punit_put(display);
 }
 
 #define FW_WM(value, plane) \
@@ -2742,12 +2743,11 @@ static void ilk_compute_wm_level(struct intel_display *display,
 
 static void hsw_read_wm_latency(struct intel_display *display, u16 wm[])
 {
-	struct intel_uncore *uncore = to_intel_uncore(display->drm);
 	u64 sskpd;
 
 	display->wm.num_levels = 5;
 
-	sskpd = intel_uncore_read64(uncore, MCH_SSKPD);
+	sskpd = intel_mchbar_read64_2x32(display, MCH_SSKPD);
 
 	wm[0] = REG_FIELD_GET64(SSKPD_NEW_WM0_MASK_HSW, sskpd);
 	if (wm[0] == 0)
@@ -2760,12 +2760,11 @@ static void hsw_read_wm_latency(struct intel_display *display, u16 wm[])
 
 static void snb_read_wm_latency(struct intel_display *display, u16 wm[])
 {
-	struct intel_uncore *uncore = to_intel_uncore(display->drm);
 	u32 sskpd;
 
 	display->wm.num_levels = 4;
 
-	sskpd = intel_uncore_read(uncore, MCH_SSKPD);
+	sskpd = intel_mchbar_read(display, MCH_SSKPD);
 
 	wm[0] = REG_FIELD_GET(SSKPD_WM0_MASK_SNB, sskpd);
 	wm[1] = REG_FIELD_GET(SSKPD_WM1_MASK_SNB, sskpd);
@@ -2775,12 +2774,11 @@ static void snb_read_wm_latency(struct intel_display *display, u16 wm[])
 
 static void ilk_read_wm_latency(struct intel_display *display, u16 wm[])
 {
-	struct intel_uncore *uncore = to_intel_uncore(display->drm);
 	u32 mltr;
 
 	display->wm.num_levels = 3;
 
-	mltr = intel_uncore_read(uncore, MLTR_ILK);
+	mltr = intel_mchbar_read(display, MLTR_ILK);
 
 	/* ILK primary LP0 latency is 700 ns */
 	wm[0] = 7;
@@ -3918,9 +3916,9 @@ static void vlv_wm_get_hw_state(struct intel_display *display)
 	wm->level = VLV_WM_LEVEL_PM2;
 
 	if (display->platform.cherryview) {
-		vlv_punit_get(display->drm);
+		vlv_punit_get(display);
 
-		val = vlv_punit_read(display->drm, PUNIT_REG_DSPSSPM);
+		val = vlv_punit_read(display, PUNIT_REG_DSPSSPM);
 		if (val & DSP_MAXFIFO_PM5_ENABLE)
 			wm->level = VLV_WM_LEVEL_PM5;
 
@@ -3933,11 +3931,11 @@ static void vlv_wm_get_hw_state(struct intel_display *display)
 		 * HIGH/LOW bits so that we don't actually change
 		 * the current state.
 		 */
-		val = vlv_punit_read(display->drm, PUNIT_REG_DDR_SETUP2);
+		val = vlv_punit_read(display, PUNIT_REG_DDR_SETUP2);
 		val |= FORCE_DDR_FREQ_REQ_ACK;
-		vlv_punit_write(display->drm, PUNIT_REG_DDR_SETUP2, val);
+		vlv_punit_write(display, PUNIT_REG_DDR_SETUP2, val);
 
-		ret = poll_timeout_us(val = vlv_punit_read(display->drm, PUNIT_REG_DDR_SETUP2),
+		ret = poll_timeout_us(val = vlv_punit_read(display, PUNIT_REG_DDR_SETUP2),
 				      (val & FORCE_DDR_FREQ_REQ_ACK) == 0,
 				      500, 3000, false);
 		if (ret) {
@@ -3946,12 +3944,12 @@ static void vlv_wm_get_hw_state(struct intel_display *display)
 				    "assuming DDR DVFS is disabled\n");
 			display->wm.num_levels = VLV_WM_LEVEL_PM5 + 1;
 		} else {
-			val = vlv_punit_read(display->drm, PUNIT_REG_DDR_SETUP2);
+			val = vlv_punit_read(display, PUNIT_REG_DDR_SETUP2);
 			if ((val & FORCE_DDR_HIGH_FREQ) == 0)
 				wm->level = VLV_WM_LEVEL_DDR_DVFS;
 		}
 
-		vlv_punit_put(display->drm);
+		vlv_punit_put(display);
 	}
 
 	for_each_intel_crtc(display->drm, crtc) {

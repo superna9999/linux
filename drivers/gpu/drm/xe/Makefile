@@ -211,7 +211,6 @@ $(obj)/i915-display/%.o: $(srctree)/drivers/gpu/drm/i915/display/%.c FORCE
 
 # Display code specific to xe
 xe-$(CONFIG_DRM_XE_DISPLAY) += \
-	display/intel_fbdev_fb.o \
 	display/xe_display.o \
 	display/xe_display_bo.o \
 	display/xe_display_pcode.o \
@@ -304,6 +303,7 @@ xe-$(CONFIG_DRM_XE_DISPLAY) += \
 	i915-display/intel_link_bw.o \
 	i915-display/intel_lspcon.o \
 	i915-display/intel_lt_phy.o \
+	i915-display/intel_mchbar.o \
 	i915-display/intel_modeset_lock.o \
 	i915-display/intel_modeset_setup.o \
 	i915-display/intel_modeset_verify.o \
@@ -330,7 +330,8 @@ xe-$(CONFIG_DRM_XE_DISPLAY) += \
 	i915-display/skl_prefill.o \
 	i915-display/skl_scaler.o \
 	i915-display/skl_universal_plane.o \
-	i915-display/skl_watermark.o
+	i915-display/skl_watermark.o \
+	i915-display/vlv_sideband.o
 
 ifeq ($(CONFIG_ACPI),y)
 	xe-$(CONFIG_DRM_XE_DISPLAY) += \

@@ -24,6 +24,7 @@
 #include "intel_display_wa.h"
 #include "intel_dmc.h"
 #include "intel_dram.h"
+#include "intel_mchbar.h"
 #include "intel_mchbar_regs.h"
 #include "intel_parent.h"
 #include "intel_pch_refclk.h"
@@ -1252,7 +1253,7 @@ static void assert_can_disable_lcpll(struct intel_display *display)
 static u32 hsw_read_dcomp(struct intel_display *display)
 {
 	if (display->platform.haswell)
-		return intel_de_read(display, D_COMP_HSW);
+		return intel_mchbar_read(display, D_COMP_HSW);
 	else
 		return intel_de_read(display, D_COMP_BDW);
 }
@@ -1890,9 +1891,9 @@ static bool vlv_punit_is_power_gated(struct intel_display *display, u32 reg0)
 {
 	bool ret;
 
-	vlv_punit_get(display->drm);
-	ret = (vlv_punit_read(display->drm, reg0) & SSPM0_SSC_MASK) == SSPM0_SSC_PWR_GATE;
-	vlv_punit_put(display->drm);
+	vlv_punit_get(display);
+	ret = (vlv_punit_read(display, reg0) & SSPM0_SSC_MASK) == SSPM0_SSC_PWR_GATE;
+	vlv_punit_put(display);
 
 	return ret;
 }
