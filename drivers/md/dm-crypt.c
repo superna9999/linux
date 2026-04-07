@@ -32,6 +32,7 @@
 #include <linux/ctype.h>
 #include <asm/page.h>
 #include <linux/unaligned.h>
+#include <crypto/aes.h>
 #include <crypto/hash.h>
 #include <crypto/md5.h>
 #include <crypto/skcipher.h>
@@ -100,6 +101,10 @@ struct dm_crypt_request {
 	struct scatterlist sg_in[4];
 	struct scatterlist sg_out[4];
 	u64 iv_sector;
+	struct scatterlist *__sg_in;
+	struct scatterlist *__sg_out;
+	bool sg_in_pooled;
+	bool sg_out_pooled;
 };
 
 struct crypt_config;
@@ -109,11 +114,11 @@ struct crypt_iv_operations {
 		   const char *opts);
 	void (*dtr)(struct crypt_config *cc);
 	int (*init)(struct crypt_config *cc);
-	int (*wipe)(struct crypt_config *cc);
+	void (*wipe)(struct crypt_config *cc);
 	int (*generator)(struct crypt_config *cc, u8 *iv,
 			 struct dm_crypt_request *dmreq);
-	int (*post)(struct crypt_config *cc, u8 *iv,
-		    struct dm_crypt_request *dmreq);
+	void (*post)(struct crypt_config *cc, u8 *iv,
+		     struct dm_crypt_request *dmreq);
 };
 
 struct iv_benbi_private {
@@ -133,7 +138,7 @@ struct iv_tcw_private {
 
 #define ELEPHANT_MAX_KEY_SIZE 32
 struct iv_elephant_private {
-	struct crypto_skcipher *tfm;
+	struct aes_enckey *key;
 };
 
 /*
@@ -215,6 +220,9 @@ struct crypt_config {
 	unsigned int key_extra_size; /* additional keys length */
 	unsigned int key_mac_size;   /* MAC key size for authenc(...) */
 
+	unsigned int io_alignment;
+	mempool_t sg_in_pool;
+	mempool_t sg_out_pool;
 	unsigned int integrity_tag_size;
 	unsigned int integrity_iv_size;
 	unsigned int used_tag_size;
@@ -507,14 +515,12 @@ static int crypt_iv_lmk_init(struct crypt_config *cc)
 	return 0;
 }
 
-static int crypt_iv_lmk_wipe(struct crypt_config *cc)
+static void crypt_iv_lmk_wipe(struct crypt_config *cc)
 {
 	struct iv_lmk_private *lmk = &cc->iv_gen_private.lmk;
 
 	if (lmk->seed)
 		memset(lmk->seed, 0, LMK_SEED_SIZE);
-
-	return 0;
 }
 
 static void crypt_iv_lmk_one(struct crypt_config *cc, u8 *iv,
@@ -560,14 +566,14 @@ static int crypt_iv_lmk_gen(struct crypt_config *cc, u8 *iv,
 	return 0;
 }
 
-static int crypt_iv_lmk_post(struct crypt_config *cc, u8 *iv,
-			     struct dm_crypt_request *dmreq)
+static void crypt_iv_lmk_post(struct crypt_config *cc, u8 *iv,
+			      struct dm_crypt_request *dmreq)
 {
 	struct scatterlist *sg;
 	u8 *dst;
 
 	if (bio_data_dir(dmreq->ctx->bio_in) == WRITE)
-		return 0;
+		return;
 
 	sg = crypt_get_sg_data(cc, dmreq->sg_out);
 	dst = kmap_local_page(sg_page(sg));
@@ -577,7 +583,6 @@ static int crypt_iv_lmk_post(struct crypt_config *cc, u8 *iv,
 	crypto_xor(dst + sg->offset, iv, cc->iv_size);
 
 	kunmap_local(dst);
-	return 0;
 }
 
 static void crypt_iv_tcw_dtr(struct crypt_config *cc)
@@ -628,14 +633,12 @@ static int crypt_iv_tcw_init(struct crypt_config *cc)
 	return 0;
 }
 
-static int crypt_iv_tcw_wipe(struct crypt_config *cc)
+static void crypt_iv_tcw_wipe(struct crypt_config *cc)
 {
 	struct iv_tcw_private *tcw = &cc->iv_gen_private.tcw;
 
 	memset(tcw->iv_seed, 0, cc->iv_size);
 	memset(tcw->whitening, 0, TCW_WHITENING_SIZE);
-
-	return 0;
 }
 
 static void crypt_iv_tcw_whitening(struct crypt_config *cc,
@@ -687,22 +690,20 @@ static int crypt_iv_tcw_gen(struct crypt_config *cc, u8 *iv,
 	return 0;
 }
 
-static int crypt_iv_tcw_post(struct crypt_config *cc, u8 *iv,
-			     struct dm_crypt_request *dmreq)
+static void crypt_iv_tcw_post(struct crypt_config *cc, u8 *iv,
+			      struct dm_crypt_request *dmreq)
 {
 	struct scatterlist *sg;
 	u8 *dst;
 
 	if (bio_data_dir(dmreq->ctx->bio_in) != WRITE)
-		return 0;
+		return;
 
 	/* Apply whitening on ciphertext */
 	sg = crypt_get_sg_data(cc, dmreq->sg_out);
 	dst = kmap_local_page(sg_page(sg));
 	crypt_iv_tcw_whitening(cc, dmreq, dst + sg->offset);
 	kunmap_local(dst);
-
-	return 0;
 }
 
 static int crypt_iv_random_gen(struct crypt_config *cc, u8 *iv,
@@ -767,8 +768,8 @@ static void crypt_iv_elephant_dtr(struct crypt_config *cc)
 {
 	struct iv_elephant_private *elephant = &cc->iv_gen_private.elephant;
 
-	crypto_free_skcipher(elephant->tfm);
-	elephant->tfm = NULL;
+	kfree_sensitive(elephant->key);
+	elephant->key = NULL;
 }
 
 static int crypt_iv_elephant_ctr(struct crypt_config *cc, struct dm_target *ti,
@@ -777,13 +778,9 @@ static int crypt_iv_elephant_ctr(struct crypt_config *cc, struct dm_target *ti,
 	struct iv_elephant_private *elephant = &cc->iv_gen_private.elephant;
 	int r;
 
-	elephant->tfm = crypto_alloc_skcipher("ecb(aes)", 0,
-					      CRYPTO_ALG_ALLOCATES_MEMORY);
-	if (IS_ERR(elephant->tfm)) {
-		r = PTR_ERR(elephant->tfm);
-		elephant->tfm = NULL;
-		return r;
-	}
+	elephant->key = kmalloc_obj(*elephant->key);
+	if (!elephant->key)
+		return -ENOMEM;
 
 	r = crypt_iv_eboiv_ctr(cc, ti, NULL);
 	if (r)
@@ -935,41 +932,28 @@ static void diffuser_b_encrypt(u32 *d, size_t n)
 	}
 }
 
-static int crypt_iv_elephant(struct crypt_config *cc, struct dm_crypt_request *dmreq)
+static void crypt_iv_elephant(struct crypt_config *cc,
+			      struct dm_crypt_request *dmreq)
 {
 	struct iv_elephant_private *elephant = &cc->iv_gen_private.elephant;
-	u8 *es, *ks, *data, *data2, *data_offset;
-	struct skcipher_request *req;
-	struct scatterlist *sg, *sg2, src, dst;
-	DECLARE_CRYPTO_WAIT(wait);
-	int i, r;
+	u8 *data, *data2, *data_offset;
+	struct scatterlist *sg, *sg2;
+	union {
+		__le64 w[2];
+		u8 b[16];
+	} es;
+	u8 ks[32] __aligned(__alignof(long)); /* Elephant sector key */
+	int i;
 
-	req = skcipher_request_alloc(elephant->tfm, GFP_NOIO);
-	es = kzalloc(16, GFP_NOIO); /* Key for AES */
-	ks = kzalloc(32, GFP_NOIO); /* Elephant sector key */
-
-	if (!req || !es || !ks) {
-		r = -ENOMEM;
-		goto out;
-	}
-
-	*(__le64 *)es = cpu_to_le64(dmreq->iv_sector * cc->sector_size);
+	es.w[0] = cpu_to_le64(dmreq->iv_sector * cc->sector_size);
+	es.w[1] = 0;
 
 	/* E(Ks, e(s)) */
-	sg_init_one(&src, es, 16);
-	sg_init_one(&dst, ks, 16);
-	skcipher_request_set_crypt(req, &src, &dst, 16, NULL);
-	skcipher_request_set_callback(req, 0, crypto_req_done, &wait);
-	r = crypto_wait_req(crypto_skcipher_encrypt(req), &wait);
-	if (r)
-		goto out;
+	aes_encrypt(elephant->key, &ks[0], es.b);
 
 	/* E(Ks, e'(s)) */
-	es[15] = 0x80;
-	sg_init_one(&dst, &ks[16], 16);
-	r = crypto_wait_req(crypto_skcipher_encrypt(req), &wait);
-	if (r)
-		goto out;
+	es.b[15] = 0x80;
+	aes_encrypt(elephant->key, &ks[16], es.b);
 
 	sg = crypt_get_sg_data(cc, dmreq->sg_out);
 	data = kmap_local_page(sg_page(sg));
@@ -1001,34 +985,24 @@ static int crypt_iv_elephant(struct crypt_config *cc, struct dm_crypt_request *d
 	}
 
 	kunmap_local(data);
-out:
-	kfree_sensitive(ks);
-	kfree_sensitive(es);
-	skcipher_request_free(req);
-	return r;
+	memzero_explicit(ks, sizeof(ks));
+	memzero_explicit(&es, sizeof(es));
 }
 
 static int crypt_iv_elephant_gen(struct crypt_config *cc, u8 *iv,
 			    struct dm_crypt_request *dmreq)
 {
-	int r;
-
-	if (bio_data_dir(dmreq->ctx->bio_in) == WRITE) {
-		r = crypt_iv_elephant(cc, dmreq);
-		if (r)
-			return r;
-	}
+	if (bio_data_dir(dmreq->ctx->bio_in) == WRITE)
+		crypt_iv_elephant(cc, dmreq);
 
 	return crypt_iv_eboiv_gen(cc, iv, dmreq);
 }
 
-static int crypt_iv_elephant_post(struct crypt_config *cc, u8 *iv,
-				  struct dm_crypt_request *dmreq)
+static void crypt_iv_elephant_post(struct crypt_config *cc, u8 *iv,
+				   struct dm_crypt_request *dmreq)
 {
 	if (bio_data_dir(dmreq->ctx->bio_in) != WRITE)
-		return crypt_iv_elephant(cc, dmreq);
-
-	return 0;
+		crypt_iv_elephant(cc, dmreq);
 }
 
 static int crypt_iv_elephant_init(struct crypt_config *cc)
@@ -1036,16 +1010,14 @@ static int crypt_iv_elephant_init(struct crypt_config *cc)
 	struct iv_elephant_private *elephant = &cc->iv_gen_private.elephant;
 	int key_offset = cc->key_size - cc->key_extra_size;
 
-	return crypto_skcipher_setkey(elephant->tfm, &cc->key[key_offset], cc->key_extra_size);
+	return aes_prepareenckey(elephant->key, &cc->key[key_offset], cc->key_extra_size);
 }
 
-static int crypt_iv_elephant_wipe(struct crypt_config *cc)
+static void crypt_iv_elephant_wipe(struct crypt_config *cc)
 {
 	struct iv_elephant_private *elephant = &cc->iv_gen_private.elephant;
-	u8 key[ELEPHANT_MAX_KEY_SIZE];
 
-	memset(key, 0, cc->key_extra_size);
-	return crypto_skcipher_setkey(elephant->tfm, key, cc->key_extra_size);
+	memzero_explicit(elephant->key, sizeof(*elephant->key));
 }
 
 static const struct crypt_iv_operations crypt_iv_plain_ops = {
@@ -1376,7 +1348,7 @@ static int crypt_convert_block_aead(struct crypt_config *cc,
 	}
 
 	if (!r && cc->iv_gen_ops && cc->iv_gen_ops->post)
-		r = cc->iv_gen_ops->post(cc, org_iv, dmreq);
+		cc->iv_gen_ops->post(cc, org_iv, dmreq);
 
 	bio_advance_iter(ctx->bio_in, &ctx->iter_in, cc->sector_size);
 	bio_advance_iter(ctx->bio_out, &ctx->iter_out, cc->sector_size);
@@ -1384,22 +1356,89 @@ static int crypt_convert_block_aead(struct crypt_config *cc,
 	return r;
 }
 
+static void crypt_free_sg(struct scatterlist *sg, struct scatterlist *inline_sg,
+			  mempool_t *pool, bool from_pool)
+{
+	if (sg == inline_sg)
+		return;
+	if (from_pool)
+		mempool_free(sg, pool);
+	else
+		kfree(sg);
+}
+
+static void crypt_free_sgls(struct crypt_config *cc,
+			    struct dm_crypt_request *dmreq)
+{
+	crypt_free_sg(dmreq->__sg_in, dmreq->sg_in,
+		      &cc->sg_in_pool, dmreq->sg_in_pooled);
+	crypt_free_sg(dmreq->__sg_out, dmreq->sg_out,
+		      &cc->sg_out_pool, dmreq->sg_out_pooled);
+	dmreq->__sg_in = NULL;
+	dmreq->__sg_out = NULL;
+}
+
+static int crypt_build_sgl(struct crypt_config *cc, struct scatterlist **psg,
+			   struct bvec_iter *iter, struct bio *bio,
+			   int max_segs, mempool_t *pool, bool *pooled)
+{
+	unsigned int bytes = cc->sector_size;
+	struct scatterlist *sg = *psg;
+	struct bvec_iter tmp = *iter;
+	int segs, i = 0;
+
+	*pooled = false;
+	bio_advance_iter(bio, &tmp, bytes);
+	segs = tmp.bi_idx - iter->bi_idx + !!tmp.bi_bvec_done;
+	if (segs > max_segs) {
+		if (unlikely(segs > BIO_MAX_VECS))
+			return -EIO;
+		sg = kmalloc_array(segs, sizeof(struct scatterlist),
+				   GFP_NOWAIT | __GFP_NOMEMALLOC);
+		if (!sg) {
+			sg = mempool_alloc(pool, GFP_NOIO);
+			*pooled = true;
+		}
+	}
+
+	sg_init_table(sg, segs);
+	do {
+		struct bio_vec bv = mp_bvec_iter_bvec(bio->bi_io_vec, *iter);
+		int len = min(bytes, bv.bv_len);
+
+		/* Reject unexpected unaligned bio. */
+		if (unlikely((len | bv.bv_offset) & cc->io_alignment))
+			goto error;
+
+		sg_set_page(&sg[i++], bv.bv_page, len, bv.bv_offset);
+		bio_advance_iter_single(bio, iter, len);
+		bytes -= len;
+	} while (bytes);
+
+	if (WARN_ON_ONCE(i != segs))
+		goto error;
+	*psg = sg;
+	return 0;
+error:
+	if (sg != *psg) {
+		if (*pooled)
+			mempool_free(sg, pool);
+		else
+			kfree(sg);
+	}
+	return -EIO;
+}
+
 static int crypt_convert_block_skcipher(struct crypt_config *cc,
 					struct convert_context *ctx,
 					struct skcipher_request *req,
 					unsigned int tag_offset)
 {
-	struct bio_vec bv_in = bio_iter_iovec(ctx->bio_in, ctx->iter_in);
-	struct bio_vec bv_out = bio_iter_iovec(ctx->bio_out, ctx->iter_out);
 	struct scatterlist *sg_in, *sg_out;
 	struct dm_crypt_request *dmreq;
 	u8 *iv, *org_iv, *tag_iv;
 	__le64 *sector;
-	int r = 0;
-
-	/* Reject unexpected unaligned bio. */
-	if (unlikely(bv_in.bv_len & (cc->sector_size - 1)))
-		return -EIO;
+	int r;
 
 	dmreq = dmreq_of_req(cc, req);
 	dmreq->iv_sector = ctx->cc_sector;
@@ -1416,15 +1455,23 @@ static int crypt_convert_block_skcipher(struct crypt_config *cc,
 	sector = org_sector_of_dmreq(cc, dmreq);
 	*sector = cpu_to_le64(ctx->cc_sector - cc->iv_offset);
 
-	/* For skcipher we use only the first sg item */
-	sg_in  = &dmreq->sg_in[0];
-	sg_out = &dmreq->sg_out[0];
+	dmreq->__sg_in = &dmreq->sg_in[0];
+	dmreq->__sg_out = &dmreq->sg_out[0];
 
-	sg_init_table(sg_in, 1);
-	sg_set_page(sg_in, bv_in.bv_page, cc->sector_size, bv_in.bv_offset);
+	r = crypt_build_sgl(cc, &dmreq->__sg_in, &ctx->iter_in, ctx->bio_in,
+			    ARRAY_SIZE(dmreq->sg_in), &cc->sg_in_pool,
+			    &dmreq->sg_in_pooled);
+	if (r < 0)
+		return r;
 
-	sg_init_table(sg_out, 1);
-	sg_set_page(sg_out, bv_out.bv_page, cc->sector_size, bv_out.bv_offset);
+	r = crypt_build_sgl(cc, &dmreq->__sg_out, &ctx->iter_out, ctx->bio_out,
+			    ARRAY_SIZE(dmreq->sg_out), &cc->sg_out_pool,
+			    &dmreq->sg_out_pooled);
+	if (r < 0)
+		goto out;
+
+	sg_in = dmreq->__sg_in;
+	sg_out = dmreq->__sg_out;
 
 	if (cc->iv_gen_ops) {
 		/* For READs use IV stored in integrity metadata */
@@ -1433,7 +1480,7 @@ static int crypt_convert_block_skcipher(struct crypt_config *cc,
 		} else {
 			r = cc->iv_gen_ops->generator(cc, org_iv, dmreq);
 			if (r < 0)
-				return r;
+				goto out;
 			/* Data can be already preprocessed in generator */
 			if (test_bit(CRYPT_ENCRYPT_PREPROCESS, &cc->cipher_flags))
 				sg_in = sg_out;
@@ -1453,10 +1500,11 @@ static int crypt_convert_block_skcipher(struct crypt_config *cc,
 		r = crypto_skcipher_decrypt(req);
 
 	if (!r && cc->iv_gen_ops && cc->iv_gen_ops->post)
-		r = cc->iv_gen_ops->post(cc, org_iv, dmreq);
+		cc->iv_gen_ops->post(cc, org_iv, dmreq);
 
-	bio_advance_iter(ctx->bio_in, &ctx->iter_in, cc->sector_size);
-	bio_advance_iter(ctx->bio_out, &ctx->iter_out, cc->sector_size);
+out:
+	if (r != -EINPROGRESS && r != -EBUSY)
+		crypt_free_sgls(cc, dmreq);
 
 	return r;
 }
@@ -1522,7 +1570,9 @@ static void crypt_free_req_skcipher(struct crypt_config *cc,
 				    struct skcipher_request *req, struct bio *base_bio)
 {
 	struct dm_crypt_io *io = dm_per_bio_data(base_bio, cc->per_bio_data_size);
+	struct dm_crypt_request *dmreq = dmreq_of_req(cc, req);
 
+	crypt_free_sgls(cc, dmreq);
 	if ((struct skcipher_request *)(io + 1) != req)
 		mempool_free(req, &cc->req_pool);
 }
@@ -2217,7 +2267,7 @@ static void kcryptd_async_done(void *data, int error)
 	}
 
 	if (!error && cc->iv_gen_ops && cc->iv_gen_ops->post)
-		error = cc->iv_gen_ops->post(cc, org_iv_of_dmreq(cc, dmreq), dmreq);
+		cc->iv_gen_ops->post(cc, org_iv_of_dmreq(cc, dmreq), dmreq);
 
 	if (error == -EBADMSG) {
 		sector_t s = le64_to_cpu(*org_sector_of_dmreq(cc, dmreq));
@@ -2673,11 +2723,8 @@ static int crypt_wipe_key(struct crypt_config *cc)
 	get_random_bytes(&cc->key, cc->key_size);
 
 	/* Wipe IV private keys */
-	if (cc->iv_gen_ops && cc->iv_gen_ops->wipe) {
-		r = cc->iv_gen_ops->wipe(cc);
-		if (r)
-			return r;
-	}
+	if (cc->iv_gen_ops && cc->iv_gen_ops->wipe)
+		cc->iv_gen_ops->wipe(cc);
 
 	kfree_sensitive(cc->key_string);
 	cc->key_string = NULL;
@@ -2755,6 +2802,8 @@ static void crypt_dtr(struct dm_target *ti)
 
 	mempool_exit(&cc->page_pool);
 	mempool_exit(&cc->req_pool);
+	mempool_exit(&cc->sg_in_pool);
+	mempool_exit(&cc->sg_out_pool);
 	mempool_exit(&cc->tag_pool);
 
 	WARN_ON(percpu_counter_sum(&cc->n_allocated_pages) != 0);
@@ -2789,9 +2838,10 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 {
 	struct crypt_config *cc = ti->private;
 
-	if (crypt_integrity_aead(cc))
+	if (crypt_integrity_aead(cc)) {
 		cc->iv_size = crypto_aead_ivsize(any_tfm_aead(cc));
-	else
+		cc->io_alignment = cc->sector_size - 1;
+	} else
 		cc->iv_size = crypto_skcipher_ivsize(any_tfm(cc));
 
 	if (cc->iv_size)
@@ -2827,6 +2877,7 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 		if (cc->key_extra_size > ELEPHANT_MAX_KEY_SIZE)
 			return -EINVAL;
 		set_bit(CRYPT_ENCRYPT_PREPROCESS, &cc->cipher_flags);
+		cc->io_alignment = cc->sector_size - 1;
 	} else if (strcmp(ivmode, "lmk") == 0) {
 		cc->iv_gen_ops = &crypt_iv_lmk_ops;
 		/*
@@ -2839,10 +2890,12 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 			cc->key_parts++;
 			cc->key_extra_size = cc->key_size / cc->key_parts;
 		}
+		cc->io_alignment = cc->sector_size - 1;
 	} else if (strcmp(ivmode, "tcw") == 0) {
 		cc->iv_gen_ops = &crypt_iv_tcw_ops;
 		cc->key_parts += 2; /* IV + whitening */
 		cc->key_extra_size = cc->iv_size + TCW_WHITENING_SIZE;
+		cc->io_alignment = cc->sector_size - 1;
 	} else if (strcmp(ivmode, "random") == 0) {
 		cc->iv_gen_ops = &crypt_iv_random_ops;
 		/* Need storage space in integrity fields. */
@@ -3309,6 +3362,20 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ALIGN(sizeof(struct dm_crypt_io) + cc->dmreq_start + additional_req_size,
 		      ARCH_DMA_MINALIGN);
 
+	ret = mempool_init_kmalloc_pool(&cc->sg_in_pool, MIN_IOS,
+			BIO_MAX_VECS * sizeof(struct scatterlist));
+	if (ret) {
+		ti->error = "Cannot allocate crypt scatterlist mempool";
+		goto bad;
+	}
+
+	ret = mempool_init_kmalloc_pool(&cc->sg_out_pool, MIN_IOS,
+			BIO_MAX_VECS * sizeof(struct scatterlist));
+	if (ret) {
+		ti->error = "Cannot allocate crypt scatterlist mempool";
+		goto bad;
+	}
+
 	ret = mempool_init(&cc->page_pool, BIO_MAX_VECS, crypt_page_alloc, crypt_page_free, cc);
 	if (ret) {
 		ti->error = "Cannot allocate page mempool";
@@ -3717,12 +3784,10 @@ static void crypt_io_hints(struct dm_target *ti, struct queue_limits *limits)
 {
 	struct crypt_config *cc = ti->private;
 
-	limits->logical_block_size =
-		max_t(unsigned int, limits->logical_block_size, cc->sector_size);
-	limits->physical_block_size =
-		max_t(unsigned int, limits->physical_block_size, cc->sector_size);
-	limits->io_min = max_t(unsigned int, limits->io_min, cc->sector_size);
-	limits->dma_alignment = limits->logical_block_size - 1;
+	dm_stack_bs_limits(limits, cc->sector_size);
+	limits->dma_alignment = max(bdev_dma_alignment(cc->dev->bdev),
+				    cc->io_alignment);
+	cc->io_alignment = limits->dma_alignment;
 
 	/*
 	 * For zoned dm-crypt targets, there will be no internal splitting of
