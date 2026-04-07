@@ -26,8 +26,8 @@
  */
 struct hrtimer_clock_base {
 	struct hrtimer_cpu_base		*cpu_base;
-	unsigned int			index;
-	clockid_t			clockid;
+	const unsigned int		index;
+	const clockid_t			clockid;
 	seqcount_raw_spinlock_t		seq;
 	ktime_t				expires_next;
 	struct hrtimer			*running;
@@ -35,7 +35,7 @@ struct hrtimer_clock_base {
 	ktime_t				offset;
 } __hrtimer_clock_base_align;
 
-enum  hrtimer_base_type {
+enum hrtimer_base_type {
 	HRTIMER_BASE_MONOTONIC,
 	HRTIMER_BASE_REALTIME,
 	HRTIMER_BASE_BOOTTIME,
@@ -44,7 +44,7 @@ enum  hrtimer_base_type {
 	HRTIMER_BASE_REALTIME_SOFT,
 	HRTIMER_BASE_BOOTTIME_SOFT,
 	HRTIMER_BASE_TAI_SOFT,
-	HRTIMER_MAX_CLOCK_BASES,
+	HRTIMER_MAX_CLOCK_BASES
 };
 
 /**
