@@ -7674,8 +7674,9 @@ M:	Mauro Carvalho Chehab <mchehab@kernel.org>
 L:	linux-doc@vger.kernel.org
 S:	Maintained
 F:	Documentation/sphinx/
-F:	tools/lib/python/*
 F:	tools/docs/
+F:	tools/lib/python/*
+F:	tools/unittests/*
 
 DOCUMENTATION/ITALIAN
 M:	Federico Vaga <federico.vaga@vaga.pv.it>
@@ -14781,7 +14782,6 @@ F:	Documentation/memory-barriers.txt
 F:	tools/memory-model/
 
 LINUX-NEXT TREE
-M:	Stephen Rothwell <sfr@canb.auug.org.au>
 M:	Mark Brown <broonie@kernel.org>
 L:	linux-next@vger.kernel.org
 S:	Supported
@@ -21061,6 +21061,12 @@ L:	linux-acpi@vger.kernel.org
 S:	Maintained
 F:	drivers/pnp/
 F:	include/linux/pnp.h
+
+PORTUGUESE (BRAZILIAN) TRANSLATION
+M:	Daniel Pereira <danielmaraboo@gmail.com>
+L:	linux-doc@vger.kernel.org
+S:	Maintained
+F:	Documentation/translations/pt_BR/
 
 PORTWELL EC DRIVER
 M:	Yen-Chi Huang <jesse.huang@portwell.com.tw>

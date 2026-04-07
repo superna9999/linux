@@ -6752,7 +6752,7 @@ Kernel parameters
 			Default is 'on'.
 
 	initramfs_options= [KNL]
-                        Specify mount options for for the initramfs mount.
+			Specify mount options for the initramfs mount.
 
 	rootfstype=	[KNL] Set root filesystem type
 
