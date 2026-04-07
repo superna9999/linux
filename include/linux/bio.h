@@ -256,6 +256,12 @@ static inline struct folio *bio_first_folio_all(struct bio *bio)
 	return page_folio(bio_first_page_all(bio));
 }
 
+static inline struct bio_vec *bio_last_bvec_all(struct bio *bio)
+{
+	WARN_ON_ONCE(bio_flagged(bio, BIO_CLONED));
+	return &bio->bi_io_vec[bio->bi_vcnt - 1];
+}
+
 /**
  * struct folio_iter - State for iterating all folios in a bio.
  * @folio: The current folio we're iterating.  NULL after the last folio.
@@ -350,8 +356,7 @@ extern void bioset_exit(struct bio_set *);
 extern int biovec_init_pool(mempool_t *pool, int pool_entries);
 
 struct bio *bio_alloc_bioset(struct block_device *bdev, unsigned short nr_vecs,
-			     blk_opf_t opf, gfp_t gfp_mask,
-			     struct bio_set *bs);
+			     blk_opf_t opf, gfp_t gfp, struct bio_set *bs);
 struct bio *bio_kmalloc(unsigned short nr_vecs, gfp_t gfp_mask);
 extern void bio_put(struct bio *);
 
