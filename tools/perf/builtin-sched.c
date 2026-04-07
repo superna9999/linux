@@ -4879,8 +4879,8 @@ int cmd_sched(int argc, const char **argv)
 		    "Display call chains if present (default on)"),
 	OPT_UINTEGER(0, "max-stack", &sched.max_stack,
 		   "Maximum number of functions to display backtrace."),
-	OPT_STRING(0, "symfs", &symbol_conf.symfs, "directory",
-		    "Look for files with symbols relative to this directory"),
+	OPT_CALLBACK(0, "symfs", NULL, "directory[,layout]", SYMFS_HELP,
+		     symbol__config_symfs),
 	OPT_BOOLEAN('s', "summary", &sched.summary_only,
 		    "Show only syscall summary with statistics"),
 	OPT_BOOLEAN('S', "with-summary", &sched.summary,
@@ -4955,6 +4955,7 @@ int cmd_sched(int argc, const char **argv)
 		.switch_event	    = replay_switch_event,
 		.fork_event	    = replay_fork_event,
 	};
+	struct trace_sched_handler stats_ops  = {};
 	int ret;
 
 	perf_tool__init(&sched.tool, /*ordered_events=*/true);
@@ -5037,6 +5038,7 @@ int cmd_sched(int argc, const char **argv)
 	} else if (!strcmp(argv[0], "stats")) {
 		const char *const stats_subcommands[] = {"record", "report", NULL};
 
+		sched.tp_handler = &stats_ops;
 		argc = parse_options_subcommand(argc, argv, stats_options,
 						stats_subcommands,
 						stats_usage,
