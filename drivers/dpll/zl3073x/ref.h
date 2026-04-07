@@ -5,6 +5,7 @@
 
 #include <linux/bitfield.h>
 #include <linux/math64.h>
+#include <linux/stddef.h>
 #include <linux/types.h>
 
 #include "regs.h"
@@ -13,28 +14,36 @@ struct zl3073x_dev;
 
 /**
  * struct zl3073x_ref - input reference state
- * @ffo: current fractional frequency offset
  * @phase_comp: phase compensation
  * @esync_n_div: divisor for embedded sync or n-divided signal formats
  * @freq_base: frequency base
  * @freq_mult: frequnecy multiplier
  * @freq_ratio_m: FEC mode multiplier
  * @freq_ratio_n: FEC mode divisor
- * @config: reference config
  * @sync_ctrl: reference sync control
+ * @config: reference config
+ * @ffo: current fractional frequency offset
+ * @meas_freq: measured input frequency in Hz
  * @mon_status: reference monitor status
  */
 struct zl3073x_ref {
-	s64	ffo;
-	u64	phase_comp;
-	u32	esync_n_div;
-	u16	freq_base;
-	u16	freq_mult;
-	u16	freq_ratio_m;
-	u16	freq_ratio_n;
-	u8	config;
-	u8	sync_ctrl;
-	u8	mon_status;
+	struct_group(cfg, /* Configuration */
+		u64	phase_comp;
+		u32	esync_n_div;
+		u16	freq_base;
+		u16	freq_mult;
+		u16	freq_ratio_m;
+		u16	freq_ratio_n;
+		u8	sync_ctrl;
+	);
+	struct_group(inv, /* Invariants */
+		u8	config;
+	);
+	struct_group(stat, /* Status */
+		s64	ffo;
+		u32	meas_freq;
+		u8	mon_status;
+	);
 };
 
 int zl3073x_ref_state_fetch(struct zl3073x_dev *zldev, u8 index);
@@ -44,6 +53,8 @@ const struct zl3073x_ref *zl3073x_ref_state_get(struct zl3073x_dev *zldev,
 
 int zl3073x_ref_state_set(struct zl3073x_dev *zldev, u8 index,
 			  const struct zl3073x_ref *ref);
+
+int zl3073x_ref_state_update(struct zl3073x_dev *zldev, u8 index);
 
 int zl3073x_ref_freq_factorize(u32 freq, u16 *base, u16 *mult);
 
@@ -57,6 +68,18 @@ static inline s64
 zl3073x_ref_ffo_get(const struct zl3073x_ref *ref)
 {
 	return ref->ffo;
+}
+
+/**
+ * zl3073x_ref_meas_freq_get - get measured input frequency
+ * @ref: pointer to ref state
+ *
+ * Return: measured input frequency in Hz
+ */
+static inline u32
+zl3073x_ref_meas_freq_get(const struct zl3073x_ref *ref)
+{
+	return ref->meas_freq;
 }
 
 /**

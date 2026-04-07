@@ -2118,6 +2118,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 				return res;
 			}
 			break;
+		case NL80211_IFTYPE_NAN_DATA:
 		case NL80211_IFTYPE_AP_VLAN:
 		case NL80211_IFTYPE_MONITOR:
 		case NL80211_IFTYPE_P2P_DEVICE:
@@ -3766,12 +3767,11 @@ again:
 int ieee80211_send_action_csa(struct ieee80211_sub_if_data *sdata,
 			      struct cfg80211_csa_settings *csa_settings)
 {
+	int hdr_len = IEEE80211_MIN_ACTION_SIZE(chan_switch);
 	struct sk_buff *skb;
 	struct ieee80211_mgmt *mgmt;
 	struct ieee80211_local *local = sdata->local;
 	int freq;
-	int hdr_len = offsetofend(struct ieee80211_mgmt,
-				  u.action.u.chan_switch);
 	u8 *pos;
 
 	if (sdata->vif.type != NL80211_IFTYPE_ADHOC &&
@@ -3800,7 +3800,7 @@ int ieee80211_send_action_csa(struct ieee80211_sub_if_data *sdata,
 		memcpy(mgmt->bssid, ifibss->bssid, ETH_ALEN);
 	}
 	mgmt->u.action.category = WLAN_CATEGORY_SPECTRUM_MGMT;
-	mgmt->u.action.u.chan_switch.action_code = WLAN_ACTION_SPCT_CHL_SWITCH;
+	mgmt->u.action.action_code = WLAN_ACTION_SPCT_CHL_SWITCH;
 	pos = skb_put(skb, 5);
 	*pos++ = WLAN_EID_CHANNEL_SWITCH;			/* EID */
 	*pos++ = 3;						/* IE length */

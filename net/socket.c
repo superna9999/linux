@@ -280,23 +280,18 @@ static int move_addr_to_user(struct sockaddr_storage *kaddr, int klen,
 
 	BUG_ON(klen > sizeof(struct sockaddr_storage));
 
-	if (can_do_masked_user_access())
-		ulen = masked_user_access_begin(ulen);
-	else if (!user_access_begin(ulen, 4))
-		return -EFAULT;
+	scoped_user_rw_access_size(ulen, 4, efault_end) {
+		unsafe_get_user(len, ulen, efault_end);
 
-	unsafe_get_user(len, ulen, efault_end);
-
-	if (len > klen)
-		len = klen;
-	/*
-	 *      "fromlen shall refer to the value before truncation.."
-	 *                      1003.1g
-	 */
-	if (len >= 0)
-		unsafe_put_user(klen, ulen, efault_end);
-
-	user_access_end();
+		if (len > klen)
+			len = klen;
+		/*
+		 *      "fromlen shall refer to the value before truncation.."
+		 *                      1003.1g
+		 */
+		if (len >= 0)
+			unsafe_put_user(klen, ulen, efault_end);
+	}
 
 	if (len) {
 		if (len < 0)
@@ -309,7 +304,6 @@ static int move_addr_to_user(struct sockaddr_storage *kaddr, int klen,
 	return 0;
 
 efault_end:
-	user_access_end();
 	return -EFAULT;
 }
 
@@ -977,11 +971,10 @@ void __sock_recv_timestamp(struct msghdr *msg, struct sock *sk,
 {
 	int need_software_tstamp = sock_flag(sk, SOCK_RCVTSTAMP);
 	int new_tstamp = sock_flag(sk, SOCK_TSTAMP_NEW);
-	struct scm_timestamping_internal tss;
-	int empty = 1, false_tstamp = 0;
 	struct skb_shared_hwtstamps *shhwtstamps =
 		skb_hwtstamps(skb);
-	int if_index;
+	struct scm_timestamping_internal tss;
+	int if_index, false_tstamp = 0;
 	ktime_t hwtstamp;
 	u32 tsflags;
 
@@ -1026,12 +1019,12 @@ void __sock_recv_timestamp(struct msghdr *msg, struct sock *sk,
 
 	memset(&tss, 0, sizeof(tss));
 	tsflags = READ_ONCE(sk->sk_tsflags);
-	if ((tsflags & SOF_TIMESTAMPING_SOFTWARE &&
-	     (tsflags & SOF_TIMESTAMPING_RX_SOFTWARE ||
-	      skb_is_err_queue(skb) ||
-	      !(tsflags & SOF_TIMESTAMPING_OPT_RX_FILTER))) &&
-	    ktime_to_timespec64_cond(skb->tstamp, tss.ts + 0))
-		empty = 0;
+	if (tsflags & SOF_TIMESTAMPING_SOFTWARE &&
+	    (tsflags & SOF_TIMESTAMPING_RX_SOFTWARE ||
+	    skb_is_err_queue(skb) ||
+	    !(tsflags & SOF_TIMESTAMPING_OPT_RX_FILTER)))
+		tss.ts[0] = skb->tstamp;
+
 	if (shhwtstamps &&
 	    (tsflags & SOF_TIMESTAMPING_RAW_HARDWARE &&
 	     (tsflags & SOF_TIMESTAMPING_RX_HARDWARE ||
@@ -1048,15 +1041,15 @@ void __sock_recv_timestamp(struct msghdr *msg, struct sock *sk,
 			hwtstamp = ptp_convert_timestamp(&hwtstamp,
 							 READ_ONCE(sk->sk_bind_phc));
 
-		if (ktime_to_timespec64_cond(hwtstamp, tss.ts + 2)) {
-			empty = 0;
+		if (hwtstamp) {
+			tss.ts[2] = hwtstamp;
 
 			if ((tsflags & SOF_TIMESTAMPING_OPT_PKTINFO) &&
 			    !skb_is_err_queue(skb))
 				put_ts_pktinfo(msg, skb, if_index);
 		}
 	}
-	if (!empty) {
+	if (tss.ts[0] | tss.ts[2]) {
 		if (sock_flag(sk, SOCK_TSTAMP_NEW))
 			put_cmsg_scm_timestamping64(msg, &tss);
 		else

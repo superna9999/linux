@@ -131,33 +131,36 @@ nft_meta_get_eval_skugid(enum nft_meta_keys key,
 			 u32 *dest,
 			 const struct nft_pktinfo *pkt)
 {
-	struct sock *sk = skb_to_full_sk(pkt->skb);
-	struct socket *sock;
+	const struct sock *sk = skb_to_full_sk(pkt->skb);
+	const struct socket *sock;
+	const struct file *file;
 
 	if (!sk || !sk_fullsock(sk) || !net_eq(nft_net(pkt), sock_net(sk)))
 		return false;
 
-	read_lock_bh(&sk->sk_callback_lock);
-	sock = sk->sk_socket;
-	if (!sock || !sock->file) {
-		read_unlock_bh(&sk->sk_callback_lock);
+	/* The sk pointer remains valid as long as the skb is. The sk_socket and
+	 * file pointer may become NULL if the socket is closed. Both structures
+	 * (including file->cred) are RCU freed which means they can be accessed
+	 * within a RCU read section.
+	 */
+	sock = READ_ONCE(sk->sk_socket);
+	file = sock ? READ_ONCE(sock->file) : NULL;
+	if (!file)
 		return false;
-	}
 
 	switch (key) {
 	case NFT_META_SKUID:
 		*dest = from_kuid_munged(sock_net(sk)->user_ns,
-					 sock->file->f_cred->fsuid);
+					 file->f_cred->fsuid);
 		break;
 	case NFT_META_SKGID:
 		*dest =	from_kgid_munged(sock_net(sk)->user_ns,
-					 sock->file->f_cred->fsgid);
+					 file->f_cred->fsgid);
 		break;
 	default:
 		break;
 	}
 
-	read_unlock_bh(&sk->sk_callback_lock);
 	return true;
 }
 
@@ -742,59 +745,15 @@ static int nft_meta_get_offload(struct nft_offload_ctx *ctx,
 	return 0;
 }
 
-bool nft_meta_get_reduce(struct nft_regs_track *track,
-			 const struct nft_expr *expr)
-{
-	const struct nft_meta *priv = nft_expr_priv(expr);
-	const struct nft_meta *meta;
-
-	if (!nft_reg_track_cmp(track, expr, priv->dreg)) {
-		nft_reg_track_update(track, expr, priv->dreg, priv->len);
-		return false;
-	}
-
-	meta = nft_expr_priv(track->regs[priv->dreg].selector);
-	if (priv->key != meta->key ||
-	    priv->dreg != meta->dreg) {
-		nft_reg_track_update(track, expr, priv->dreg, priv->len);
-		return false;
-	}
-
-	if (!track->regs[priv->dreg].bitwise)
-		return true;
-
-	return nft_expr_reduce_bitwise(track, expr);
-}
-EXPORT_SYMBOL_GPL(nft_meta_get_reduce);
-
 static const struct nft_expr_ops nft_meta_get_ops = {
 	.type		= &nft_meta_type,
 	.size		= NFT_EXPR_SIZE(sizeof(struct nft_meta)),
 	.eval		= nft_meta_get_eval,
 	.init		= nft_meta_get_init,
 	.dump		= nft_meta_get_dump,
-	.reduce		= nft_meta_get_reduce,
 	.validate	= nft_meta_get_validate,
 	.offload	= nft_meta_get_offload,
 };
-
-static bool nft_meta_set_reduce(struct nft_regs_track *track,
-				const struct nft_expr *expr)
-{
-	int i;
-
-	for (i = 0; i < NFT_REG32_NUM; i++) {
-		if (!track->regs[i].selector)
-			continue;
-
-		if (track->regs[i].selector->ops != &nft_meta_get_ops)
-			continue;
-
-		__nft_reg_track_cancel(track, i);
-	}
-
-	return false;
-}
 
 static const struct nft_expr_ops nft_meta_set_ops = {
 	.type		= &nft_meta_type,
@@ -803,7 +762,6 @@ static const struct nft_expr_ops nft_meta_set_ops = {
 	.init		= nft_meta_set_init,
 	.destroy	= nft_meta_set_destroy,
 	.dump		= nft_meta_set_dump,
-	.reduce		= nft_meta_set_reduce,
 	.validate	= nft_meta_set_validate,
 };
 

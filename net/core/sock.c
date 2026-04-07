@@ -3175,7 +3175,7 @@ bool sk_page_frag_refill(struct sock *sk, struct page_frag *pfrag)
 }
 EXPORT_SYMBOL(sk_page_frag_refill);
 
-void __lock_sock(struct sock *sk)
+static void __lock_sock(struct sock *sk)
 	__releases(&sk->sk_lock.slock)
 	__acquires(&sk->sk_lock.slock)
 {
@@ -3774,14 +3774,30 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 }
 EXPORT_SYMBOL(sock_init_data);
 
-void lock_sock_nested(struct sock *sk, int subclass)
+void noinline lock_sock_nested(struct sock *sk, int subclass)
 {
 	/* The sk_lock has mutex_lock() semantics here. */
 	mutex_acquire(&sk->sk_lock.dep_map, subclass, 0, _RET_IP_);
 
 	might_sleep();
+#ifdef CONFIG_64BIT
+	if (sizeof(struct slock_owned) == sizeof(long)) {
+		socket_lock_t tmp = {
+			.slock = __SPIN_LOCK_UNLOCKED(tmp.slock),
+			.owned = 1,
+		};
+		socket_lock_t old = {
+			.slock = __SPIN_LOCK_UNLOCKED(old.slock),
+			.owned = 0,
+		};
+
+		if (likely(try_cmpxchg(&sk->sk_lock.combined,
+				       &old.combined, tmp.combined)))
+			return;
+	}
+#endif
 	spin_lock_bh(&sk->sk_lock.slock);
-	if (sock_owned_by_user_nocheck(sk))
+	if (unlikely(sock_owned_by_user_nocheck(sk)))
 		__lock_sock(sk);
 	sk->sk_lock.owned = 1;
 	spin_unlock_bh(&sk->sk_lock.slock);
@@ -3791,16 +3807,18 @@ EXPORT_SYMBOL(lock_sock_nested);
 void release_sock(struct sock *sk)
 {
 	spin_lock_bh(&sk->sk_lock.slock);
-	if (sk->sk_backlog.tail)
+
+	if (unlikely(sk->sk_backlog.tail))
 		__release_sock(sk);
 
-	if (sk->sk_prot->release_cb)
-		INDIRECT_CALL_INET_1(sk->sk_prot->release_cb,
-				     tcp_release_cb, sk);
-
+	if (sk->sk_prot->release_cb) {
+		if (!tcp_release_cb_cond(sk))
+			sk->sk_prot->release_cb(sk);
+	}
 	sock_release_ownership(sk);
-	if (waitqueue_active(&sk->sk_lock.wq))
+	if (unlikely(waitqueue_active(&sk->sk_lock.wq)))
 		wake_up(&sk->sk_lock.wq);
+
 	spin_unlock_bh(&sk->sk_lock.slock);
 }
 EXPORT_SYMBOL(release_sock);
@@ -3810,7 +3828,7 @@ bool __lock_sock_fast(struct sock *sk) __acquires(&sk->sk_lock.slock)
 	might_sleep();
 	spin_lock_bh(&sk->sk_lock.slock);
 
-	if (!sock_owned_by_user_nocheck(sk)) {
+	if (likely(!sock_owned_by_user_nocheck(sk))) {
 		/*
 		 * Fast path return with bottom halves disabled and
 		 * sock::sk_lock.slock held.
@@ -3951,13 +3969,8 @@ int sock_common_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 			int flags)
 {
 	struct sock *sk = sock->sk;
-	int addr_len = 0;
-	int err;
 
-	err = sk->sk_prot->recvmsg(sk, msg, size, flags, &addr_len);
-	if (err >= 0)
-		msg->msg_namelen = addr_len;
-	return err;
+	return sk->sk_prot->recvmsg(sk, msg, size, flags);
 }
 EXPORT_SYMBOL(sock_common_recvmsg);
 

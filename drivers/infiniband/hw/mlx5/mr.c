@@ -46,7 +46,6 @@
 #include "data_direct.h"
 #include "dmah.h"
 
-#define MLX5_UMR_ALIGN 2048
 
 static int mkey_max_umr_order(struct mlx5_ib_dev *dev)
 {

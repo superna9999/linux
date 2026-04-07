@@ -2,8 +2,9 @@
 
 #include <linux/ethtool.h>
 #include <linux/phy.h>
-#include "netlink.h"
+
 #include "common.h"
+#include "netlink.h"
 
 struct strset_info {
 	bool per_dev;
@@ -189,6 +190,7 @@ static const struct nla_policy strset_stringsets_policy[] = {
 };
 
 static int strset_parse_request(struct ethnl_req_info *req_base,
+				const struct genl_info *info,
 				struct nlattr **tb,
 				struct netlink_ext_ack *extack)
 {
