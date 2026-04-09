@@ -443,7 +443,9 @@ static int mfill_copy_folio_locked(struct folio *folio, unsigned long src_addr)
 	return ret;
 }
 
-static int mfill_copy_folio_retry(struct mfill_state *state, struct folio *folio)
+static int mfill_copy_folio_retry(struct mfill_state *state,
+				  const struct vm_uffd_ops *ops,
+				  struct folio *folio)
 {
 	unsigned long src_addr = state->src_addr;
 	void *kaddr;
@@ -464,6 +466,14 @@ static int mfill_copy_folio_retry(struct mfill_state *state, struct folio *folio
 	err = mfill_get_vma(state);
 	if (err)
 		return err;
+
+	/*
+	 * The VMA type may have changed while the lock was dropped
+	 * (e.g. replaced with a hugetlb mapping), making the caller's
+	 * ops pointer stale.
+	 */
+	if (vma_uffd_ops(state->vma) != ops)
+		return -EAGAIN;
 
 	err = mfill_establish_pmd(state);
 	if (err)
@@ -495,7 +505,7 @@ static int __mfill_atomic_pte(struct mfill_state *state,
 		 * will take care of unlocking if needed.
 		 */
 		if (unlikely(ret)) {
-			ret = mfill_copy_folio_retry(state, folio);
+			ret = mfill_copy_folio_retry(state, ops, folio);
 			if (ret)
 				goto err_folio_put;
 		}
