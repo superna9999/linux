@@ -355,7 +355,7 @@ s64 __ktime_divns(const ktime_t kt, s64 div)
 	return dclc < 0 ? -tmp : tmp;
 }
 EXPORT_SYMBOL_GPL(__ktime_divns);
-#endif /* BITS_PER_LONG >= 64 */
+#endif /* BITS_PER_LONG < 64 */
 
 /*
  * Add two ktime values and do a safety check for overflow:
@@ -2090,6 +2090,7 @@ void hrtimer_interrupt(struct clock_event_device *dev)
 	BUG_ON(!cpu_base->hres_active);
 	cpu_base->nr_events++;
 	dev->next_event = KTIME_MAX;
+	dev->next_event_forced = 0;
 
 	raw_spin_lock_irqsave(&cpu_base->lock, flags);
 	entry_time = now = hrtimer_update_base(cpu_base);
