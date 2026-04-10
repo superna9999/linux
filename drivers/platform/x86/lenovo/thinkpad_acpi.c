@@ -374,7 +374,7 @@ static struct {
 	u32 hotkey_poll_active:1;
 	u32 has_adaptive_kbd:1;
 	u32 kbd_lang:1;
-	u32 trackpoint_doubletap:1;
+	u32 trackpoint_doubletap_enable:1;
 	struct quirk_entry *quirks;
 } tp_features;
 
@@ -1315,7 +1315,7 @@ static ssize_t tpacpi_rfk_sysfs_enable_store(const enum tpacpi_rfk_id id,
 static int tpacpi_rfk_procfs_read(const enum tpacpi_rfk_id id, struct seq_file *m)
 {
 	if (id >= TPACPI_RFK_SW_MAX)
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 	else {
 		int status;
 
@@ -1330,7 +1330,7 @@ static int tpacpi_rfk_procfs_read(const enum tpacpi_rfk_id id, struct seq_file *
 		}
 
 		seq_printf(m, "status:\t\t%s\n", str_enabled_disabled(status == TPACPI_RFK_RADIO_ON));
-		seq_printf(m, "commands:\tenable, disable\n");
+		seq_puts(m, "commands:\tenable, disable\n");
 	}
 
 	return 0;
@@ -3019,6 +3019,31 @@ static const struct attribute_group adaptive_kbd_attr_group = {
 	.attrs = adaptive_kbd_attributes,
 };
 
+/* sysfs doubletap enable --------------------------------------------- */
+static ssize_t doubletap_enable_show(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
+{
+	return sysfs_emit(buf, "%d\n", tp_features.trackpoint_doubletap_enable);
+}
+
+static ssize_t doubletap_enable_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	bool enable;
+	int err;
+
+	err = kstrtobool(buf, &enable);
+	if (err)
+		return err;
+
+	tp_features.trackpoint_doubletap_enable = enable;
+	return count;
+}
+
+static DEVICE_ATTR_RW(doubletap_enable);
+
 /* --------------------------------------------------------------------- */
 
 static struct attribute *hotkey_attributes[] = {
@@ -3033,6 +3058,7 @@ static struct attribute *hotkey_attributes[] = {
 	&dev_attr_hotkey_recommended_mask.attr,
 	&dev_attr_hotkey_tablet_mode.attr,
 	&dev_attr_hotkey_radio_sw.attr,
+	&dev_attr_doubletap_enable.attr,
 #ifdef CONFIG_THINKPAD_ACPI_HOTKEY_POLL
 	&dev_attr_hotkey_source_mask.attr,
 	&dev_attr_hotkey_poll_freq.attr,
@@ -3558,8 +3584,8 @@ static int __init hotkey_init(struct ibm_init_struct *iibm)
 
 	hotkey_poll_setup_safe(true);
 
-	/* Enable doubletap by default */
-	tp_features.trackpoint_doubletap = 1;
+	/* Enable TrackPoint doubletap event reporting by default. */
+	tp_features.trackpoint_doubletap_enable = 1;
 
 	return 0;
 }
@@ -3864,9 +3890,9 @@ static bool hotkey_notify_8xxx(const u32 hkey, bool *send_acpi_ev)
 {
 	switch (hkey) {
 	case TP_HKEY_EV_TRACK_DOUBLETAP:
-		if (tp_features.trackpoint_doubletap)
-			tpacpi_input_send_key(hkey, send_acpi_ev);
-
+		/* Only send event if doubletap is enabled */
+		if (!tp_features.trackpoint_doubletap_enable)
+			*send_acpi_ev = false;
 		return true;
 	default:
 		return false;
@@ -4017,7 +4043,7 @@ static int hotkey_read(struct seq_file *m)
 	int res, status;
 
 	if (!tp_features.hotkey) {
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 		return 0;
 	}
 
@@ -4033,10 +4059,10 @@ static int hotkey_read(struct seq_file *m)
 	seq_printf(m, "status:\t\t%s\n", str_enabled_disabled(status & BIT(0)));
 	if (hotkey_all_mask) {
 		seq_printf(m, "mask:\t\t0x%08x\n", hotkey_user_mask);
-		seq_printf(m, "commands:\tenable, disable, reset, <mask>\n");
+		seq_puts(m, "commands:\tenable, disable, reset, <mask>\n");
 	} else {
-		seq_printf(m, "mask:\t\tnot supported\n");
-		seq_printf(m, "commands:\tenable, disable, reset\n");
+		seq_puts(m, "mask:\t\tnot supported\n");
+		seq_puts(m, "commands:\tenable, disable, reset\n");
 	}
 
 	return 0;
@@ -4933,7 +4959,7 @@ static int video_read(struct seq_file *m)
 	int status, autosw;
 
 	if (video_supported == TPACPI_VIDEO_NONE) {
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 		return 0;
 	}
 
@@ -4949,18 +4975,18 @@ static int video_read(struct seq_file *m)
 	if (autosw < 0)
 		return autosw;
 
-	seq_printf(m, "status:\t\tsupported\n");
+	seq_puts(m, "status:\t\tsupported\n");
 	seq_printf(m, "lcd:\t\t%s\n", str_enabled_disabled(status & BIT(0)));
 	seq_printf(m, "crt:\t\t%s\n", str_enabled_disabled(status & BIT(1)));
 	if (video_supported == TPACPI_VIDEO_NEW)
 		seq_printf(m, "dvi:\t\t%s\n", str_enabled_disabled(status & BIT(3)));
 	seq_printf(m, "auto:\t\t%s\n", str_enabled_disabled(autosw & BIT(0)));
-	seq_printf(m, "commands:\tlcd_enable, lcd_disable\n");
-	seq_printf(m, "commands:\tcrt_enable, crt_disable\n");
+	seq_puts(m, "commands:\tlcd_enable, lcd_disable\n");
+	seq_puts(m, "commands:\tcrt_enable, crt_disable\n");
 	if (video_supported == TPACPI_VIDEO_NEW)
-		seq_printf(m, "commands:\tdvi_enable, dvi_disable\n");
-	seq_printf(m, "commands:\tauto_enable, auto_disable\n");
-	seq_printf(m, "commands:\tvideo_switch, expand_toggle\n");
+		seq_puts(m, "commands:\tdvi_enable, dvi_disable\n");
+	seq_puts(m, "commands:\tauto_enable, auto_disable\n");
+	seq_puts(m, "commands:\tvideo_switch, expand_toggle\n");
 
 	return 0;
 }
@@ -5204,14 +5230,14 @@ static int kbdlight_read(struct seq_file *m)
 	int level;
 
 	if (!tp_features.kbdlight) {
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 	} else {
 		level = kbdlight_get_level();
 		if (level < 0)
 			seq_printf(m, "status:\t\terror %d\n", level);
 		else
 			seq_printf(m, "status:\t\t%d\n", level);
-		seq_printf(m, "commands:\t0, 1, 2\n");
+		seq_puts(m, "commands:\t0, 1, 2\n");
 	}
 
 	return 0;
@@ -5378,16 +5404,16 @@ static int light_read(struct seq_file *m)
 	int status;
 
 	if (!tp_features.light) {
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 	} else if (!tp_features.light_status) {
-		seq_printf(m, "status:\t\tunknown\n");
-		seq_printf(m, "commands:\ton, off\n");
+		seq_puts(m, "status:\t\tunknown\n");
+		seq_puts(m, "commands:\ton, off\n");
 	} else {
 		status = light_get_status();
 		if (status < 0)
 			return status;
 		seq_printf(m, "status:\t\t%s\n", str_on_off(status & BIT(0)));
-		seq_printf(m, "commands:\ton, off\n");
+		seq_puts(m, "commands:\ton, off\n");
 	}
 
 	return 0;
@@ -5477,10 +5503,10 @@ static int cmos_read(struct seq_file *m)
 	/* cmos not supported on 570, 600e/x, 770e, 770x, A21e, A2xm/p,
 	   R30, R31, T20-22, X20-21 */
 	if (!cmos_handle)
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 	else {
-		seq_printf(m, "status:\t\tsupported\n");
-		seq_printf(m, "commands:\t<cmd> (<cmd> is 0-21)\n");
+		seq_puts(m, "status:\t\tsupported\n");
+		seq_puts(m, "commands:\t<cmd> (<cmd> is 0-21)\n");
 	}
 
 	return 0;
@@ -5846,10 +5872,10 @@ static int __init led_init(struct ibm_init_struct *iibm)
 static int led_read(struct seq_file *m)
 {
 	if (!led_supported) {
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 		return 0;
 	}
-	seq_printf(m, "status:\t\tsupported\n");
+	seq_puts(m, "status:\t\tsupported\n");
 
 	if (led_supported == TPACPI_LED_570) {
 		/* 570 */
@@ -5862,7 +5888,7 @@ static int led_read(struct seq_file *m)
 		}
 	}
 
-	seq_printf(m, "commands:\t<led> on, <led> off, <led> blink (<led> is 0-15)\n");
+	seq_puts(m, "commands:\t<led> on, <led> off, <led> blink (<led> is 0-15)\n");
 
 	return 0;
 }
@@ -5946,10 +5972,10 @@ static int __init beep_init(struct ibm_init_struct *iibm)
 static int beep_read(struct seq_file *m)
 {
 	if (!beep_handle)
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 	else {
-		seq_printf(m, "status:\t\tsupported\n");
-		seq_printf(m, "commands:\t<cmd> (<cmd> is 0-17)\n");
+		seq_puts(m, "status:\t\tsupported\n");
+		seq_puts(m, "commands:\t<cmd> (<cmd> is 0-17)\n");
 	}
 
 	return 0;
@@ -6398,14 +6424,14 @@ static int thermal_read(struct seq_file *m)
 	if (unlikely(n < 0))
 		return n;
 
-	seq_printf(m, "temperatures:\t");
+	seq_puts(m, "temperatures:\t");
 
 	if (n > 0) {
 		for (i = 0; i < (n - 1); i++)
 			seq_printf(m, "%d ", t.temp[i] / 1000);
 		seq_printf(m, "%d\n", t.temp[i] / 1000);
 	} else
-		seq_printf(m, "not supported\n");
+		seq_puts(m, "not supported\n");
 
 	return 0;
 }
@@ -6918,10 +6944,10 @@ static int brightness_read(struct seq_file *m)
 
 	level = brightness_get(NULL);
 	if (level < 0) {
-		seq_printf(m, "level:\t\tunreadable\n");
+		seq_puts(m, "level:\t\tunreadable\n");
 	} else {
 		seq_printf(m, "level:\t\t%d\n", level);
-		seq_printf(m, "commands:\tup, down\n");
+		seq_puts(m, "commands:\tup, down\n");
 		seq_printf(m, "commands:\tlevel <level> (<level> is 0-%d)\n",
 			       bright_maxlvl);
 	}
@@ -7637,10 +7663,10 @@ static int volume_read(struct seq_file *m)
 	u8 status;
 
 	if (volume_get_status(&status) < 0) {
-		seq_printf(m, "level:\t\tunreadable\n");
+		seq_puts(m, "level:\t\tunreadable\n");
 	} else {
 		if (tp_features.mixer_no_level_control)
-			seq_printf(m, "level:\t\tunsupported\n");
+			seq_puts(m, "level:\t\tunsupported\n");
 		else
 			seq_printf(m, "level:\t\t%d\n",
 					status & TP_EC_AUDIO_LVL_MSK);
@@ -7648,9 +7674,9 @@ static int volume_read(struct seq_file *m)
 		seq_printf(m, "mute:\t\t%s\n", str_on_off(status & BIT(TP_EC_AUDIO_MUTESW)));
 
 		if (volume_control_allowed) {
-			seq_printf(m, "commands:\tunmute, mute\n");
+			seq_puts(m, "commands:\tunmute, mute\n");
 			if (!tp_features.mixer_no_level_control) {
-				seq_printf(m, "commands:\tup, down\n");
+				seq_puts(m, "commands:\tup, down\n");
 				seq_printf(m, "commands:\tlevel <level> (<level> is 0-%d)\n",
 					      TP_EC_VOLUME_MAX);
 			}
@@ -9156,9 +9182,9 @@ static int fan_read(struct seq_file *m)
 		} else if (fan_status_access_mode == TPACPI_FAN_RD_TPEC) {
 			if (status & TP_EC_FAN_FULLSPEED)
 				/* Disengaged mode takes precedence */
-				seq_printf(m, "level:\t\tdisengaged\n");
+				seq_puts(m, "level:\t\tdisengaged\n");
 			else if (status & TP_EC_FAN_AUTO)
-				seq_printf(m, "level:\t\tauto\n");
+				seq_puts(m, "level:\t\tauto\n");
 			else
 				seq_printf(m, "level:\t\t%d\n", status);
 		}
@@ -9166,19 +9192,19 @@ static int fan_read(struct seq_file *m)
 
 	case TPACPI_FAN_NONE:
 	default:
-		seq_printf(m, "status:\t\tnot supported\n");
+		seq_puts(m, "status:\t\tnot supported\n");
 	}
 
 	if (fan_control_commands & TPACPI_FAN_CMD_LEVEL) {
-		seq_printf(m, "commands:\tlevel <level>");
+		seq_puts(m, "commands:\tlevel <level>");
 
 		switch (fan_control_access_mode) {
 		case TPACPI_FAN_WR_ACPI_SFAN:
-			seq_printf(m, " (<level> is 0-7)\n");
+			seq_puts(m, " (<level> is 0-7)\n");
 			break;
 
 		default:
-			seq_printf(m, " (<level> is 0-7, auto, disengaged, full-speed)\n");
+			seq_puts(m, " (<level> is 0-7, auto, disengaged, full-speed)\n");
 			break;
 		}
 	}
@@ -9188,7 +9214,7 @@ static int fan_read(struct seq_file *m)
 			       "commands:\twatchdog <timeout> (<timeout> is 0 (off), 1-120 (seconds))\n");
 
 	if (fan_control_commands & TPACPI_FAN_CMD_SPEED)
-		seq_printf(m, "commands:\tspeed <speed> (<speed> is 0-65535)\n");
+		seq_puts(m, "commands:\tspeed <speed> (<speed> is 0-65535)\n");
 
 	return 0;
 }
@@ -11488,7 +11514,9 @@ static bool tpacpi_driver_event(const unsigned int hkey_event)
 		mutex_unlock(&tpacpi_inputdev_send_mutex);
 		return true;
 	case TP_HKEY_EV_DOUBLETAP_TOGGLE:
-		tp_features.trackpoint_doubletap = !tp_features.trackpoint_doubletap;
+		/* Toggle kernel-level doubletap event filtering */
+		tp_features.trackpoint_doubletap_enable =
+			!tp_features.trackpoint_doubletap_enable;
 		return true;
 	case TP_HKEY_EV_PROFILE_TOGGLE:
 	case TP_HKEY_EV_PROFILE_TOGGLE2:
