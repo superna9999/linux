@@ -103,8 +103,8 @@
  *                   - TEST_DATA_LEN
  * __retval_unpriv   Same, but load program in unprivileged mode.
  *
- * __description     Text to be used instead of a program name for display
- *                   and filtering purposes.
+ * __description     Text to be used for display and as an additional filter
+ *                   alias, while the original program name stays matchable.
  *
  * __log_level       Log level to use for the program, numeric value expected.
  *
@@ -187,6 +187,10 @@
 /* Magic constants used with __retval() */
 #define POINTER_VALUE	0xbadcafe
 #define TEST_DATA_LEN	64
+
+#ifndef __aligned
+#define __aligned(x) __attribute__((aligned(x)))
+#endif
 
 #ifndef __used
 #define __used __attribute__((used))
