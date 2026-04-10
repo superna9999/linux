@@ -4431,7 +4431,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 	}, {
 #endif
 		.alg = "cbcmac(aes)",
-		.generic_driver = "cbcmac(aes-lib)",
+		.generic_driver = "cbcmac-aes-lib",
 		.test = alg_test_hash,
 		.suite = {
 			.hash = __VECS(aes_cbcmac_tv_template)
@@ -4444,7 +4444,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "ccm(aes)",
-		.generic_driver = "ccm_base(ctr(aes-lib),cbcmac(aes-lib))",
+		.generic_driver = "ccm_base(ctr(aes-lib),cbcmac-aes-lib)",
 		.test = alg_test_aead,
 		.fips_allowed = 1,
 		.suite = {
@@ -4472,7 +4472,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		},
 	}, {
 		.alg = "cmac(aes)",
-		.generic_driver = "cmac(aes-lib)",
+		.generic_driver = "cmac-aes-lib",
 		.fips_allowed = 1,
 		.test = alg_test_hash,
 		.suite = {
@@ -5008,7 +5008,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 	}, {
 #endif /* CONFIG_CRYPTO_DH_RFC7919_GROUPS */
 		.alg = "gcm(aes)",
-		.generic_driver = "gcm_base(ctr(aes-lib),ghash-generic)",
+		.generic_driver = "gcm_base(ctr(aes-lib),ghash-lib)",
 		.test = alg_test_aead,
 		.fips_allowed = 1,
 		.suite = {
@@ -5016,23 +5016,17 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "gcm(aria)",
-		.generic_driver = "gcm_base(ctr(aria-generic),ghash-generic)",
+		.generic_driver = "gcm_base(ctr(aria-generic),ghash-lib)",
 		.test = alg_test_aead,
 		.suite = {
 			.aead = __VECS(aria_gcm_tv_template)
 		}
 	}, {
 		.alg = "gcm(sm4)",
-		.generic_driver = "gcm_base(ctr(sm4-generic),ghash-generic)",
+		.generic_driver = "gcm_base(ctr(sm4-generic),ghash-lib)",
 		.test = alg_test_aead,
 		.suite = {
 			.aead = __VECS(sm4_gcm_tv_template)
-		}
-	}, {
-		.alg = "ghash",
-		.test = alg_test_hash,
-		.suite = {
-			.hash = __VECS(ghash_tv_template)
 		}
 	}, {
 		.alg = "hctr2(aes)",
@@ -5128,6 +5122,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "hmac(sm3)",
+		.generic_driver = "hmac(sm3-lib)",
 		.test = alg_test_hash,
 		.suite = {
 			.hash = __VECS(hmac_sm3_tv_template)
@@ -5351,7 +5346,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "rfc4106(gcm(aes))",
-		.generic_driver = "rfc4106(gcm_base(ctr(aes-lib),ghash-generic))",
+		.generic_driver = "rfc4106(gcm_base(ctr(aes-lib),ghash-lib))",
 		.test = alg_test_aead,
 		.fips_allowed = 1,
 		.suite = {
@@ -5363,7 +5358,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "rfc4309(ccm(aes))",
-		.generic_driver = "rfc4309(ccm_base(ctr(aes-lib),cbcmac(aes-lib)))",
+		.generic_driver = "rfc4309(ccm_base(ctr(aes-lib),cbcmac-aes-lib))",
 		.test = alg_test_aead,
 		.fips_allowed = 1,
 		.suite = {
@@ -5375,7 +5370,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "rfc4543(gcm(aes))",
-		.generic_driver = "rfc4543(gcm_base(ctr(aes-lib),ghash-generic))",
+		.generic_driver = "rfc4543(gcm_base(ctr(aes-lib),ghash-lib))",
 		.test = alg_test_aead,
 		.suite = {
 			.aead = {
@@ -5489,6 +5484,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "sm3",
+		.generic_driver = "sm3-lib",
 		.test = alg_test_hash,
 		.suite = {
 			.hash = __VECS(sm3_tv_template)
@@ -5552,7 +5548,7 @@ static const struct alg_test_desc alg_test_descs[] = {
 		}
 	}, {
 		.alg = "xcbc(aes)",
-		.generic_driver = "xcbc(aes-lib)",
+		.generic_driver = "xcbc-aes-lib",
 		.test = alg_test_hash,
 		.suite = {
 			.hash = __VECS(aes_xcbc128_tv_template)
