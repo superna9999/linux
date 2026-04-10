@@ -1479,7 +1479,7 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 	struct sk_buff *p;
 	unsigned int hlen;
 	unsigned int off;
-	int flush = 1;
+	__u16 flush = 1;
 	int proto;
 
 	off = skb_gro_offset(skb);
@@ -1504,7 +1504,8 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 		goto out;
 
 	NAPI_GRO_CB(skb)->proto = proto;
-	flush = (u16)((ntohl(*(__be32 *)iph) ^ skb_gro_len(skb)) | (ntohl(*(__be32 *)&iph->id) & ~IP_DF));
+	flush = (get_unaligned_be16(&iph->tot_len) ^ skb_gro_len(skb)) |
+	        (get_unaligned_be16(&iph->frag_off) & ~IP_DF);
 
 	list_for_each_entry(p, head, list) {
 		struct iphdr *iph2;
@@ -1519,8 +1520,10 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 		 * at the same offset.
 		 */
 		if ((iph->protocol ^ iph2->protocol) |
-		    ((__force u32)iph->saddr ^ (__force u32)iph2->saddr) |
-		    ((__force u32)iph->daddr ^ (__force u32)iph2->daddr)) {
+		    (get_unaligned_be32(&iph->saddr) ^
+				get_unaligned_be32(&iph2->saddr)) |
+		    (get_unaligned_be32(&iph->daddr) ^
+				get_unaligned_be32(&iph2->daddr))) {
 			NAPI_GRO_CB(p)->same_flow = 0;
 			continue;
 		}
