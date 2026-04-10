@@ -1222,13 +1222,13 @@ int ieee80211_add_virtual_monitor(struct ieee80211_local *local,
 		}
 	}
 
-	set_bit(SDATA_STATE_RUNNING, &sdata->state);
-
 	ret = ieee80211_check_queues(sdata, NL80211_IFTYPE_MONITOR);
 	if (ret) {
 		kfree(sdata);
 		return ret;
 	}
+
+	set_bit(SDATA_STATE_RUNNING, &sdata->state);
 
 	mutex_lock(&local->iflist_mtx);
 	rcu_assign_pointer(local->monitor_sdata, sdata);
@@ -1242,6 +1242,7 @@ int ieee80211_add_virtual_monitor(struct ieee80211_local *local,
 		mutex_unlock(&local->iflist_mtx);
 		synchronize_net();
 		drv_remove_interface(local, sdata);
+		clear_bit(SDATA_STATE_RUNNING, &sdata->state);
 		kfree(sdata);
 		return ret;
 	}
@@ -1360,8 +1361,6 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		break;
 		}
 	case NL80211_IFTYPE_AP:
-		sdata->bss = &sdata->u.ap;
-		break;
 	case NL80211_IFTYPE_MESH_POINT:
 	case NL80211_IFTYPE_STATION:
 	case NL80211_IFTYPE_MONITOR:
@@ -1369,6 +1368,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 	case NL80211_IFTYPE_P2P_DEVICE:
 	case NL80211_IFTYPE_OCB:
 	case NL80211_IFTYPE_NAN:
+	case NL80211_IFTYPE_NAN_DATA:
 		/* no special treatment */
 		break;
 	case NL80211_IFTYPE_UNSPECIFIED:
@@ -1386,8 +1386,13 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		local->reconfig_failure = false;
 
 		res = drv_start(local);
-		if (res)
-			goto err_del_bss;
+		if (res) {
+			/*
+			 * no need to worry about AP_VLAN cleanup since in that
+			 * case we can't have open_count == 0
+			 */
+			return res;
+		}
 		ieee80211_led_radio(local, true);
 		ieee80211_mod_tpt_led_trig(local,
 					   IEEE80211_TPT_LEDTRIG_FL_RADIO, 0);
@@ -1458,6 +1463,9 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		netif_carrier_on(dev);
 		list_add_tail_rcu(&sdata->u.mntr.list, &local->mon_list);
 		break;
+	case NL80211_IFTYPE_AP:
+		sdata->bss = &sdata->u.ap;
+		fallthrough;
 	default:
 		if (coming_up) {
 			ieee80211_del_virtual_monitor(local);
@@ -1546,12 +1554,10 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
  err_stop:
 	if (!local->open_count)
 		drv_stop(local, false);
- err_del_bss:
-	sdata->bss = NULL;
 	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
 		list_del(&sdata->u.vlan.list);
-	/* might already be clear but that doesn't matter */
-	clear_bit(SDATA_STATE_RUNNING, &sdata->state);
+	/* Might not be initialized yet, but it is harmless */
+	sdata->bss = NULL;
 	return res;
 }
 
@@ -1579,16 +1585,19 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
 
 		sta = sta_info_get_bss(sdata, mgmt->sa);
 		if (sta) {
-			switch (mgmt->u.action.u.addba_req.action_code) {
+			switch (mgmt->u.action.action_code) {
 			case WLAN_ACTION_ADDBA_REQ:
+			case WLAN_ACTION_NDP_ADDBA_REQ:
 				ieee80211_process_addba_request(local, sta,
 								mgmt, len);
 				break;
 			case WLAN_ACTION_ADDBA_RESP:
+			case WLAN_ACTION_NDP_ADDBA_RESP:
 				ieee80211_process_addba_resp(local, sta,
 							     mgmt, len);
 				break;
 			case WLAN_ACTION_DELBA:
+			case WLAN_ACTION_NDP_DELBA:
 				ieee80211_process_delba(sdata, sta,
 							mgmt, len);
 				break;
@@ -1599,9 +1608,9 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
 		}
 	} else if (ieee80211_is_action(mgmt->frame_control) &&
 		   mgmt->u.action.category == WLAN_CATEGORY_HT) {
-		switch (mgmt->u.action.u.ht_smps.action) {
+		switch (mgmt->u.action.action_code) {
 		case WLAN_HT_ACTION_NOTIFY_CHANWIDTH: {
-			u8 chanwidth = mgmt->u.action.u.ht_notify_cw.chanwidth;
+			u8 chanwidth = mgmt->u.action.ht_notify_cw.chanwidth;
 			struct ieee80211_rx_status *status;
 			struct link_sta_info *link_sta;
 			struct sta_info *sta;
@@ -1628,7 +1637,7 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
 		}
 	} else if (ieee80211_is_action(mgmt->frame_control) &&
 		   mgmt->u.action.category == WLAN_CATEGORY_VHT) {
-		switch (mgmt->u.action.u.vht_group_notif.action_code) {
+		switch (mgmt->u.action.action_code) {
 		case WLAN_VHT_ACTION_OPMODE_NOTIF: {
 			struct ieee80211_rx_status *status;
 			enum nl80211_band band;
@@ -1637,7 +1646,7 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
 
 			status = IEEE80211_SKB_RXCB(skb);
 			band = status->band;
-			opmode = mgmt->u.action.u.vht_opmode_notif.operating_mode;
+			opmode = mgmt->u.action.vht_opmode_notif.operating_mode;
 
 			sta = sta_info_get_bss(sdata, mgmt->sa);
 
@@ -1658,7 +1667,7 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
 		}
 	} else if (ieee80211_is_action(mgmt->frame_control) &&
 		   mgmt->u.action.category == WLAN_CATEGORY_S1G) {
-		switch (mgmt->u.action.u.s1g.action_code) {
+		switch (mgmt->u.action.action_code) {
 		case WLAN_S1G_TWT_TEARDOWN:
 		case WLAN_S1G_TWT_SETUP:
 			ieee80211_s1g_rx_twt_action(sdata, skb);
@@ -1669,7 +1678,7 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
 	} else if (ieee80211_is_action(mgmt->frame_control) &&
 		   mgmt->u.action.category == WLAN_CATEGORY_PROTECTED_EHT) {
 		if (sdata->vif.type == NL80211_IFTYPE_AP) {
-			switch (mgmt->u.action.u.eml_omn.action_code) {
+			switch (mgmt->u.action.action_code) {
 			case WLAN_PROTECTED_EHT_ACTION_EML_OP_MODE_NOTIF:
 				ieee80211_rx_eml_op_mode_notif(sdata, skb);
 				break;
@@ -1677,7 +1686,7 @@ static void ieee80211_iface_process_skb(struct ieee80211_local *local,
 				break;
 			}
 		} else if (sdata->vif.type == NL80211_IFTYPE_STATION) {
-			switch (mgmt->u.action.u.ttlm_req.action_code) {
+			switch (mgmt->u.action.action_code) {
 			case WLAN_PROTECTED_EHT_ACTION_TTLM_REQ:
 				ieee80211_process_neg_ttlm_req(sdata, mgmt,
 							       skb->len);
@@ -1765,7 +1774,7 @@ static void ieee80211_iface_process_status(struct ieee80211_sub_if_data *sdata,
 
 	if (ieee80211_is_action(mgmt->frame_control) &&
 	    mgmt->u.action.category == WLAN_CATEGORY_S1G) {
-		switch (mgmt->u.action.u.s1g.action_code) {
+		switch (mgmt->u.action.action_code) {
 		case WLAN_S1G_TWT_TEARDOWN:
 		case WLAN_S1G_TWT_SETUP:
 			ieee80211_s1g_status_twt_action(sdata, skb);
@@ -1936,6 +1945,8 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 	case NL80211_IFTYPE_AP_VLAN:
 	case NL80211_IFTYPE_P2P_DEVICE:
 		sdata->vif.bss_conf.bssid = sdata->vif.addr;
+		break;
+	case NL80211_IFTYPE_NAN_DATA:
 		break;
 	case NL80211_IFTYPE_UNSPECIFIED:
 	case NL80211_IFTYPE_WDS:

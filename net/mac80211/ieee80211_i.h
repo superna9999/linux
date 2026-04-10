@@ -256,6 +256,8 @@ struct ieee80211_rx_data {
 			u8 pn[IEEE80211_CCMP_PN_LEN];
 		} ccm_gcm;
 	};
+
+	u8 link_addrs[3 * ETH_ALEN];
 };
 
 struct ieee80211_csa_settings {
@@ -925,6 +927,9 @@ struct ieee80211_chanctx {
 	struct ieee80211_chan_req req;
 
 	bool radar_detected;
+
+	/* This chanctx is in process of getting used */
+	bool will_be_used;
 
 	/* MUST be last - ends in a flexible-array member. */
 	struct ieee80211_chanctx_conf conf;
@@ -2183,12 +2188,13 @@ void ieee80211_aggr_check(struct ieee80211_sub_if_data *sdata,
 void ieee80211_apply_htcap_overrides(struct ieee80211_sub_if_data *sdata,
 				     struct ieee80211_sta_ht_cap *ht_cap);
 bool ieee80211_ht_cap_ie_to_sta_ht_cap(struct ieee80211_sub_if_data *sdata,
-				       struct ieee80211_supported_band *sband,
+				       const struct ieee80211_sta_ht_cap *own_cap,
 				       const struct ieee80211_ht_cap *ht_cap_ie,
 				       struct link_sta_info *link_sta);
 void ieee80211_send_delba(struct ieee80211_sub_if_data *sdata,
 			  const u8 *da, u16 tid,
-			  u16 initiator, u16 reason_code);
+			  u16 initiator, u16 reason_code,
+			  bool use_ndp);
 int ieee80211_send_smps_action(struct ieee80211_sub_if_data *sdata,
 			       enum ieee80211_smps_mode smps, const u8 *da,
 			       const u8 *bssid, int link_id);
@@ -2204,6 +2210,7 @@ void __ieee80211_start_rx_ba_session(struct sta_info *sta,
 				     u8 dialog_token, u16 timeout,
 				     u16 start_seq_num, u16 ba_policy, u16 tid,
 				     u16 buf_size, bool tx, bool auto_seq,
+				     bool req_ndp,
 				     const u8 addba_ext_data);
 void ieee80211_sta_tear_down_BA_sessions(struct sta_info *sta,
 					 enum ieee80211_agg_stop_reason reason);
@@ -2266,6 +2273,7 @@ void ieee80211_ht_handle_chanwidth_notif(struct ieee80211_local *local,
 void
 ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 				    struct ieee80211_supported_band *sband,
+				    const struct ieee80211_sta_vht_cap *own_vht_cap,
 				    const struct ieee80211_vht_cap *vht_cap_ie,
 				    const struct ieee80211_vht_cap *vht_cap_ie2,
 				    struct link_sta_info *link_sta);
@@ -2306,6 +2314,12 @@ ieee80211_sta_rx_bw_to_chan_width(struct link_sta_info *sta);
 
 /* HE */
 void
+_ieee80211_he_cap_ie_to_sta_he_cap(struct ieee80211_sub_if_data *sdata,
+				   const struct ieee80211_sta_he_cap *own_he_cap,
+				   const u8 *he_cap_ie, u8 he_cap_len,
+				   const struct ieee80211_he_6ghz_capa *he_6ghz_capa,
+				   struct link_sta_info *link_sta);
+void
 ieee80211_he_cap_ie_to_sta_he_cap(struct ieee80211_sub_if_data *sdata,
 				  struct ieee80211_supported_band *sband,
 				  const u8 *he_cap_ie, u8 he_cap_len,
@@ -2329,6 +2343,8 @@ void ieee80211_s1g_status_twt_action(struct ieee80211_sub_if_data *sdata,
 void ieee80211_s1g_cap_to_sta_s1g_cap(struct ieee80211_sub_if_data *sdata,
 				      const struct ieee80211_s1g_cap *s1g_cap_ie,
 				      struct link_sta_info *link_sta);
+bool ieee80211_s1g_use_ndp_ba(const struct ieee80211_sub_if_data *sdata,
+			      const struct sta_info *sta);
 
 /* Spectrum management */
 void ieee80211_process_measurement_req(struct ieee80211_sub_if_data *sdata,

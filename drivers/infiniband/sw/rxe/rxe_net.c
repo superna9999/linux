@@ -141,9 +141,9 @@ static struct dst_entry *rxe_find_route6(struct rxe_qp *qp,
 	memcpy(&fl6.daddr, daddr, sizeof(*daddr));
 	fl6.flowi6_proto = IPPROTO_UDP;
 
-	ndst = ipv6_stub->ipv6_dst_lookup_flow(net,
-					       rxe_ns_pernet_sk6(net), &fl6,
-					       NULL);
+	ndst = ip6_dst_lookup_flow(net, rxe_ns_pernet_sk6(net),
+				   &fl6,
+				   NULL);
 	if (IS_ERR(ndst)) {
 		rxe_dbg_qp(qp, "no route to %pI6\n", daddr);
 		return NULL;

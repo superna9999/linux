@@ -36,6 +36,7 @@
 #include "coredump.h"
 #include "cmn_defs.h"
 #include "dp_cmn.h"
+#include "thermal.h"
 
 #define SM(_v, _f) (((_v) << _f##_LSB) & _f##_MASK)
 
@@ -522,7 +523,7 @@ struct ath12k_sta {
 	u16 links_map;
 	u8 assoc_link_id;
 	u16 ml_peer_id;
-	u8 num_peer;
+	u16 free_logical_link_idx_map;
 
 	enum ieee80211_sta_state state;
 };
@@ -757,6 +758,8 @@ struct ath12k {
 
 	s8 max_allowed_tx_power;
 	struct ath12k_pdev_rssi_offsets rssi_info;
+
+	struct ath12k_thermal thermal;
 };
 
 struct ath12k_hw {
