@@ -828,7 +828,7 @@ static int ocfs2_dx_dir_lookup_rec(struct inode *inode,
 
 		if (el->l_tree_depth) {
 			ret = ocfs2_error(inode->i_sb,
-					  "Inode %lu has non zero tree depth in btree tree block %llu\n",
+					  "Inode %llu has non zero tree depth in btree tree block %llu\n",
 					  inode->i_ino,
 					  (unsigned long long)eb_bh->b_blocknr);
 			goto out;
@@ -847,7 +847,7 @@ static int ocfs2_dx_dir_lookup_rec(struct inode *inode,
 
 	if (!found) {
 		ret = ocfs2_error(inode->i_sb,
-				  "Inode %lu has no extent record for hash %u in btree (next_free_rec %u)\n",
+				  "Inode %llu has no extent record for hash %u in btree (next_free_rec %u)\n",
 				  inode->i_ino, major_hash,
 				  le16_to_cpu(el->l_next_free_rec));
 		goto out;
