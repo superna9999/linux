@@ -840,11 +840,33 @@ static s64 entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se, u64 avrunt
 	return clamp(vlag, -limit, limit);
 }
 
-static void update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
+/*
+ * Delayed dequeue aims to reduce the negative lag of a dequeued task. While
+ * updating the lag of an entity, check that negative lag didn't increase
+ * during the delayed dequeue period which would be unfair.
+ * Similarly, check that the entity didn't gain positive lag when DELAY_ZERO
+ * is set.
+ *
+ * Return true if the lag has been adjusted.
+ */
+static __always_inline
+bool update_entity_lag(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
+	s64 vlag = entity_lag(cfs_rq, se, avg_vruntime(cfs_rq));
+	bool ret;
+
 	WARN_ON_ONCE(!se->on_rq);
 
-	se->vlag = entity_lag(cfs_rq, se, avg_vruntime(cfs_rq));
+	if (se->sched_delayed) {
+		/* previous vlag < 0 otherwise se would not be delayed */
+		vlag = max(vlag, se->vlag);
+		if (sched_feat(DELAY_ZERO))
+			vlag = min(vlag, 0);
+	}
+	ret = (vlag == se->vlag);
+	se->vlag = vlag;
+
+	return ret;
 }
 
 /*
@@ -5330,6 +5352,7 @@ static void
 place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 {
 	u64 vslice, vruntime = avg_vruntime(cfs_rq);
+	bool update_zero = false;
 	s64 lag = 0;
 
 	if (!se->custom_slice)
@@ -5346,7 +5369,7 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 */
 	if (sched_feat(PLACE_LAG) && cfs_rq->nr_queued && se->vlag) {
 		struct sched_entity *curr = cfs_rq->curr;
-		long load;
+		long load, weight;
 
 		lag = se->vlag;
 
@@ -5406,13 +5429,40 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 		if (curr && curr->on_rq)
 			load += avg_vruntime_weight(cfs_rq, curr->load.weight);
 
-		lag *= load + avg_vruntime_weight(cfs_rq, se->load.weight);
+		weight = avg_vruntime_weight(cfs_rq, se->load.weight);
+		lag *= load + weight;
 		if (WARN_ON_ONCE(!load))
 			load = 1;
 		lag = div64_long(lag, load);
+
+		/*
+		 * A heavy entity (relative to the tree) will pull the
+		 * avg_vruntime close to its vruntime position on enqueue. But
+		 * the zero_vruntime point is only updated at the next
+		 * update_deadline()/place_entity()/update_entity_lag().
+		 *
+		 * Specifically (see the comment near avg_vruntime_weight()):
+		 *
+		 *   sum_w_vruntime = \Sum (v_i - v0) * w_i
+		 *
+		 * Note that if v0 is near a light entity, both terms will be
+		 * small for the light entity, while in that case both terms
+		 * are large for the heavy entity, leading to risk of
+		 * overflow.
+		 *
+		 * OTOH if v0 is near the heavy entity, then the difference is
+		 * larger for the light entity, but the factor is small, while
+		 * for the heavy entity the difference is small but the factor
+		 * is large. Avoiding the multiplication overflow.
+		 */
+		if (weight > load)
+			update_zero = true;
 	}
 
 	se->vruntime = vruntime - lag;
+
+	if (update_zero)
+		update_zero_vruntime(cfs_rq, -lag);
 
 	if (sched_feat(PLACE_REL_DEADLINE) && se->rel_deadline) {
 		se->deadline += se->vruntime;
@@ -5564,13 +5614,6 @@ static void clear_delayed(struct sched_entity *se)
 	}
 }
 
-static inline void finish_delayed_dequeue_entity(struct sched_entity *se)
-{
-	clear_delayed(se);
-	if (sched_feat(DELAY_ZERO) && se->vlag > 0)
-		se->vlag = 0;
-}
-
 static bool
 dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 {
@@ -5596,6 +5639,7 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 		if (sched_feat(DELAY_DEQUEUE) && delay &&
 		    !entity_eligible(cfs_rq, se)) {
 			update_load_avg(cfs_rq, se, 0);
+			update_entity_lag(cfs_rq, se);
 			set_delayed(se);
 			return false;
 		}
@@ -5635,7 +5679,7 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	update_cfs_group(se);
 
 	if (flags & DEQUEUE_DELAYED)
-		finish_delayed_dequeue_entity(se);
+		clear_delayed(se);
 
 	if (cfs_rq->nr_queued == 0) {
 		update_idle_cfs_rq_clock_pelt(cfs_rq);
@@ -7101,18 +7145,14 @@ requeue_delayed_entity(struct sched_entity *se)
 	WARN_ON_ONCE(!se->sched_delayed);
 	WARN_ON_ONCE(!se->on_rq);
 
-	if (sched_feat(DELAY_ZERO)) {
-		update_entity_lag(cfs_rq, se);
-		if (se->vlag > 0) {
-			cfs_rq->nr_queued--;
-			if (se != cfs_rq->curr)
-				__dequeue_entity(cfs_rq, se);
-			se->vlag = 0;
-			place_entity(cfs_rq, se, 0);
-			if (se != cfs_rq->curr)
-				__enqueue_entity(cfs_rq, se);
-			cfs_rq->nr_queued++;
-		}
+	if (update_entity_lag(cfs_rq, se)) {
+		cfs_rq->nr_queued--;
+		if (se != cfs_rq->curr)
+			__dequeue_entity(cfs_rq, se);
+		place_entity(cfs_rq, se, 0);
+		if (se != cfs_rq->curr)
+			__enqueue_entity(cfs_rq, se);
+		cfs_rq->nr_queued++;
 	}
 
 	update_load_avg(cfs_rq, se, 0);
@@ -9956,32 +9996,6 @@ next:
 	schedstat_add(env->sd->lb_gained[env->idle], detached);
 
 	return detached;
-}
-
-/*
- * attach_task() -- attach the task detached by detach_task() to its new rq.
- */
-static void attach_task(struct rq *rq, struct task_struct *p)
-{
-	lockdep_assert_rq_held(rq);
-
-	WARN_ON_ONCE(task_rq(p) != rq);
-	activate_task(rq, p, ENQUEUE_NOCLOCK);
-	wakeup_preempt(rq, p, 0);
-}
-
-/*
- * attach_one_task() -- attaches the task returned from detach_one_task() to
- * its new rq.
- */
-static void attach_one_task(struct rq *rq, struct task_struct *p)
-{
-	struct rq_flags rf;
-
-	rq_lock(rq, &rf);
-	update_rq_clock(rq);
-	attach_task(rq, p);
-	rq_unlock(rq, &rf);
 }
 
 /*
