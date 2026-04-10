@@ -50,7 +50,7 @@ static __always_inline unsigned long __exit_to_user_mode_loop(struct pt_regs *re
 		local_irq_enable();
 
 		if (ti_work & (_TIF_NEED_RESCHED | _TIF_NEED_RESCHED_LAZY)) {
-			if (!rseq_grant_slice_extension(ti_work & TIF_SLICE_EXT_DENY))
+			if (!rseq_grant_slice_extension(ti_work, TIF_SLICE_EXT_DENY))
 				schedule();
 		}
 
