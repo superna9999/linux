@@ -997,7 +997,7 @@ struct intel_casf {
 	struct scaler_filter_coeff coeff[SCALER_FILTER_NUM_TAPS];
 	u8 strength;
 	u8 win_size;
-	bool casf_enable;
+	bool enable;
 };
 
 struct intel_crtc_state {
@@ -1036,7 +1036,7 @@ struct intel_crtc_state {
 		struct drm_property_blob *degamma_lut, *gamma_lut, *ctm;
 		struct drm_display_mode mode, pipe_mode, adjusted_mode;
 		enum drm_scaling_filter scaling_filter;
-		struct intel_casf casf_params;
+		u8 sharpness_strength;
 	} hw;
 
 	/* actual state of LUTs */
@@ -1223,6 +1223,7 @@ struct intel_crtc_state {
 
 	/* Panel fitter placement and size for Ironlake+ */
 	struct {
+		struct intel_casf casf;
 		struct drm_rect dst;
 		bool enabled;
 		bool force_thru;

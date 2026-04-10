@@ -6,6 +6,7 @@
 
 #include <linux/types.h>
 
+enum vlv_iosf_sb_unit;
 struct dma_fence;
 struct drm_crtc;
 struct drm_device;
@@ -15,6 +16,7 @@ struct drm_gem_object;
 struct drm_mode_fb_cmd2;
 struct drm_plane_state;
 struct drm_scanout_buffer;
+struct fb_info;
 struct i915_vma;
 struct intel_dpt;
 struct intel_dsb_buffer;
@@ -43,6 +45,12 @@ struct intel_display_bo_interface {
 	struct drm_gem_object *(*framebuffer_lookup)(struct drm_device *drm,
 						     struct drm_file *filp,
 						     const struct drm_mode_fb_cmd2 *user_mode_cmd);
+#if IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION)
+	struct drm_gem_object *(*fbdev_create)(struct drm_device *drm, int size);
+	void (*fbdev_destroy)(struct drm_gem_object *obj);
+	int (*fbdev_fill_info)(struct drm_gem_object *obj, struct fb_info *info, struct i915_vma *vma);
+	u32 (*fbdev_pitch_align)(u32 stride);
+#endif
 };
 
 struct intel_display_dpt_interface {
@@ -176,6 +184,13 @@ struct intel_display_stolen_interface {
 	void (*node_free)(const struct intel_stolen_node *node);
 };
 
+struct intel_display_vlv_iosf_interface {
+	void (*get)(struct drm_device *drm, unsigned long unit_mask);
+	void (*put)(struct drm_device *drm, unsigned long unit_mask);
+	u32 (*read)(struct drm_device *drm, enum vlv_iosf_sb_unit unit, u32 addr);
+	int (*write)(struct drm_device *drm, enum vlv_iosf_sb_unit unit, u32 addr, u32 val);
+};
+
 struct intel_display_vma_interface {
 	int (*fence_id)(const struct i915_vma *vma);
 };
@@ -234,6 +249,9 @@ struct intel_display_parent_interface {
 
 	/** @stolen: Stolen memory. */
 	const struct intel_display_stolen_interface *stolen;
+
+	/** @vlv_iosf: VLV IOSF sideband. Optional. */
+	const struct intel_display_vlv_iosf_interface *vlv_iosf;
 
 	/** @vma: VMA interface. Optional. */
 	const struct intel_display_vma_interface *vma;
