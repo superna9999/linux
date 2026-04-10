@@ -54,6 +54,7 @@
 #include "bpf-event.h"
 #include "bpf-utils.h"
 #include "clockid.h"
+#include "cacheline.h"
 
 #include <linux/ctype.h>
 #include <internal/lib.h>
@@ -306,16 +307,19 @@ static int do_read_bitmap(struct feat_fd *ff, unsigned long **pset, u64 *psize)
 	return 0;
 }
 
-#ifdef HAVE_LIBTRACEEVENT
 static int write_tracing_data(struct feat_fd *ff,
-			      struct evlist *evlist)
+			      struct evlist *evlist __maybe_unused)
 {
 	if (WARN(ff->buf, "Error: calling %s in pipe-mode.\n", __func__))
 		return -1;
 
+#ifdef HAVE_LIBTRACEEVENT
 	return read_tracing_data(ff->fd, &evlist->core.entries);
-}
+#else
+	pr_err("ERROR: Trying to write tracing data without libtraceevent support.\n");
+	return -1;
 #endif
+}
 
 static int write_build_id(struct feat_fd *ff,
 			  struct evlist *evlist __maybe_unused)
@@ -1026,10 +1030,10 @@ static int write_dir_format(struct feat_fd *ff,
 	return do_write(ff, &data->dir.version, sizeof(data->dir.version));
 }
 
-#ifdef HAVE_LIBBPF_SUPPORT
-static int write_bpf_prog_info(struct feat_fd *ff,
+static int write_bpf_prog_info(struct feat_fd *ff  __maybe_unused,
 			       struct evlist *evlist __maybe_unused)
 {
+#ifdef HAVE_LIBBPF_SUPPORT
 	struct perf_env *env = &ff->ph->env;
 	struct rb_root *root;
 	struct rb_node *next;
@@ -1067,11 +1071,16 @@ static int write_bpf_prog_info(struct feat_fd *ff,
 out:
 	up_read(&env->bpf_progs.lock);
 	return ret;
+#else
+	pr_err("ERROR: Trying to write bpf_prog_info without libbpf support.\n");
+	return -1;
+#endif // HAVE_LIBBPF_SUPPORT
 }
 
-static int write_bpf_btf(struct feat_fd *ff,
+static int write_bpf_btf(struct feat_fd *ff __maybe_unused,
 			 struct evlist *evlist __maybe_unused)
 {
+#ifdef HAVE_LIBBPF_SUPPORT
 	struct perf_env *env = &ff->ph->env;
 	struct rb_root *root;
 	struct rb_node *next;
@@ -1100,8 +1109,11 @@ static int write_bpf_btf(struct feat_fd *ff,
 out:
 	up_read(&env->bpf_progs.lock);
 	return ret;
-}
+#else
+	pr_err("ERROR: Trying to write btf data without libbpf support.\n");
+	return -1;
 #endif // HAVE_LIBBPF_SUPPORT
+}
 
 static int cpu_cache_level__sort(const void *a, const void *b)
 {
@@ -1302,6 +1314,19 @@ out:
 	for (i = 0; i < cnt; i++)
 		cpu_cache_level__free(&caches[i]);
 	return ret;
+}
+
+static int write_cln_size(struct feat_fd *ff,
+		       struct evlist *evlist __maybe_unused)
+{
+	int cln_size = cacheline_size();
+
+	if (!cln_size)
+		cln_size = DEFAULT_CACHELINE_SIZE;
+
+	ff->ph->env.cln_size = cln_size;
+
+	return do_write(ff, &cln_size, sizeof(cln_size));
 }
 
 static int write_stat(struct feat_fd *ff __maybe_unused,
@@ -1980,9 +2005,9 @@ static void print_dir_format(struct feat_fd *ff, FILE *fp)
 	fprintf(fp, "# directory data version : %"PRIu64"\n", data->dir.version);
 }
 
-#ifdef HAVE_LIBBPF_SUPPORT
-static void print_bpf_prog_info(struct feat_fd *ff, FILE *fp)
+static void print_bpf_prog_info(struct feat_fd *ff __maybe_unused, FILE *fp)
 {
+#ifdef HAVE_LIBBPF_SUPPORT
 	struct perf_env *env = &ff->ph->env;
 	struct rb_root *root;
 	struct rb_node *next;
@@ -1993,7 +2018,7 @@ static void print_bpf_prog_info(struct feat_fd *ff, FILE *fp)
 	next = rb_first(root);
 
 	if (!next)
-		printf("# bpf_prog_info empty\n");
+		fprintf(fp, "# bpf_prog_info empty\n");
 
 	while (next) {
 		struct bpf_prog_info_node *node;
@@ -2006,10 +2031,14 @@ static void print_bpf_prog_info(struct feat_fd *ff, FILE *fp)
 	}
 
 	up_read(&env->bpf_progs.lock);
+#else
+	fprintf(fp, "# bpf_prog_info missing, no libbpf support\n");
+#endif // HAVE_LIBBPF_SUPPORT
 }
 
-static void print_bpf_btf(struct feat_fd *ff, FILE *fp)
+static void print_bpf_btf(struct feat_fd *ff __maybe_unused, FILE *fp)
 {
+#ifdef HAVE_LIBBPF_SUPPORT
 	struct perf_env *env = &ff->ph->env;
 	struct rb_root *root;
 	struct rb_node *next;
@@ -2031,8 +2060,10 @@ static void print_bpf_btf(struct feat_fd *ff, FILE *fp)
 	}
 
 	up_read(&env->bpf_progs.lock);
-}
+#else
+	fprintf(fp, "# bpf btf data missing, no libbpf support\n");
 #endif // HAVE_LIBBPF_SUPPORT
+}
 
 static void free_event_desc(struct evsel *events)
 {
@@ -2259,6 +2290,11 @@ static void print_cache(struct feat_fd *ff, FILE *fp __maybe_unused)
 		fprintf(fp, "#  ");
 		cpu_cache_level__fprintf(fp, &ff->ph->env.caches[i]);
 	}
+}
+
+static void print_cln_size(struct feat_fd *ff, FILE *fp)
+{
+	fprintf(fp, "# cacheline size: %u\n", ff->ph->env.cln_size);
 }
 
 static void print_compressed(struct feat_fd *ff, FILE *fp)
@@ -2545,6 +2581,11 @@ static int perf_header__read_build_ids_abi_quirk(struct perf_header *header,
 			perf_event_header__bswap(&old_bev.header);
 
 		len = old_bev.header.size - sizeof(old_bev);
+		if (len < 0 || len >= PATH_MAX) {
+			pr_warning("invalid build_id filename length %zd\n", len);
+			return -1;
+		}
+
 		if (readn(input, filename, len) != len)
 			return -1;
 
@@ -2587,6 +2628,11 @@ static int perf_header__read_build_ids(struct perf_header *header,
 			perf_event_header__bswap(&bev.header);
 
 		len = bev.header.size - sizeof(bev);
+		if (len < 0 || len >= PATH_MAX) {
+			pr_warning("invalid build_id filename length %zd\n", len);
+			goto out;
+		}
+
 		if (readn(input, filename, len) != len)
 			goto out;
 		/*
@@ -2644,14 +2690,17 @@ static int process_e_machine(struct feat_fd *ff, void *data __maybe_unused)
 	return do_read_u32(ff, &ff->ph->env.e_flags);
 }
 
-#ifdef HAVE_LIBTRACEEVENT
-static int process_tracing_data(struct feat_fd *ff, void *data)
+static int process_tracing_data(struct feat_fd *ff __maybe_unused, void *data __maybe_unused)
 {
+#ifdef HAVE_LIBTRACEEVENT
 	ssize_t ret = trace_report(ff->fd, data, false);
 
 	return ret < 0 ? -1 : 0;
-}
+#else
+	pr_err("ERROR: Trying to read tracing data without libtraceevent support.\n");
+	return -1;
 #endif
+}
 
 static int process_build_id(struct feat_fd *ff, void *data __maybe_unused)
 {
@@ -2746,6 +2795,9 @@ process_event_desc(struct feat_fd *ff, void *data __maybe_unused)
 	return 0;
 }
 
+// Some reasonable arbitrary max for the number of command line arguments
+#define MAX_CMDLINE_NR 32768
+
 static int process_cmdline(struct feat_fd *ff, void *data __maybe_unused)
 {
 	struct perf_env *env = &ff->ph->env;
@@ -2755,13 +2807,16 @@ static int process_cmdline(struct feat_fd *ff, void *data __maybe_unused)
 	if (do_read_u32(ff, &nr))
 		return -1;
 
+	if (nr > MAX_CMDLINE_NR)
+		return -1;
+
 	env->nr_cmdline = nr;
 
 	cmdline = zalloc(ff->size + nr + 1);
 	if (!cmdline)
 		return -1;
 
-	argv = zalloc(sizeof(char *) * (nr + 1));
+	argv = calloc(nr + 1, sizeof(char *));
 	if (!argv)
 		goto error;
 
@@ -2915,7 +2970,7 @@ static int process_numa_topology(struct feat_fd *ff, void *data __maybe_unused)
 	if (do_read_u32(ff, &nr))
 		return -1;
 
-	nodes = zalloc(sizeof(*nodes) * nr);
+	nodes = calloc(nr, sizeof(*nodes));
 	if (!nodes)
 		return -ENOMEM;
 
@@ -3113,7 +3168,7 @@ static int process_cache(struct feat_fd *ff, void *data __maybe_unused)
 	if (do_read_u32(ff, &cnt))
 		return -1;
 
-	caches = zalloc(sizeof(*caches) * cnt);
+	caches = calloc(cnt, sizeof(*caches));
 	if (!caches)
 		return -1;
 
@@ -3152,6 +3207,16 @@ out_free_caches:
 	}
 	free(caches);
 	return -1;
+}
+
+static int process_cln_size(struct feat_fd *ff, void *data __maybe_unused)
+{
+	struct perf_env *env = &ff->ph->env;
+
+	if (do_read_u32(ff, &env->cln_size))
+		return -1;
+
+	return 0;
 }
 
 static int process_sample_time(struct feat_fd *ff, void *data __maybe_unused)
@@ -3195,7 +3260,7 @@ static int process_mem_topology(struct feat_fd *ff,
 	if (do_read_u64(ff, &nr))
 		return -1;
 
-	nodes = zalloc(sizeof(*nodes) * nr);
+	nodes = calloc(nr, sizeof(*nodes));
 	if (!nodes)
 		return -1;
 
@@ -3285,7 +3350,7 @@ static int process_hybrid_topology(struct feat_fd *ff,
 	if (do_read_u32(ff, &nr))
 		return -1;
 
-	nodes = zalloc(sizeof(*nodes) * nr);
+	nodes = calloc(nr, sizeof(*nodes));
 	if (!nodes)
 		return -ENOMEM;
 
@@ -3330,9 +3395,9 @@ static int process_dir_format(struct feat_fd *ff,
 	return do_read_u64(ff, &data->dir.version);
 }
 
-#ifdef HAVE_LIBBPF_SUPPORT
-static int process_bpf_prog_info(struct feat_fd *ff, void *data __maybe_unused)
+static int process_bpf_prog_info(struct feat_fd *ff __maybe_unused, void *data __maybe_unused)
 {
+#ifdef HAVE_LIBBPF_SUPPORT
 	struct bpf_prog_info_node *info_node;
 	struct perf_env *env = &ff->ph->env;
 	struct perf_bpil *info_linear;
@@ -3402,10 +3467,15 @@ out:
 	free(info_node);
 	up_write(&env->bpf_progs.lock);
 	return err;
+#else
+	pr_err("ERROR: Trying to read bpf_prog_info without libbpf support.\n");
+	return -1;
+#endif // HAVE_LIBBPF_SUPPORT
 }
 
-static int process_bpf_btf(struct feat_fd *ff, void *data __maybe_unused)
+static int process_bpf_btf(struct feat_fd *ff  __maybe_unused, void *data __maybe_unused)
 {
+#ifdef HAVE_LIBBPF_SUPPORT
 	struct perf_env *env = &ff->ph->env;
 	struct btf_node *node = NULL;
 	u32 count, i;
@@ -3449,8 +3519,11 @@ out:
 	up_write(&env->bpf_progs.lock);
 	free(node);
 	return err;
-}
+#else
+	pr_err("ERROR: Trying to read btf data without libbpf support.\n");
+	return -1;
 #endif // HAVE_LIBBPF_SUPPORT
+}
 
 static int process_compressed(struct feat_fd *ff,
 			      void *data __maybe_unused)
@@ -3492,7 +3565,7 @@ static int __process_pmu_caps(struct feat_fd *ff, int *nr_caps,
 	if (!nr_pmu_caps)
 		return 0;
 
-	*caps = zalloc(sizeof(char *) * nr_pmu_caps);
+	*caps = calloc(nr_pmu_caps, sizeof(char *));
 	if (!*caps)
 		return -1;
 
@@ -3569,7 +3642,7 @@ static int process_pmu_caps(struct feat_fd *ff, void *data __maybe_unused)
 		return 0;
 	}
 
-	pmu_caps = zalloc(sizeof(*pmu_caps) * nr_pmu);
+	pmu_caps = calloc(nr_pmu, sizeof(*pmu_caps));
 	if (!pmu_caps)
 		return -ENOMEM;
 
@@ -3622,7 +3695,7 @@ static int process_cpu_domain_info(struct feat_fd *ff, void *data __maybe_unused
 	nra = env->nr_cpus_avail;
 	nr = env->nr_cpus_online;
 
-	cd_map = zalloc(sizeof(*cd_map) * nra);
+	cd_map = calloc(nra, sizeof(*cd_map));
 	if (!cd_map)
 		return -1;
 
@@ -3644,6 +3717,11 @@ static int process_cpu_domain_info(struct feat_fd *ff, void *data __maybe_unused
 		if (do_read_u32(ff, &cpu))
 			return -1;
 
+		if (cpu >= nra) {
+			pr_err("Invalid HEADER_CPU_DOMAIN_INFO: cpu %d >= nr_cpus_avail (%d)\n", cpu, nra);
+			return -1;
+		}
+
 		cd_map[cpu] = zalloc(sizeof(*cd_map[cpu]));
 		if (!cd_map[cpu])
 			return -1;
@@ -3655,13 +3733,19 @@ static int process_cpu_domain_info(struct feat_fd *ff, void *data __maybe_unused
 
 		cd_map[cpu]->nr_domains = nr_domains;
 
-		cd_map[cpu]->domains = zalloc(sizeof(*d_info) * max_sched_domains);
+		cd_map[cpu]->domains = calloc(max_sched_domains, sizeof(*d_info));
 		if (!cd_map[cpu]->domains)
 			return -1;
 
 		for (j = 0; j < nr_domains; j++) {
 			if (do_read_u32(ff, &domain))
 				return -1;
+
+			if (domain >= max_sched_domains) {
+				pr_err("Invalid HEADER_CPU_DOMAIN_INFO: domain %d >= max_sched_domains (%d)\n",
+				       domain, max_sched_domains);
+				return -1;
+			}
 
 			d_info = zalloc(sizeof(*d_info));
 			if (!d_info)
@@ -3726,9 +3810,7 @@ static int process_cpu_domain_info(struct feat_fd *ff, void *data __maybe_unused
 const struct perf_header_feature_ops feat_ops[HEADER_LAST_FEATURE];
 
 const struct perf_header_feature_ops feat_ops[HEADER_LAST_FEATURE] = {
-#ifdef HAVE_LIBTRACEEVENT
 	FEAT_OPN(TRACING_DATA,	tracing_data,	false),
-#endif
 	FEAT_OPN(BUILD_ID,	build_id,	false),
 	FEAT_OPR(HOSTNAME,	hostname,	false),
 	FEAT_OPR(OSRELEASE,	osrelease,	false),
@@ -3752,10 +3834,8 @@ const struct perf_header_feature_ops feat_ops[HEADER_LAST_FEATURE] = {
 	FEAT_OPR(MEM_TOPOLOGY,	mem_topology,	true),
 	FEAT_OPR(CLOCKID,	clockid,	false),
 	FEAT_OPN(DIR_FORMAT,	dir_format,	false),
-#ifdef HAVE_LIBBPF_SUPPORT
 	FEAT_OPR(BPF_PROG_INFO, bpf_prog_info,  false),
 	FEAT_OPR(BPF_BTF,       bpf_btf,        false),
-#endif
 	FEAT_OPR(COMPRESSED,	compressed,	false),
 	FEAT_OPR(CPU_PMU_CAPS,	cpu_pmu_caps,	false),
 	FEAT_OPR(CLOCK_DATA,	clock_data,	false),
@@ -3763,12 +3843,20 @@ const struct perf_header_feature_ops feat_ops[HEADER_LAST_FEATURE] = {
 	FEAT_OPR(PMU_CAPS,	pmu_caps,	false),
 	FEAT_OPR(CPU_DOMAIN_INFO,	cpu_domain_info,	true),
 	FEAT_OPR(E_MACHINE,	e_machine,	false),
+	FEAT_OPR(CLN_SIZE,	cln_size,	false),
 };
 
 struct header_print_data {
 	FILE *fp;
 	bool full; /* extended list of headers */
 };
+
+const char *header_feat__name(unsigned int id)
+{
+	if (id < HEADER_LAST_FEATURE)
+		return feat_ops[id].name ?: "INVALID";
+	return "INVALID";
+}
 
 static int perf_file_section__fprintf_info(struct perf_file_section *section,
 					   struct perf_header *ph,
@@ -3778,11 +3866,11 @@ static int perf_file_section__fprintf_info(struct perf_file_section *section,
 	struct feat_fd ff;
 
 	if (lseek(fd, section->offset, SEEK_SET) == (off_t)-1) {
-		pr_debug("Failed to lseek to %" PRIu64 " offset for feature "
-				"%d, continuing...\n", section->offset, feat);
+		pr_debug("Failed to lseek to %" PRIu64 " offset for feature %s (%d), continuing...\n",
+			 section->offset, header_feat__name(feat), feat);
 		return 0;
 	}
-	if (feat >= HEADER_LAST_FEATURE) {
+	if (feat >= ph->last_feat) {
 		pr_warning("unknown feature %d\n", feat);
 		return 0;
 	}
@@ -3834,7 +3922,7 @@ int perf_header__fprintf_info(struct perf_session *session, FILE *fp, bool full)
 		return 0;
 
 	fprintf(fp, "# missing features: ");
-	for_each_clear_bit(bit, header->adds_features, HEADER_LAST_FEATURE) {
+	for_each_clear_bit(bit, header->adds_features, header->last_feat) {
 		if (bit)
 			fprintf(fp, "%s ", feat_ops[bit].name);
 	}
@@ -4164,7 +4252,7 @@ int perf_header__process_sections(struct perf_header *header, int fd,
 	if (err < 0)
 		goto out_free;
 
-	for_each_set_bit(feat, header->adds_features, HEADER_LAST_FEATURE) {
+	for_each_set_bit(feat, header->adds_features, header->last_feat) {
 		err = process(sec++, header, feat, fd, data);
 		if (err < 0)
 			goto out_free;
@@ -4379,6 +4467,7 @@ int perf_file_header__read(struct perf_file_header *header,
 	ph->data_offset  = header->data.offset;
 	ph->data_size	 = header->data.size;
 	ph->feat_offset  = header->data.offset + header->data.size;
+	ph->last_feat	 = HEADER_LAST_FEATURE;
 	return 0;
 }
 
@@ -4394,8 +4483,8 @@ static int perf_file_section__process(struct perf_file_section *section,
 	};
 
 	if (lseek(fd, section->offset, SEEK_SET) == (off_t)-1) {
-		pr_debug("Failed to lseek to %" PRIu64 " offset for feature "
-			  "%d, continuing...\n", section->offset, feat);
+		pr_debug("Failed to lseek to %" PRIu64 " offset for feature %s (%d), continuing...\n",
+			 section->offset, header_feat__name(feat), feat);
 		return 0;
 	}
 
@@ -4428,6 +4517,8 @@ static int perf_file_header__read_pipe(struct perf_pipe_file_header *header,
 	if (ph->needs_swap)
 		header->size = bswap_64(header->size);
 
+	/* The last feature is written out as a 0 sized event and will update this value. */
+	ph->last_feat = 0;
 	return 0;
 }
 
@@ -4660,31 +4751,68 @@ out_delete_evlist:
 	return -ENOMEM;
 }
 
-int perf_event__process_feature(struct perf_session *session,
+int perf_event__process_feature(const struct perf_tool *tool __maybe_unused,
+				struct perf_session *session,
 				union perf_event *event)
 {
 	struct feat_fd ff = { .fd = 0 };
 	struct perf_record_header_feature *fe = (struct perf_record_header_feature *)event;
+	struct perf_header *header = &session->header;
 	int type = fe->header.type;
-	u64 feat = fe->feat_id;
+	int feat = (int)fe->feat_id;
 	int ret = 0;
 	bool print = dump_trace;
+	bool last_feature_mark = false;
 
 	if (type < 0 || type >= PERF_RECORD_HEADER_MAX) {
 		pr_warning("invalid record type %d in pipe-mode\n", type);
 		return 0;
 	}
-	if (feat == HEADER_RESERVED || feat >= HEADER_LAST_FEATURE) {
-		pr_warning("invalid record type %d in pipe-mode\n", type);
+	if (feat == HEADER_RESERVED) {
+		pr_warning("invalid reserved record type in pipe-mode\n");
 		return -1;
 	}
-
+	if (feat < 0 || feat == INT_MAX) {
+		pr_warning("invalid value for feature type %x\n", feat);
+		return -1;
+	}
+	if (feat >= header->last_feat) {
+		if (event->header.size == sizeof(*fe)) {
+			/*
+			 * Either an unexpected zero size feature or the
+			 * HEADER_LAST_FEATURE mark.
+			 */
+			if (feat > header->last_feat)
+				header->last_feat = min(feat, HEADER_LAST_FEATURE);
+			last_feature_mark = true;
+		} else {
+			/*
+			 * A feature but beyond what is known as in
+			 * bounds. Assume the last feature is 1 beyond this
+			 * feature.
+			 */
+			session->header.last_feat = min(feat + 1, HEADER_LAST_FEATURE);
+		}
+	}
+	if (feat >= HEADER_LAST_FEATURE) {
+		if (!last_feature_mark) {
+			pr_warning("unknown feature %d for data file version (%s) in this version of perf (%s)\n",
+				   feat, header->env.version, perf_version_string);
+		}
+		return 0;
+	}
+	if (event->header.size < sizeof(*fe)) {
+		pr_warning("feature header size too small\n");
+		return -1;
+	}
 	ff.buf  = (void *)fe->data;
 	ff.size = event->header.size - sizeof(*fe);
-	ff.ph = &session->header;
+	ff.ph = header;
 
 	if (feat_ops[feat].process && feat_ops[feat].process(&ff, NULL)) {
-		ret = -1;
+		// Processing failed, ignore when this is the last feature mark.
+		if (!last_feature_mark)
+			ret = -1;
 		goto out;
 	}
 
