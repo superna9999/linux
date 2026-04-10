@@ -813,7 +813,7 @@ static int zcrx_register_netdev(struct io_zcrx_ifq *ifq,
 		mp_param.rx_page_size = 1U << ifq->niov_shift;
 	mp_param.mp_ops = &io_uring_pp_zc_ops;
 	mp_param.mp_priv = ifq;
-	ret = __net_mp_open_rxq(ifq->netdev, if_rxq, &mp_param, NULL);
+	ret = netif_mp_open_rxq(ifq->netdev, if_rxq, &mp_param, NULL);
 	if (ret)
 		goto netdev_put_unlock;
 
