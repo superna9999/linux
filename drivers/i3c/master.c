@@ -758,6 +758,32 @@ static ssize_t dev_nack_retry_count_store(struct device *dev,
 
 static DEVICE_ATTR_RW(dev_nack_retry_count);
 
+static ssize_t do_daa_store(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	struct i3c_master_controller *master = dev_to_i3cmaster(dev);
+	bool val;
+	int ret;
+
+	if (kstrtobool(buf, &val))
+		return -EINVAL;
+
+	if (!val)
+		return -EINVAL;
+
+	if (!master->init_done)
+		return -EAGAIN;
+
+	ret = i3c_master_do_daa(master);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static DEVICE_ATTR_WO(do_daa);
+
 static struct attribute *i3c_masterdev_attrs[] = {
 	&dev_attr_mode.attr,
 	&dev_attr_current_master.attr,
@@ -769,6 +795,7 @@ static struct attribute *i3c_masterdev_attrs[] = {
 	&dev_attr_dynamic_address.attr,
 	&dev_attr_hdrcap.attr,
 	&dev_attr_hotjoin.attr,
+	&dev_attr_do_daa.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(i3c_masterdev);
@@ -2793,10 +2820,10 @@ struct i3c_generic_ibi_slot {
 struct i3c_generic_ibi_pool {
 	spinlock_t lock;
 	unsigned int num_slots;
-	struct i3c_generic_ibi_slot *slots;
 	void *payload_buf;
 	struct list_head free_slots;
 	struct list_head pending;
+	struct i3c_generic_ibi_slot slots[] __counted_by(num_slots);
 };
 
 /**
@@ -2824,7 +2851,6 @@ void i3c_generic_ibi_free_pool(struct i3c_generic_ibi_pool *pool)
 	WARN_ON(nslots != pool->num_slots);
 
 	kfree(pool->payload_buf);
-	kfree(pool->slots);
 	kfree(pool);
 }
 EXPORT_SYMBOL_GPL(i3c_generic_ibi_free_pool);
@@ -2847,19 +2873,15 @@ i3c_generic_ibi_alloc_pool(struct i3c_dev_desc *dev,
 	unsigned int i;
 	int ret;
 
-	pool = kzalloc_obj(*pool);
+	pool = kzalloc_flex(*pool, slots, req->num_slots);
 	if (!pool)
 		return ERR_PTR(-ENOMEM);
+
+	pool->num_slots = req->num_slots;
 
 	spin_lock_init(&pool->lock);
 	INIT_LIST_HEAD(&pool->free_slots);
 	INIT_LIST_HEAD(&pool->pending);
-
-	pool->slots = kzalloc_objs(*slot, req->num_slots);
-	if (!pool->slots) {
-		ret = -ENOMEM;
-		goto err_free_pool;
-	}
 
 	if (req->max_payload_len) {
 		pool->payload_buf = kcalloc(req->num_slots,
@@ -2879,7 +2901,6 @@ i3c_generic_ibi_alloc_pool(struct i3c_dev_desc *dev,
 					  (i * req->max_payload_len);
 
 		list_add_tail(&slot->node, &pool->free_slots);
-		pool->num_slots++;
 	}
 
 	return pool;
