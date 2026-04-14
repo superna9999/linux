@@ -15,6 +15,7 @@
 #include "msm_drv.h"
 #include "msm_kms.h"
 #include "msm_gem.h"
+#include "disp/mdp_format.h"
 
 struct msm_framebuffer {
 	struct drm_framebuffer base;
@@ -218,7 +219,7 @@ static struct drm_framebuffer *msm_framebuffer_init(struct drm_device *dev,
 			 + width * info->cpp[i]
 			 + mode_cmd->offsets[i];
 
-		if (bos[i]->size < min_size) {
+		if (bos[i]->size < min_size && !MSM_FORMAT_IS_UBWC(format)) {
 			ret = UERR(EINVAL, dev, "plane %d too small", i);
 			goto fail;
 		}
