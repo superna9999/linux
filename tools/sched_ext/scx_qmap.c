@@ -10,9 +10,11 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <libgen.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <bpf/bpf.h>
 #include <scx/common.h>
+#include "scx_qmap.h"
 #include "scx_qmap.bpf.skel.h"
 
 const char help_fmt[] =
@@ -21,17 +23,20 @@ const char help_fmt[] =
 "See the top-level comment in .bpf.c for more details.\n"
 "\n"
 "Usage: %s [-s SLICE_US] [-e COUNT] [-t COUNT] [-T COUNT] [-l COUNT] [-b COUNT]\n"
-"       [-P] [-M] [-H] [-d PID] [-D LEN] [-S] [-p] [-I] [-F COUNT] [-v]\n"
+"       [-N COUNT] [-P] [-M] [-H] [-c CG_PATH] [-d PID] [-D LEN] [-S] [-p] [-I]\n"
+"       [-F COUNT] [-v]\n"
 "\n"
 "  -s SLICE_US   Override slice duration\n"
 "  -e COUNT      Trigger scx_bpf_error() after COUNT enqueues\n"
 "  -t COUNT      Stall every COUNT'th user thread\n"
 "  -T COUNT      Stall every COUNT'th kernel thread\n"
+"  -N COUNT      Size of the task_ctx arena slab (default 16384)\n"
 "  -l COUNT      Trigger dispatch infinite looping after COUNT dispatches\n"
 "  -b COUNT      Dispatch upto COUNT tasks together\n"
 "  -P            Print out DSQ content and event counters to trace_pipe every second\n"
 "  -M            Print out debug messages to trace_pipe\n"
 "  -H            Boost nice -20 tasks in SHARED_DSQ, use with -b\n"
+"  -c CG_PATH    Cgroup path to attach as sub-scheduler, must run parent scheduler first\n"
 "  -d PID        Disallow a process from switching into SCHED_EXT (-1 for self)\n"
 "  -D LEN        Set scx_exit_info.dump buffer length\n"
 "  -S            Suppress qmap-specific debug dump\n"
@@ -60,6 +65,8 @@ int main(int argc, char **argv)
 {
 	struct scx_qmap *skel;
 	struct bpf_link *link;
+	struct qmap_arena *qa;
+	__u32 test_error_cnt = 0;
 	int opt;
 
 	libbpf_set_print(libbpf_print_fn);
@@ -69,14 +76,15 @@ int main(int argc, char **argv)
 	skel = SCX_OPS_OPEN(qmap_ops, scx_qmap);
 
 	skel->rodata->slice_ns = __COMPAT_ENUM_OR_ZERO("scx_public_consts", "SCX_SLICE_DFL");
+	skel->rodata->max_tasks = 16384;
 
-	while ((opt = getopt(argc, argv, "s:e:t:T:l:b:PMHc:d:D:SpIF:vh")) != -1) {
+	while ((opt = getopt(argc, argv, "s:e:t:T:l:b:N:PMHc:d:D:SpIF:vh")) != -1) {
 		switch (opt) {
 		case 's':
 			skel->rodata->slice_ns = strtoull(optarg, NULL, 0) * 1000;
 			break;
 		case 'e':
-			skel->bss->test_error_cnt = strtoul(optarg, NULL, 0);
+			test_error_cnt = strtoul(optarg, NULL, 0);
 			break;
 		case 't':
 			skel->rodata->stall_user_nth = strtoul(optarg, NULL, 0);
@@ -89,6 +97,9 @@ int main(int argc, char **argv)
 			break;
 		case 'b':
 			skel->rodata->dsp_batch = strtoul(optarg, NULL, 0);
+			break;
+		case 'N':
+			skel->rodata->max_tasks = strtoul(optarg, NULL, 0);
 			break;
 		case 'P':
 			skel->rodata->print_dsqs_and_events = true;
@@ -142,29 +153,32 @@ int main(int argc, char **argv)
 	SCX_OPS_LOAD(skel, qmap_ops, scx_qmap, uei);
 	link = SCX_OPS_ATTACH(skel, qmap_ops, scx_qmap);
 
-	while (!exit_req && !UEI_EXITED(skel, uei)) {
-		long nr_enqueued = skel->bss->nr_enqueued;
-		long nr_dispatched = skel->bss->nr_dispatched;
+	qa = &skel->arena->qa;
+	qa->test_error_cnt = test_error_cnt;
 
-		printf("stats  : enq=%lu dsp=%lu delta=%ld reenq/cpu0=%"PRIu64"/%"PRIu64" deq=%"PRIu64" core=%"PRIu64" enq_ddsp=%"PRIu64"\n",
+	while (!exit_req && !UEI_EXITED(skel, uei)) {
+		long nr_enqueued = qa->nr_enqueued;
+		long nr_dispatched = qa->nr_dispatched;
+
+		printf("stats  : enq=%lu dsp=%lu delta=%ld reenq/cpu0=%llu/%llu deq=%llu core=%llu enq_ddsp=%llu\n",
 		       nr_enqueued, nr_dispatched, nr_enqueued - nr_dispatched,
-		       skel->bss->nr_reenqueued, skel->bss->nr_reenqueued_cpu0,
-		       skel->bss->nr_dequeued,
-		       skel->bss->nr_core_sched_execed,
-		       skel->bss->nr_ddsp_from_enq);
-		printf("         exp_local=%"PRIu64" exp_remote=%"PRIu64" exp_timer=%"PRIu64" exp_lost=%"PRIu64"\n",
-		       skel->bss->nr_expedited_local,
-		       skel->bss->nr_expedited_remote,
-		       skel->bss->nr_expedited_from_timer,
-		       skel->bss->nr_expedited_lost);
+		       qa->nr_reenqueued, qa->nr_reenqueued_cpu0,
+		       qa->nr_dequeued,
+		       qa->nr_core_sched_execed,
+		       qa->nr_ddsp_from_enq);
+		printf("         exp_local=%llu exp_remote=%llu exp_timer=%llu exp_lost=%llu\n",
+		       qa->nr_expedited_local,
+		       qa->nr_expedited_remote,
+		       qa->nr_expedited_from_timer,
+		       qa->nr_expedited_lost);
 		if (__COMPAT_has_ksym("scx_bpf_cpuperf_cur"))
 			printf("cpuperf: cur min/avg/max=%u/%u/%u target min/avg/max=%u/%u/%u\n",
-			       skel->bss->cpuperf_min,
-			       skel->bss->cpuperf_avg,
-			       skel->bss->cpuperf_max,
-			       skel->bss->cpuperf_target_min,
-			       skel->bss->cpuperf_target_avg,
-			       skel->bss->cpuperf_target_max);
+			       qa->cpuperf_min,
+			       qa->cpuperf_avg,
+			       qa->cpuperf_max,
+			       qa->cpuperf_target_min,
+			       qa->cpuperf_target_avg,
+			       qa->cpuperf_target_max);
 		fflush(stdout);
 		sleep(1);
 	}
