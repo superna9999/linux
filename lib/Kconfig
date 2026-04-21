@@ -62,6 +62,24 @@ config HAVE_ARCH_BITREVERSE
 	  This option enables the use of hardware bit-reversal instructions on
 	  architectures which support such operations.
 
+config GENERIC_BITREVERSE
+	def_bool !HAVE_ARCH_BITREVERSE
+	depends on BITREVERSE
+	help
+	  This option provides the standard software-based bit reversal
+	  implementation using a lookup table.
+
+	  Architecture-specific implementations (HAVE_ARCH_BITREVERSE)
+	  and this generic version are not necessarily mutually exclusive
+	  at the configuration level, but selecting this ensures that
+	  the generic `bitrev8/16/32` functions are available when the
+	  CPU does not provide native instructions (like RISC-V's ZBKB
+	  extension).
+
+	  If you are an architecture maintainer and your CPU has native
+	  bit-reversal instructions, you should select HAVE_ARCH_BITREVERSE
+	  to skip this table-based implementation.
+
 config ARCH_HAS_STRNCPY_FROM_USER
 	bool
 
