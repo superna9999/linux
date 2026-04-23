@@ -270,7 +270,6 @@ static void dm_ism_commit_idle_optimization_state(struct amdgpu_dm_ism *ism,
 	struct amdgpu_crtc *acrtc = ism_to_amdgpu_crtc(ism);
 	struct amdgpu_device *adev = drm_to_adev(acrtc->base.dev);
 	struct amdgpu_display_manager *dm = &adev->dm;
-	int r;
 
 	trace_amdgpu_dm_ism_commit(dm->active_vblank_irq_count,
 				   vblank_enabled,
@@ -292,24 +291,16 @@ static void dm_ism_commit_idle_optimization_state(struct amdgpu_dm_ism *ism,
 	 */
 	if (stream && stream->link) {
 		/*
-		 * If allow_panel_sso is true when disabling vblank, allow
-		 * deeper panel sleep states such as PSR1 and Replay static
-		 * screen optimization.
+		 * If the OS requires vblank events (or vblank is otherwise enabled),
+		 * do not allow static screen optimizations.
+		 *
+		 * Keep ism->allow_static_screen_optimizations unchanged so the
+		 * hysteresis-based decision can be reused once vblank is disabled.
 		 */
-		if (!vblank_enabled && allow_panel_sso) {
-			amdgpu_dm_crtc_set_panel_sr_feature(
-				dm, acrtc, stream, false,
-				acrtc->dm_irq_params.allow_sr_entry);
-		} else if (vblank_enabled) {
-			/* Make sure to exit SSO on vblank enable */
-			amdgpu_dm_crtc_set_panel_sr_feature(
-				dm, acrtc, stream, true,
-				acrtc->dm_irq_params.allow_sr_entry);
-		}
-		/*
-		 * Else, vblank_enabled == false and allow_panel_sso == false;
-		 * do nothing here.
-		 */
+		allow_panel_sso = allow_panel_sso && !vblank_enabled;
+		amdgpu_dm_crtc_set_static_screen_optimze(
+			dm, stream, allow_panel_sso,
+			acrtc->dm_irq_params.allow_sr_entry);
 	}
 
 	/*
@@ -323,16 +314,7 @@ static void dm_ism_commit_idle_optimization_state(struct amdgpu_dm_ism *ism,
 	 */
 	if (!vblank_enabled && dm->active_vblank_irq_count == 0) {
 		dc_post_update_surfaces_to_stream(dm->dc);
-
-		r = amdgpu_dpm_pause_power_profile(adev, true);
-		if (r)
-			dev_warn(adev->dev, "failed to set default power profile mode\n");
-
 		dc_allow_idle_optimizations(dm->dc, true);
-
-		r = amdgpu_dpm_pause_power_profile(adev, false);
-		if (r)
-			dev_warn(adev->dev, "failed to restore the power profile mode\n");
 	}
 }
 
