@@ -259,11 +259,17 @@ const struct dc_stream_status *dc_stream_get_status_const(
 	return dc_state_get_stream_status(dc->current_state, stream);
 }
 
+struct dc_link *dc_stream_get_link(
+	const struct dc_stream_state *stream)
+{
+	return stream->link;
+}
+
 void program_cursor_attributes(
 	struct dc *dc,
 	struct dc_stream_state *stream)
 {
-	int i;
+	uint8_t i;
 	struct resource_context *res_ctx;
 	struct pipe_ctx *pipe_to_program = NULL;
 	bool enable_cursor_offload = dc_dmub_srv_is_cursor_offload_enabled(dc);
@@ -410,7 +416,7 @@ void program_cursor_position(
 	struct dc *dc,
 	struct dc_stream_state *stream)
 {
-	int i;
+	uint8_t i;
 	struct resource_context *res_ctx;
 	struct pipe_ctx *pipe_to_program = NULL;
 	bool enable_cursor_offload = dc_dmub_srv_is_cursor_offload_enabled(dc);
@@ -1032,14 +1038,18 @@ static int dc_stream_get_brightness_millinits_linear_interpolation (struct dc_st
 								     int refresh_hz)
 {
 	long long slope = 0;
+	long long y_intercept = 0;
+	long long brightness_millinits = 0;
+
 	if (stream->lumin_data.refresh_rate_hz[index2] != stream->lumin_data.refresh_rate_hz[index1]) {
 		slope = (stream->lumin_data.luminance_millinits[index2] - stream->lumin_data.luminance_millinits[index1]) /
 			    (stream->lumin_data.refresh_rate_hz[index2] - stream->lumin_data.refresh_rate_hz[index1]);
 	}
 
-	int y_intercept = stream->lumin_data.luminance_millinits[index2] - slope * stream->lumin_data.refresh_rate_hz[index2];
+	y_intercept = stream->lumin_data.luminance_millinits[index2] - slope * stream->lumin_data.refresh_rate_hz[index2];
+	brightness_millinits = y_intercept + (long long)refresh_hz * slope;
 
-	return (y_intercept + refresh_hz * slope);
+	return (int)brightness_millinits;
 }
 
 /*
@@ -1051,14 +1061,18 @@ static int dc_stream_get_refresh_hz_linear_interpolation (struct dc_stream_state
 							   int brightness_millinits)
 {
 	long long slope = 1;
+	long long y_intercept = 0;
+	long long refresh_hz = 0;
+
 	if (stream->lumin_data.refresh_rate_hz[index2] != stream->lumin_data.refresh_rate_hz[index1]) {
 		slope = (stream->lumin_data.luminance_millinits[index2] - stream->lumin_data.luminance_millinits[index1]) /
 				(stream->lumin_data.refresh_rate_hz[index2] - stream->lumin_data.refresh_rate_hz[index1]);
 	}
 
-	int y_intercept = stream->lumin_data.luminance_millinits[index2] - slope * stream->lumin_data.refresh_rate_hz[index2];
+	y_intercept = stream->lumin_data.luminance_millinits[index2] - slope * stream->lumin_data.refresh_rate_hz[index2];
+	refresh_hz = div64_s64((brightness_millinits - y_intercept), slope);
 
-	return ((int)div64_s64((brightness_millinits - y_intercept), slope));
+	return (int)refresh_hz;
 }
 
 /*
