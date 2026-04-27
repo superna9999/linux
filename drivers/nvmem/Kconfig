@@ -275,7 +275,7 @@ config NVMEM_S32G_OCOTP
 	  Programmable memory pages.
 
 config NVMEM_QCOM_QFPROM
-	tristate "QCOM QFPROM Support"
+	tristate "Qualcomm QFPROM Support"
 	depends on ARCH_QCOM || COMPILE_TEST
 	depends on HAS_IOMEM
 	help
@@ -286,7 +286,7 @@ config NVMEM_QCOM_QFPROM
 	  will be called nvmem_qfprom.
 
 config NVMEM_QCOM_SEC_QFPROM
-        tristate "QCOM SECURE QFPROM Support"
+        tristate "Qualcomm SECURE QFPROM Support"
         depends on ARCH_QCOM || COMPILE_TEST
         depends on HAS_IOMEM
         depends on OF
