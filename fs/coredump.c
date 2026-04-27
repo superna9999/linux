@@ -403,6 +403,11 @@ static bool coredump_parse(struct core_name *cn, struct coredump_params *cprm,
 				err = cn_printf(cn, "%d",
 						cprm->siginfo->si_signo);
 				break;
+			/* code of the signal that caused the coredump */
+			case 'n':
+				err = cn_printf(cn, "%d",
+						cprm->siginfo->si_code);
+				break;
 			/* UNIX time of coredump */
 			case 't': {
 				time64_t time;

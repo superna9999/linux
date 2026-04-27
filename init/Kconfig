@@ -1050,14 +1050,14 @@ config PAGE_COUNTER
 	bool
 
 config CGROUP_FAVOR_DYNMODS
-        bool "Favor dynamic modification latency reduction by default"
-        help
-          This option enables the "favordynmods" mount option by default
-          which reduces the latencies of dynamic cgroup modifications such
-          as task migrations and controller on/offs at the cost of making
-          hot path operations such as forks and exits more expensive.
+	bool "Favor dynamic modification latency reduction by default"
+	help
+	  This option enables the "favordynmods" mount option by default
+	  which reduces the latencies of dynamic cgroup modifications such
+	  as task migrations and controller on/offs at the cost of making
+	  hot path operations such as forks and exits more expensive.
 
-          Say N if unsure.
+	  Say N if unsure.
 
 config MEMCG
 	bool "Memory controller"
@@ -1139,7 +1139,7 @@ config GROUP_SCHED_WEIGHT
 	def_bool n
 
 config GROUP_SCHED_BANDWIDTH
-        def_bool n
+	def_bool n
 
 config FAIR_GROUP_SCHED
 	bool "Group scheduling for SCHED_OTHER"
@@ -1645,10 +1645,10 @@ config LD_ORPHAN_WARN
 	depends on $(ld-option,--orphan-handling=error)
 
 config LD_ORPHAN_WARN_LEVEL
-        string
-        depends on LD_ORPHAN_WARN
-        default "error" if WERROR
-        default "warn"
+	string
+	depends on LD_ORPHAN_WARN
+	default "error" if WERROR
+	default "warn"
 
 config SYSCTL
 	bool
@@ -2069,6 +2069,41 @@ config KALLSYMS_ALL
 	  something like this).
 
 	  Say N unless you really need all symbols, or kernel live patching.
+
+config KALLSYMS_LINEINFO
+	bool "Embed source file:line information in stack traces"
+	depends on KALLSYMS && DEBUG_INFO
+	help
+	  Embeds an address-to-source-line mapping table in the kernel
+	  image so that stack traces directly include file:line information,
+	  similar to what scripts/decode_stacktrace.sh provides but without
+	  needing external tools or a vmlinux with debug info at runtime.
+
+	  When enabled, stack traces will look like:
+
+	    kmem_cache_alloc_noprof+0x60/0x630 (mm/slub.c:3456)
+	    anon_vma_clone+0x2ed/0xcf0 (mm/rmap.c:412)
+
+	  This requires elfutils (libdw-dev/elfutils-devel) on the build host.
+	  Adds approximately 10-15MB to a typical kernel image (~2-3 bytes
+	  per entry after delta compression, ~4.6M entries for a typical
+	  config).
+
+	  If unsure, say N.
+
+config KALLSYMS_LINEINFO_MODULES
+	bool "Embed source file:line information in module stack traces"
+	depends on KALLSYMS_LINEINFO && MODULES
+	help
+	  Extends KALLSYMS_LINEINFO to loadable kernel modules.  Each .ko
+	  gets a lineinfo table generated from its DWARF data at build time,
+	  so stack traces from module code include (file.c:123) annotations.
+
+	  Requires elfutils (libdw-dev/elfutils-devel) on the build host.
+	  Increases .ko sizes by approximately 2-3 bytes per DWARF line
+	  entry after delta compression.
+
+	  If unsure, say N.
 
 # end of the "standard kernel features (expert users)" menu
 

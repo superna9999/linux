@@ -170,6 +170,7 @@ core_pattern
 	%d		dump mode, matches ``PR_SET_DUMPABLE`` and
 			``/proc/sys/fs/suid_dumpable``
 	%s		signal number
+	%n		signal code
 	%t		UNIX time of dump
 	%h		hostname
 	%e		executable filename (may be shortened, could be changed by prctl etc)
