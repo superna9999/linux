@@ -1142,7 +1142,6 @@
 
 		vddio-supply = <&sy7758_vdd33_reg>;
 		enable-gpios = <&tlmm 164 GPIO_ACTIVE_HIGH>;
-
 	};
 };
 
