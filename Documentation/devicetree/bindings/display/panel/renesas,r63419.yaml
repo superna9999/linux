@@ -32,6 +32,7 @@ properties:
 
   backlight: true
   reset-gpios: true
+  rotation: true
   ports: true
 
 required:
