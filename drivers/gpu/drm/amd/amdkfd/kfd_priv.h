@@ -215,8 +215,7 @@ enum cache_policy {
 	((KFD_GC_VERSION(dev) == IP_VERSION(9, 4, 2)) ||	\
 	 (KFD_GC_VERSION(dev) == IP_VERSION(9, 4, 3)) ||	\
 	 (KFD_GC_VERSION(dev) == IP_VERSION(9, 4, 4)) ||	\
-	 (KFD_GC_VERSION(dev) == IP_VERSION(9, 5, 0)) ||	\
-	 (KFD_GC_VERSION(dev) == IP_VERSION(12, 1, 0)))
+	 (KFD_GC_VERSION(dev) == IP_VERSION(9, 5, 0)))
 
 struct kfd_node;
 
@@ -523,6 +522,7 @@ struct queue_properties {
 	uint32_t pm4_target_xcc;
 	bool is_dbg_wa;
 	bool is_user_cu_masked;
+	bool is_reset;
 	/* Not relevant for user mode queues in cp scheduling */
 	unsigned int vmid;
 	/* Relevant only for sdma queues*/
@@ -1047,10 +1047,13 @@ extern struct srcu_struct kfd_processes_srcu;
 typedef int amdkfd_ioctl_t(struct file *filep, struct kfd_process *p,
 				void *data);
 
+typedef int amdkfd_ioctl_validate_t(void *kdata, unsigned int usize);
+
 struct amdkfd_ioctl_desc {
 	unsigned int cmd;
 	int flags;
 	amdkfd_ioctl_t *func;
+	amdkfd_ioctl_validate_t *validate;
 	unsigned int cmd_drv;
 	const char *name;
 };

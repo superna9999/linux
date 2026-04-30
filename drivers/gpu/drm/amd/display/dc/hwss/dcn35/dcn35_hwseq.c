@@ -467,7 +467,7 @@ void dcn35_update_odm(struct dc *dc, struct dc_state *context, struct pipe_ctx *
 	if (pipe_ctx->stream_res.dsc) {
 		struct pipe_ctx *current_pipe_ctx = &dc->current_state->res_ctx.pipe_ctx[pipe_ctx->pipe_idx];
 
-		update_dsc_on_stream(pipe_ctx, pipe_ctx->stream->timing.flags.DSC);
+		update_dsc_on_stream(pipe_ctx, pipe_ctx->stream->timing.flags.DSC != 0);
 
 		/* Check if no longer using pipe for ODM, then need to disconnect DSC for that pipe */
 		if (!pipe_ctx->next_odm_pipe && current_pipe_ctx->next_odm_pipe &&
@@ -621,7 +621,7 @@ void dcn35_z10_restore(const struct dc *dc)
 
 void dcn35_init_pipes(struct dc *dc, struct dc_state *context)
 {
-	int i;
+	uint8_t i;
 	struct dce_hwseq *hws = dc->hwseq;
 	struct hubbub *hubbub = dc->res_pool->hubbub;
 	struct pg_cntl *pg_cntl = dc->res_pool->pg_cntl;
@@ -725,7 +725,7 @@ void dcn35_init_pipes(struct dc *dc, struct dc_state *context)
 
 		pipe_ctx->plane_res.hubp = hubp;
 		pipe_ctx->plane_res.dpp = dpp;
-		pipe_ctx->plane_res.mpcc_inst = dpp->inst;
+		pipe_ctx->plane_res.mpcc_inst = (uint8_t)dpp->inst;
 		hubp->mpcc_id = dpp->inst;
 		hubp->opp_id = OPP_ID_INVALID;
 		hubp->power_gated = false;
@@ -904,6 +904,13 @@ void dcn35_disable_plane(struct dc *dc, struct dc_state *state, struct pipe_ctx 
 	if (!pipe_ctx->plane_res.hubp || pipe_ctx->plane_res.hubp->power_gated)
 		return;
 
+	if (dc->debug.disable_dpp_power_gate) {
+		/* Workaround for use case when disabled power gating set to 1 */
+		/* Force disable cursor if power gating is disabled */
+		struct dpp *dpp = pipe_ctx->plane_res.dpp;
+		if (dpp && dpp->funcs->dpp_force_disable_cursor)
+			dpp->funcs->dpp_force_disable_cursor(dpp);
+	}
 	if (hws->funcs.plane_atomic_disable)
 		hws->funcs.plane_atomic_disable(dc, pipe_ctx);
 

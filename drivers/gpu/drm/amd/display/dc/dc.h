@@ -63,7 +63,7 @@ struct dcn_dsc_reg_state;
 struct dcn_optc_reg_state;
 struct dcn_dccg_reg_state;
 
-#define DC_VER "3.2.378"
+#define DC_VER "3.2.380"
 
 /**
  * MAX_SURFACES - representative of the upper bound of surfaces that can be piped to a single CRTC
@@ -1485,6 +1485,7 @@ union surface_update_flags {
 		uint32_t pixel_format_change:1;
 		uint32_t plane_size_change:1;
 		uint32_t gamut_remap_change:1;
+		uint32_t cursor_csc_color_matrix_change:1;
 
 		/* Full updates */
 		uint32_t new_plane:1;
@@ -1499,10 +1500,13 @@ union surface_update_flags {
 		uint32_t full_update:1;
 		uint32_t sdr_white_level_nits:1;
 		uint32_t cm_hist_change:1;
+		uint32_t reserved:2; /* adjust when adding new flags */
 	} bits;
 
 	uint32_t raw;
 };
+
+bool dc_check_address_only_update(union surface_update_flags update_flags);
 
 #define DC_REMOVE_PLANE_POINTERS 1
 
@@ -1682,7 +1686,7 @@ struct dc_scratch_space {
 	struct dc_link_training_overrides preferred_training_settings;
 	struct dp_audio_test_data audio_test_data;
 
-	uint8_t ddc_hw_inst;
+	enum gpio_ddc_line ddc_hw_inst;
 
 	uint8_t hpd_src;
 
@@ -1882,20 +1886,6 @@ struct dc_scaling_info {
 	struct scaling_taps scaling_quality;
 };
 
-struct dc_fast_update {
-	const struct dc_flip_addrs *flip_addr;
-	const struct dc_gamma *gamma;
-	const struct colorspace_transform *gamut_remap_matrix;
-	const struct dc_csc_transform *input_csc_color_matrix;
-	const struct fixed31_32 *coeff_reduction_factor;
-	struct dc_transfer_func *out_transfer_func;
-	struct dc_csc_transform *output_csc_transform;
-	const struct dc_csc_transform *cursor_csc_color_matrix;
-#if defined(CONFIG_DRM_AMD_DC_DCN4_2)
-	struct cm_hist_control *cm_hist_control;
-#endif
-};
-
 struct dc_surface_update {
 	struct dc_plane_state *surface;
 
@@ -2034,11 +2024,6 @@ bool dc_resource_is_dsc_encoding_supported(const struct dc *dc);
 void get_audio_check(struct audio_info *aud_modes,
 	struct audio_check *aud_chk);
 
-bool fast_nonaddr_updates_exist(struct dc_fast_update *fast_update, int surface_count);
-void populate_fast_updates(struct dc_fast_update *fast_update,
-		struct dc_surface_update *srf_updates,
-		int surface_count,
-		struct dc_stream_update *stream_update);
 /*
  * Set up streams and links associated to drive sinks
  * The streams parameter is an absolute set of all active streams.
