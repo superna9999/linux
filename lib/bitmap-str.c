@@ -40,6 +40,32 @@ int bitmap_parse_user(const char __user *ubuf,
 EXPORT_SYMBOL(bitmap_parse_user);
 
 /**
+ * bitmap_print_to_pagebuf - convert bitmap to list or hex format ASCII string
+ * @list: indicates whether the bitmap must be list
+ * @buf: page aligned buffer into which string is placed
+ * @maskp: pointer to bitmap to convert
+ * @nmaskbits: size of bitmap, in bits
+ *
+ * Output format is a comma-separated list of decimal numbers and
+ * ranges if list is specified or hex digits grouped into comma-separated
+ * sets of 8 digits/set. Returns the number of characters written to buf.
+ *
+ * It is assumed that @buf is a pointer into a PAGE_SIZE, page-aligned
+ * area and that sufficient storage remains at @buf to accommodate the
+ * bitmap_print_to_pagebuf() output. Returns the number of characters
+ * actually printed to @buf, excluding terminating '\0'.
+ */
+int bitmap_print_to_pagebuf(bool list, char *buf, const unsigned long *maskp,
+			    int nmaskbits)
+{
+	ptrdiff_t len = PAGE_SIZE - offset_in_page(buf);
+
+	return list ? scnprintf(buf, len, "%*pbl\n", nmaskbits, maskp) :
+		      scnprintf(buf, len, "%*pb\n", nmaskbits, maskp);
+}
+EXPORT_SYMBOL(bitmap_print_to_pagebuf);
+
+/**
  * bitmap_print_to_buf  - convert bitmap to list or hex format ASCII string
  * @list: indicates whether the bitmap must be list
  *      true:  print in decimal list format
@@ -75,7 +101,7 @@ static int bitmap_print_to_buf(bool list, char *buf, const unsigned long *maskp,
  * @off: in the string from which we are copying, We copy to @buf
  * @count: the maximum number of bytes to print
  *
- * The sprintf("%*pbl") is used indirectly via its cpumap wrapper
+ * The bitmap_print_to_pagebuf() is used indirectly via its cpumap wrapper
  * cpumap_print_to_pagebuf() or directly by drivers to export hexadecimal
  * bitmask and decimal list to userspace by sysfs ABI.
  * Drivers might be using a normal attribute for this kind of ABIs. A
@@ -85,11 +111,18 @@ static int bitmap_print_to_buf(bool list, char *buf, const unsigned long *maskp,
  *		struct device_attribute *attr, char *buf)
  *   {
  *	...
- *	return scnprintf(buf, PAGE_SIZE - offest_in_page(buf), nr_trig_max, &mask);
+ *	return bitmap_print_to_pagebuf(true, buf, &mask, nr_trig_max);
  *   }
  *
  * show entry of attribute has no offset and count parameters and this
  * means the file is limited to one page only.
+ * bitmap_print_to_pagebuf() API works terribly well for this kind of
+ * normal attribute with buf parameter and without offset, count::
+ *
+ *   bitmap_print_to_pagebuf(bool list, char *buf, const unsigned long *maskp,
+ *			   int nmaskbits)
+ *   {
+ *   }
  *
  * The problem is once we have a large bitmap, we have a chance to get a
  * bitmask or list more than one page. Especially for list, it could be
@@ -116,7 +149,7 @@ static int bitmap_print_to_buf(bool list, char *buf, const unsigned long *maskp,
  *
  * The role of cpumap_print_bitmask_to_buf() and cpumap_print_list_to_buf()
  * is similar with cpumap_print_to_pagebuf(),  the difference is that
- * scnprintf("%*pb[l]") mainly serves sysfs attribute with the assumption
+ * bitmap_print_to_pagebuf() mainly serves sysfs attribute with the assumption
  * the destination buffer is exactly one page and won't be more than one page.
  * cpumap_print_bitmask_to_buf() and cpumap_print_list_to_buf(), on the other
  * hand, mainly serves bin_attribute which doesn't work with exact one page,
@@ -125,8 +158,7 @@ static int bitmap_print_to_buf(bool list, char *buf, const unsigned long *maskp,
  *
  * WARNING!
  *
- * This function is not a replacement for sprintf().
- *
+ * This function is not a replacement for sprintf() or bitmap_print_to_pagebuf().
  * It is intended to workaround sysfs limitations discussed above and should be
  * used carefully in general case for the following reasons:
  *
