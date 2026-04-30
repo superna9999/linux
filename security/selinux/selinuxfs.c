@@ -95,9 +95,8 @@ static int selinux_fs_info_create(struct super_block *sb)
 	return 0;
 }
 
-static void selinux_fs_info_free(struct super_block *sb)
+static void selinux_fs_info_free(struct selinux_fs_info *fsi)
 {
-	struct selinux_fs_info *fsi = sb->s_fs_info;
 	unsigned int i;
 
 	if (fsi) {
@@ -106,8 +105,7 @@ static void selinux_fs_info_free(struct super_block *sb)
 		kfree(fsi->bool_pending_names);
 		kfree(fsi->bool_pending_values);
 	}
-	kfree(sb->s_fs_info);
-	sb->s_fs_info = NULL;
+	kfree(fsi);
 }
 
 #define SEL_INITCON_INO_OFFSET		0x01000000
@@ -2093,8 +2091,10 @@ static int sel_init_fs_context(struct fs_context *fc)
 
 static void sel_kill_sb(struct super_block *sb)
 {
-	selinux_fs_info_free(sb);
+	struct selinux_fs_info *fsi = sb->s_fs_info;
+
 	kill_anon_super(sb);
+	selinux_fs_info_free(fsi);
 }
 
 static struct file_system_type sel_fs_type = {
@@ -2107,8 +2107,7 @@ struct path selinux_null __ro_after_init;
 
 int __init init_sel_fs(void)
 {
-	struct qstr null_name = QSTR_INIT(NULL_FILE_NAME,
-					  sizeof(NULL_FILE_NAME)-1);
+	struct qstr null_name = QSTR(NULL_FILE_NAME);
 	int err;
 
 	if (!selinux_enabled_boot)
