@@ -138,8 +138,6 @@ struct msr_counter {
 	enum counter_format format;
 	struct msr_counter *next;
 	unsigned int flags;
-#define	FLAGS_HIDE	(1 << 0)
-#define	FLAGS_SHOW	(1 << 1)
 #define	SYSFS_PERCPU	(1 << 1)
 };
 static int use_android_msr_path;
@@ -292,7 +290,9 @@ enum bic_names {
 	MAX_BIC
 };
 
-void print_bic_set(char *s, cpu_set_t *set)
+#define bic_set_t cpu_set_t	/* implement bic_set_t using cpu_set_t */
+
+void print_bic_set(char *s, bic_set_t *set)
 {
 	int i;
 
@@ -308,17 +308,17 @@ void print_bic_set(char *s, cpu_set_t *set)
 	putchar('\n');
 }
 
-static cpu_set_t bic_group_topology;
-static cpu_set_t bic_group_thermal_pwr;
-static cpu_set_t bic_group_frequency;
-static cpu_set_t bic_group_hw_idle;
-static cpu_set_t bic_group_sw_idle;
-static cpu_set_t bic_group_idle;
-static cpu_set_t bic_group_cache;
-static cpu_set_t bic_group_other;
-static cpu_set_t bic_group_disabled_by_default;
-static cpu_set_t bic_enabled;
-static cpu_set_t bic_present;
+static bic_set_t bic_group_topology;
+static bic_set_t bic_group_thermal_pwr;
+static bic_set_t bic_group_frequency;
+static bic_set_t bic_group_hw_idle;
+static bic_set_t bic_group_sw_idle;
+static bic_set_t bic_group_idle;
+static bic_set_t bic_group_cache;
+static bic_set_t bic_group_other;
+static bic_set_t bic_group_disabled_by_default;
+static bic_set_t bic_enabled;
+static bic_set_t bic_present;
 
 /* modify */
 #define BIC_INIT(set) CPU_ZERO(set)
@@ -334,7 +334,7 @@ static cpu_set_t bic_present;
 #define DO_BIC_READ(COUNTER_NUMBER) CPU_ISSET(COUNTER_NUMBER, &bic_present)
 #define DO_BIC(COUNTER_NUMBER) (CPU_ISSET(COUNTER_NUMBER, &bic_enabled) && CPU_ISSET(COUNTER_NUMBER, &bic_present))
 
-static void bic_set_all(cpu_set_t *set)
+static void bic_set_all(bic_set_t *set)
 {
 	int i;
 
@@ -348,7 +348,7 @@ static void bic_set_all(cpu_set_t *set)
  * bic_clear_bits()
  * clear all the bits from "clr" in "dst"
  */
-static void bic_clear_bits(cpu_set_t *dst, cpu_set_t *clr)
+static void bic_clear_bits(bic_set_t *dst, bic_set_t *clr)
 {
 	int i;
 
@@ -1313,7 +1313,6 @@ static struct perf_model_support turbostat_perf_model_support[] = {
 	{ INTEL_ATOM_DARKMONT_X, { PCE(0x01, 0xFF), PCE(0x01, 0xBF)}, {}, {} },	/* CWF */
 
 	{ INTEL_ALDERLAKE, { PCE(0x00, 0xFF), PCE(0x00, 0xDF)}, { PCE(0x00, 0x00), PCE(0x00, 0x02)}, {} },
-	{ INTEL_ALDERLAKE, { PCE(0x00, 0xFF), PCE(0x00, 0xDF)}, { PCE(0x00, 0x00), PCE(0x00, 0x02)}, {} },
 	{ INTEL_ALDERLAKE_L, { PCE(0x00, 0xFF), PCE(0x00, 0xDF)}, { PCE(0x00, 0x00), PCE(0x00, 0x02)}, {} },
 	{ INTEL_RAPTORLAKE, { PCE(0x00, 0xFF), PCE(0x00, 0xDF)}, { PCE(0x00, 0x00), PCE(0x00, 0x02)}, {} },
 	{ INTEL_RAPTORLAKE_P, { PCE(0x00, 0xFF), PCE(0x00, 0xDF)}, { PCE(0x00, 0x00), PCE(0x00, 0x02)}, {} },
@@ -1407,10 +1406,9 @@ void init_perf_model_support(unsigned int family, unsigned int model)
 int backwards_count;
 char *progname;
 
-#define CPU_SUBSET_MAXCPUS	8192	/* need to use before probe... */
-cpu_set_t *cpu_present_set, *cpu_possible_set, *cpu_effective_set, *cpu_allowed_set, *cpu_affinity_set, *cpu_subset;
+cpu_set_t *cpu_present_set, *cpu_possible_set, *cpu_effective_set, *cpu_allowed_set, *cpu_affinity_set, *cpuset_cmdline;
 cpu_set_t *perf_pcore_set, *perf_ecore_set, *perf_lcore_set;
-size_t cpu_present_setsize, cpu_possible_setsize, cpu_effective_setsize, cpu_allowed_setsize, cpu_affinity_setsize, cpu_subset_size;
+size_t cpu_setsize;
 #define MAX_ADDED_THREAD_COUNTERS 24
 #define MAX_ADDED_CORE_COUNTERS 8
 #define MAX_ADDED_PACKAGE_COUNTERS 16
@@ -2436,7 +2434,7 @@ int cpu_is_not_present(int cpu)
 	if (cpu < 0)
 		return 1;
 
-	return !CPU_ISSET_S(cpu, cpu_present_setsize, cpu_present_set);
+	return !CPU_ISSET_S(cpu, cpu_setsize, cpu_present_set);
 }
 
 int cpu_is_not_allowed(int cpu)
@@ -2444,7 +2442,7 @@ int cpu_is_not_allowed(int cpu)
 	if (cpu < 0)
 		return 1;
 
-	return !CPU_ISSET_S(cpu, cpu_allowed_setsize, cpu_allowed_set);
+	return !CPU_ISSET_S(cpu, cpu_setsize, cpu_allowed_set);
 }
 
 #define GLOBAL_CORE_ID(core_id, pkg_id)	(core_id + pkg_id * (topo.max_core_id + 1))
@@ -2537,9 +2535,9 @@ int is_cpu_first_thread_in_package(struct thread_data *t, struct core_data *c, s
 
 int cpu_migrate(int cpu)
 {
-	CPU_ZERO_S(cpu_affinity_setsize, cpu_affinity_set);
-	CPU_SET_S(cpu, cpu_affinity_setsize, cpu_affinity_set);
-	if (sched_setaffinity(0, cpu_affinity_setsize, cpu_affinity_set) == -1)
+	CPU_ZERO_S(cpu_setsize, cpu_affinity_set);
+	CPU_SET_S(cpu, cpu_setsize, cpu_affinity_set);
+	if (sched_setaffinity(0, cpu_setsize, cpu_affinity_set) == -1)
 		return -1;
 	else
 		return 0;
@@ -2780,7 +2778,7 @@ void help(void)
  * for all the strings in comma separate name_list,
  * set the approprate bit in return value.
  */
-void bic_lookup(cpu_set_t *ret_set, char *name_list, enum show_hide_mode mode)
+void bic_lookup(bic_set_t *ret_set, char *name_list, enum show_hide_mode mode)
 {
 	unsigned int i;
 
@@ -3280,8 +3278,6 @@ int dump_counters(PER_THREAD_PARAMS)
 
 double rapl_counter_get_value(const struct rapl_counter *c, enum rapl_unit desired_unit, double interval)
 {
-	assert(desired_unit != RAPL_UNIT_INVALID);
-
 	/*
 	 * For now we don't expect anything other than joules,
 	 * so just simplify the logic.
@@ -3367,7 +3363,7 @@ int format_counters(PER_THREAD_PARAMS)
 		return 0;
 
 	/*if not summary line and --cpu is used */
-	if ((t != average.threads) && (cpu_subset && !CPU_ISSET_S(t->cpu_id, cpu_subset_size, cpu_subset)))
+	if ((t != average.threads) && (cpuset_cmdline && !CPU_ISSET_S(t->cpu_id, cpu_setsize, cpuset_cmdline)))
 		return 0;
 
 	if (DO_BIC(BIC_USEC)) {
@@ -5978,19 +5974,15 @@ void free_all_buffers(void)
 
 	CPU_FREE(cpu_present_set);
 	cpu_present_set = NULL;
-	cpu_present_setsize = 0;
 
 	CPU_FREE(cpu_effective_set);
 	cpu_effective_set = NULL;
-	cpu_effective_setsize = 0;
 
 	CPU_FREE(cpu_allowed_set);
 	cpu_allowed_set = NULL;
-	cpu_allowed_setsize = 0;
 
 	CPU_FREE(cpu_affinity_set);
 	cpu_affinity_set = NULL;
-	cpu_affinity_setsize = 0;
 
 	if (perf_pcore_set) {
 		CPU_FREE(perf_pcore_set);
@@ -6165,7 +6157,7 @@ int get_physical_node_id(struct cpu_topology *thiscpu)
 
 static int parse_cpu_str(char *cpu_str, cpu_set_t *cpu_set, int cpu_set_size)
 {
-	unsigned int start, end;
+	int start, end;
 	char *next = cpu_str;
 
 	while (next && *next) {
@@ -6178,7 +6170,7 @@ static int parse_cpu_str(char *cpu_str, cpu_set_t *cpu_set, int cpu_set_size)
 
 		start = strtoul(next, &next, 10);
 
-		if (start >= CPU_SUBSET_MAXCPUS)
+		if (start > topo.max_cpu_num)
 			return 1;
 		CPU_SET_S(start, cpu_set_size, cpu_set);
 
@@ -6205,7 +6197,7 @@ static int parse_cpu_str(char *cpu_str, cpu_set_t *cpu_set, int cpu_set_size)
 			return 1;
 
 		while (++start <= end) {
-			if (start >= CPU_SUBSET_MAXCPUS)
+			if (start > topo.max_cpu_num)
 				return 1;
 			CPU_SET_S(start, cpu_set_size, cpu_set);
 		}
@@ -6345,7 +6337,7 @@ static void update_effective_set(bool startup)
 {
 	update_effective_str(startup);
 
-	if (parse_cpu_str(cpu_effective_str, cpu_effective_set, cpu_effective_setsize))
+	if (parse_cpu_str(cpu_effective_str, cpu_effective_set, cpu_setsize))
 		err(1, "%s: cpu str malformat %s", PATH_EFFECTIVE_CPUS, cpu_effective_str);
 }
 
@@ -6373,26 +6365,6 @@ void re_initialize(void)
 	fprintf(outf, "turbostat: re-initialized with num_cpus %d, allowed_cpus %d\n", topo.num_cpus, topo.allowed_cpus);
 }
 
-void set_max_cpu_num(void)
-{
-	FILE *filep;
-	int current_cpu;
-	unsigned long dummy;
-	char pathname[64];
-
-	current_cpu = sched_getcpu();
-	if (current_cpu < 0)
-		err(1, "cannot find calling cpu ID");
-	sprintf(pathname, "/sys/devices/system/cpu/cpu%d/topology/thread_siblings", current_cpu);
-
-	filep = fopen_or_die(pathname, "r");
-	topo.max_cpu_num = 0;
-	while (fscanf(filep, "%lx,", &dummy) == 1)
-		topo.max_cpu_num += BITMASK_SIZE;
-	fclose(filep);
-	topo.max_cpu_num--;	/* 0 based */
-}
-
 /*
  * count_cpus()
  * remember the last one seen, it will be the max
@@ -6407,7 +6379,7 @@ int count_cpus(int cpu)
 
 int mark_cpu_present(int cpu)
 {
-	CPU_SET_S(cpu, cpu_present_setsize, cpu_present_set);
+	CPU_SET_S(cpu, cpu_setsize, cpu_present_set);
 	return 0;
 }
 
@@ -8547,7 +8519,7 @@ int initialize_cpu_set_from_sysfs(cpu_set_t *cpu_set, char *sysfs_path, char *sy
 		warn("read %s", sysfs_path);
 		goto err;
 	}
-	if (parse_cpu_str(cpuset_buf, cpu_set, cpu_possible_setsize)) {
+	if (parse_cpu_str(cpuset_buf, cpu_set, cpu_setsize)) {
 		warnx("%s: cpu str malformat %s\n", sysfs_path, cpu_effective_str);
 		goto err;
 	}
@@ -8583,7 +8555,7 @@ void linux_perf_init_hybrid_cpus(void)
 		perf_pcore_set = CPU_ALLOC((topo.max_cpu_num + 1));
 		if (perf_pcore_set == NULL)
 			err(3, "CPU_ALLOC");
-		CPU_ZERO_S(cpu_possible_setsize, perf_pcore_set);
+		CPU_ZERO_S(cpu_setsize, perf_pcore_set);
 		initialize_cpu_set_from_sysfs(perf_pcore_set, perf_cpu_pcore_path, "cpus");
 		if (debug)
 			print_cpu_set("perf pcores", perf_pcore_set);
@@ -8595,7 +8567,7 @@ void linux_perf_init_hybrid_cpus(void)
 		perf_ecore_set = CPU_ALLOC((topo.max_cpu_num + 1));
 		if (perf_ecore_set == NULL)
 			err(3, "CPU_ALLOC");
-		CPU_ZERO_S(cpu_possible_setsize, perf_ecore_set);
+		CPU_ZERO_S(cpu_setsize, perf_ecore_set);
 		initialize_cpu_set_from_sysfs(perf_ecore_set, perf_cpu_ecore_path, "cpus");
 		if (debug)
 			print_cpu_set("perf ecores", perf_ecore_set);
@@ -8607,7 +8579,7 @@ void linux_perf_init_hybrid_cpus(void)
 		perf_lcore_set = CPU_ALLOC((topo.max_cpu_num + 1));
 		if (perf_lcore_set == NULL)
 			err(3, "CPU_ALLOC");
-		CPU_ZERO_S(cpu_possible_setsize, perf_lcore_set);
+		CPU_ZERO_S(cpu_setsize, perf_lcore_set);
 		initialize_cpu_set_from_sysfs(perf_lcore_set, perf_cpu_lcore_path, "cpus");
 		if (debug)
 			print_cpu_set("perf lcores", perf_lcore_set);
@@ -9432,7 +9404,7 @@ void perf_l2_init(void)
 			}
 			continue;
 		}
-		if (perf_pcore_set && CPU_ISSET_S(cpu, cpu_possible_setsize, perf_pcore_set)) {
+		if (perf_pcore_set && CPU_ISSET_S(cpu, cpu_setsize, perf_pcore_set)) {
 			fd_l2_percpu[cpu] = open_perf_counter(cpu, perf_pmu_types.pcore, perf_model_support->first.refs, -1, PERF_FORMAT_GROUP);
 			if (fd_l2_percpu[cpu] == -1) {
 				warnx("%s(cpu%d, 0x%x, 0x%llx) REFS", __func__, cpu, perf_pmu_types.pcore, perf_model_support->first.refs);
@@ -9445,7 +9417,7 @@ void perf_l2_init(void)
 				free_fd_l2_percpu();
 				return;
 			}
-		} else if (perf_ecore_set && CPU_ISSET_S(cpu, cpu_possible_setsize, perf_ecore_set)) {
+		} else if (perf_ecore_set && CPU_ISSET_S(cpu, cpu_setsize, perf_ecore_set)) {
 			fd_l2_percpu[cpu] = open_perf_counter(cpu, perf_pmu_types.ecore, perf_model_support->second.refs, -1, PERF_FORMAT_GROUP);
 			if (fd_l2_percpu[cpu] == -1) {
 				warnx("%s(cpu%d, 0x%x, 0x%llx) REFS", __func__, cpu, perf_pmu_types.ecore, perf_model_support->second.refs);
@@ -9458,7 +9430,7 @@ void perf_l2_init(void)
 				free_fd_l2_percpu();
 				return;
 			}
-		} else if (perf_lcore_set && CPU_ISSET_S(cpu, cpu_possible_setsize, perf_lcore_set)) {
+		} else if (perf_lcore_set && CPU_ISSET_S(cpu, cpu_setsize, perf_lcore_set)) {
 			fd_l2_percpu[cpu] = open_perf_counter(cpu, perf_pmu_types.lcore, perf_model_support->third.refs, -1, PERF_FORMAT_GROUP);
 			if (fd_l2_percpu[cpu] == -1) {
 				warnx("%s(cpu%d, 0x%x, 0x%llx) REFS", __func__, cpu, perf_pmu_types.lcore, perf_model_support->third.refs);
@@ -9521,6 +9493,35 @@ int set_thread_siblings(struct cpu_topology *thiscpu)
 	return (ht_id - 1);
 }
 
+/*
+ * get_max_cpu_num(path)
+ * return the last number of the cpu list in this file
+ */
+static int get_max_cpu_num(char *path)
+{
+        FILE *filep;
+        int retval, num;
+        char c;
+
+        filep = fopen(path, "r");
+        if (filep == NULL) {
+                warn("%s", path);
+                return 255;
+        }
+
+        while ((retval = fscanf(filep, "%d%c", &num, &c)) == 2) {
+                if (c == '\n')
+                        break;
+                if (c != ',' && c != '-')
+                        errx(1, "Bad Format '%s'", path);
+        }
+        if (retval != 2)
+                errx(1, "Bad format '%s'", path);
+
+        fclose(filep);
+        return num;
+}
+
 void topology_probe(bool startup)
 {
 	int i;
@@ -9528,8 +9529,7 @@ void topology_probe(bool startup)
 	int max_package_id = 0;
 	int max_siblings = 0;
 
-	/* Initialize num_cpus, max_cpu_num */
-	set_max_cpu_num();
+	/* Initialize num_cpus */
 	topo.num_cpus = 0;
 	for_all_proc_cpus(count_cpus);
 	if (!summary_only)
@@ -9548,8 +9548,7 @@ void topology_probe(bool startup)
 	cpu_present_set = CPU_ALLOC((topo.max_cpu_num + 1));
 	if (cpu_present_set == NULL)
 		err(3, "CPU_ALLOC");
-	cpu_present_setsize = CPU_ALLOC_SIZE((topo.max_cpu_num + 1));
-	CPU_ZERO_S(cpu_present_setsize, cpu_present_set);
+	CPU_ZERO_S(cpu_setsize, cpu_present_set);
 	for_all_proc_cpus(mark_cpu_present);
 	if (debug)
 		print_cpu_set("present set", cpu_present_set);
@@ -9560,8 +9559,7 @@ void topology_probe(bool startup)
 	cpu_possible_set = CPU_ALLOC((topo.max_cpu_num + 1));
 	if (cpu_possible_set == NULL)
 		err(3, "CPU_ALLOC");
-	cpu_possible_setsize = CPU_ALLOC_SIZE((topo.max_cpu_num + 1));
-	CPU_ZERO_S(cpu_possible_setsize, cpu_possible_set);
+	CPU_ZERO_S(cpu_setsize, cpu_possible_set);
 	initialize_cpu_set_from_sysfs(cpu_possible_set, "/sys/devices/system/cpu", "possible");
 	if (debug)
 		print_cpu_set("possible set", cpu_possible_set);
@@ -9572,8 +9570,7 @@ void topology_probe(bool startup)
 	cpu_effective_set = CPU_ALLOC((topo.max_cpu_num + 1));
 	if (cpu_effective_set == NULL)
 		err(3, "CPU_ALLOC");
-	cpu_effective_setsize = CPU_ALLOC_SIZE((topo.max_cpu_num + 1));
-	CPU_ZERO_S(cpu_effective_setsize, cpu_effective_set);
+	CPU_ZERO_S(cpu_setsize, cpu_effective_set);
 	update_effective_set(startup);
 	if (debug)
 		print_cpu_set("effective set", cpu_effective_set);
@@ -9584,48 +9581,47 @@ void topology_probe(bool startup)
 	cpu_allowed_set = CPU_ALLOC((topo.max_cpu_num + 1));
 	if (cpu_allowed_set == NULL)
 		err(3, "CPU_ALLOC");
-	cpu_allowed_setsize = CPU_ALLOC_SIZE((topo.max_cpu_num + 1));
-	CPU_ZERO_S(cpu_allowed_setsize, cpu_allowed_set);
+	CPU_ZERO_S(cpu_setsize, cpu_allowed_set);
 
 	/*
 	 * Validate and update cpu_allowed_set.
 	 *
-	 * Make sure all cpus in cpu_subset are also in cpu_present_set during startup.
-	 * Give a warning when cpus in cpu_subset become unavailable at runtime.
+	 * Make sure all cpus in cpuset_cmdline are also in cpu_present_set during startup.
+	 * Give a warning when cpus in cpuset_cmdline become unavailable at runtime.
 	 * Give a warning when cpus are not effective because of cgroup setting.
 	 *
-	 * cpu_allowed_set is the intersection of cpu_present_set/cpu_effective_set/cpu_subset.
+	 * cpu_allowed_set is the intersection of cpu_present_set/cpu_effective_set/cpuset_cmdline.
 	 */
-	for (i = 0; i < CPU_SUBSET_MAXCPUS; ++i) {
-		if (cpu_subset && !CPU_ISSET_S(i, cpu_subset_size, cpu_subset))
+	for (i = 0; i <= topo.max_cpu_num; ++i) {
+		if (cpuset_cmdline && !CPU_ISSET_S(i, cpu_setsize, cpuset_cmdline))
 			continue;
 
-		if (!CPU_ISSET_S(i, cpu_present_setsize, cpu_present_set)) {
-			if (cpu_subset) {
-				/* cpus in cpu_subset must be in cpu_present_set during startup */
+		if (!CPU_ISSET_S(i, cpu_setsize, cpu_present_set)) {
+			if (cpuset_cmdline) {
+				/* cpus in cpuset_cmdline must be in cpu_present_set during startup */
 				if (startup)
-					err(1, "cpu%d not present", i);
+					errx(1, "cpu%d not present", i);
 				else
 					fprintf(stderr, "cpu%d not present\n", i);
 			}
 			continue;
 		}
 
-		if (CPU_COUNT_S(cpu_effective_setsize, cpu_effective_set)) {
-			if (!CPU_ISSET_S(i, cpu_effective_setsize, cpu_effective_set)) {
+		if (CPU_COUNT_S(cpu_setsize, cpu_effective_set)) {
+			if (!CPU_ISSET_S(i, cpu_setsize, cpu_effective_set)) {
 				fprintf(stderr, "cpu%d not effective\n", i);
 				continue;
 			}
 		}
 
-		CPU_SET_S(i, cpu_allowed_setsize, cpu_allowed_set);
+		CPU_SET_S(i, cpu_setsize, cpu_allowed_set);
 	}
 	if (debug)
 		print_cpu_set("allowed set", cpu_allowed_set);
 
-	if (!CPU_COUNT_S(cpu_allowed_setsize, cpu_allowed_set))
-		err(-ENODEV, "No valid cpus found");
-	sched_setaffinity(0, cpu_allowed_setsize, cpu_allowed_set);
+	if (!CPU_COUNT_S(cpu_setsize, cpu_allowed_set))
+		errx(-ENODEV, "No valid cpus found");
+	sched_setaffinity(0, cpu_setsize, cpu_allowed_set);
 
 	/*
 	 * Allocate and initialize cpu_affinity_set
@@ -9633,8 +9629,7 @@ void topology_probe(bool startup)
 	cpu_affinity_set = CPU_ALLOC((topo.max_cpu_num + 1));
 	if (cpu_affinity_set == NULL)
 		err(3, "CPU_ALLOC");
-	cpu_affinity_setsize = CPU_ALLOC_SIZE((topo.max_cpu_num + 1));
-	CPU_ZERO_S(cpu_affinity_setsize, cpu_affinity_set);
+	CPU_ZERO_S(cpu_setsize, cpu_affinity_set);
 
 	for_all_proc_cpus(clear_ht_id);
 
@@ -10525,11 +10520,11 @@ void turbostat_init()
 void affinitize_child(void)
 {
 	/* Prefer cpu_possible_set, if available */
-	if (sched_setaffinity(0, cpu_possible_setsize, cpu_possible_set)) {
+	if (sched_setaffinity(0, cpu_setsize, cpu_possible_set)) {
 		warn("sched_setaffinity cpu_possible_set");
 
 		/* Otherwise, allow child to run on same cpu set as turbostat */
-		if (sched_setaffinity(0, cpu_allowed_setsize, cpu_allowed_set))
+		if (sched_setaffinity(0, cpu_setsize, cpu_allowed_set))
 			warn("sched_setaffinity cpu_allowed_set");
 	}
 }
@@ -11437,18 +11432,18 @@ void probe_cpuidle_counts(void)
 
 /*
  * parse cpuset with following syntax
- * 1,2,4..6,8-10 and set bits in cpu_subset
+ * 1,2,4..6,8-10 and set bits in cpuset_cmdline
  */
 void parse_cpu_command(char *optarg)
 {
 	if (!strcmp(optarg, "core")) {
-		if (cpu_subset)
+		if (cpuset_cmdline)
 			goto error;
 		show_core_only++;
 		return;
 	}
 	if (!strcmp(optarg, "package")) {
-		if (cpu_subset)
+		if (cpuset_cmdline)
 			goto error;
 		show_pkg_only++;
 		return;
@@ -11456,15 +11451,24 @@ void parse_cpu_command(char *optarg)
 	if (show_core_only || show_pkg_only)
 		goto error;
 
-	cpu_subset = CPU_ALLOC(CPU_SUBSET_MAXCPUS);
-	if (cpu_subset == NULL)
-		err(3, "CPU_ALLOC");
-	cpu_subset_size = CPU_ALLOC_SIZE(CPU_SUBSET_MAXCPUS);
+	/*
+	 * cpuset_cmdline is allocated on the first invocation of --cpu
+	 * It is re-used for subsequent invocations.
+	 * It is never freed.
+	 */
+	if (!cpuset_cmdline) {
+		cpuset_cmdline = CPU_ALLOC(topo.max_cpu_num + 1);
+		if (cpuset_cmdline == NULL)
+			err(3, "CPU_ALLOC");
 
-	CPU_ZERO_S(cpu_subset_size, cpu_subset);
+		CPU_ZERO_S(cpu_setsize, cpuset_cmdline);
+	}
 
-	if (parse_cpu_str(optarg, cpu_subset, cpu_subset_size))
+	if (parse_cpu_str(optarg, cpuset_cmdline, cpu_setsize))
 		goto error;
+	if (debug)
+		print_cpu_set("--cpu", cpuset_cmdline);
+
 
 	return;
 
@@ -11558,7 +11562,7 @@ void cmdline(int argc, char **argv)
 			 *  multiple invocations simply clear more bits in enabled mask
 			 */
 			{
-				cpu_set_t bic_group_hide;
+				bic_set_t bic_group_hide;
 
 				BIC_INIT(&bic_group_hide);
 
@@ -11676,6 +11680,11 @@ int main(int argc, char **argv)
 	close(fd);
 
 skip_cgroup_setting:
+
+	/* probe max_cpu_num and set cpu_setsize early for use by cmdline() */
+	topo.max_cpu_num = get_max_cpu_num("/sys/devices/system/cpu/possible");
+	cpu_setsize = CPU_ALLOC_SIZE((topo.max_cpu_num + 1));
+
 	outf = stderr;
 	cmdline(argc, argv);
 
