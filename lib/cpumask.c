@@ -166,20 +166,3 @@ unsigned int cpumask_any_distribute(const struct cpumask *srcp)
 	return next;
 }
 EXPORT_SYMBOL(cpumask_any_distribute);
-
-/**
- * cpumap_print_to_pagebuf  - copies the cpumask into the buffer either
- *	as comma-separated list of cpus or hex values of cpumask
- * @list: indicates whether the cpumap must be list
- * @mask: the cpumask to copy
- * @buf: the buffer to copy into
- *
- * Return: the length of the (null-terminated) @buf string, zero if
- * nothing is copied.
- */
-ssize_t cpumap_print_to_pagebuf(bool list, char *buf, const struct cpumask *mask)
-{
-	return scnprintf(buf, PAGE_SIZE - offset_in_page(buf),
-			 list ? "%*pbl\n" : "%*pb\n", cpumask_pr_args(mask));
-}
-EXPORT_SYMBOL(cpumap_print_to_pagebuf);
