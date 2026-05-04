@@ -1211,6 +1211,21 @@ static inline bool should_skip_kasan_poison(struct page *page)
 	return page_kasan_tag(page) == KASAN_TAG_KERNEL;
 }
 
+static void clear_highpages_kasan_tagged(struct page *page, int numpages)
+{
+	/* s390's use of memset() could override KASAN redzones. */
+	kasan_disable_current();
+	if (!IS_ENABLED(CONFIG_HIGHMEM)) {
+		clear_pages(kasan_reset_tag(page_address(page)), numpages);
+	} else {
+		int i;
+
+		for (i = 0; i < numpages; i++)
+			clear_highpage_kasan_tagged(page + i);
+	}
+	kasan_enable_current();
+}
+
 #ifdef CONFIG_MEM_ALLOC_PROFILING
 
 /* Should be called only if mem_alloc_profiling_enabled() */
