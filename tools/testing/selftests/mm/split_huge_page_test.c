@@ -610,10 +610,7 @@ static int create_pagecache_thp_and_fd(const char *testfile, size_t fd_size,
 	for (i = 0; i < sizeof(buf); i++)
 		buf[i] = (unsigned char)i;
 	for (i = 0; i < fd_size; i += sizeof(buf)) {
-		ssize_t written;
-
-		written = write(*fd, buf, sizeof(buf));
-		if (written != sizeof(buf)) {
+		if (write(*fd, buf, sizeof(buf)) != sizeof(buf)) {
 			ksft_perror("write testfile");
 			close(*fd);
 			goto err_out_unlink;
