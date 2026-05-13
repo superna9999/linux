@@ -122,7 +122,7 @@ static void chunk_map_stats(struct seq_file *m, struct pcpu_chunk *chunk,
 	P("empty_pop_pages", chunk->nr_empty_pop_pages);
 	P("first_bit", chunk_md->first_free);
 	P("free_bytes", chunk->free_bytes);
-	P("contig_bytes", chunk_md->contig_hint * PCPU_MIN_ALLOC_SIZE);
+	P("contig_bytes", chunk_md->contig_hint.size * PCPU_MIN_ALLOC_SIZE);
 	P("sum_frag", sum_frag);
 	P("max_frag", max_frag);
 	P("cur_min_alloc", cur_min_alloc);

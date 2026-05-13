@@ -7,23 +7,29 @@
 #include <linux/memcontrol.h>
 
 /*
+ * pcpu region represents a hint region.
+ * A region is only valid when @size is greater than 0.
+ */
+struct pcpu_region {
+	int start;
+	int size;
+};
+
+/*
  * pcpu_block_md is the metadata block struct.
  * Each chunk's bitmap is split into a number of full blocks.
  * All units are in terms of bits.
  *
  * The scan hint is the largest known contiguous area before the contig hint.
  * It is not necessarily the actual largest contig hint though.  There is an
- * invariant that the scan_hint_start > contig_hint_start iff
- * scan_hint == contig_hint.  This is necessary because when scanning forward,
- * we don't know if a new contig hint would be better than the current one.
+ * invariant that the scan_hint.start > contig_hint.start iff
+ * scan_hint.size == contig_hint.size.  This is necessary because when scanning
+ * forward, we don't know if a new contig hint would be better than the current
+ * one.
  */
 struct pcpu_block_md {
-	int			scan_hint;	/* scan hint for block */
-	int			scan_hint_start; /* block relative starting
-						    position of the scan hint */
-	int                     contig_hint;    /* contig hint for block */
-	int                     contig_hint_start; /* block relative starting
-						      position of the contig hint */
+	struct pcpu_region	scan_hint;	/* scan hint for block */
+	struct pcpu_region	contig_hint;	/* contig hint for block */
 	int                     left_free;      /* size of free space along
 						   the left side of the block */
 	int                     right_free;     /* size of free space along
