@@ -2048,6 +2048,9 @@ err_probed_crt:
 	framebuffer_release(info->fb[HEAD_CRT]);
 
 err_alloc:
+#if defined(CONFIG_OF)
+	kfree(info->edid_data);
+#endif
 	kfree(info);
 
 	return ret;
