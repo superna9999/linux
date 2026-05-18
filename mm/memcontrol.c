@@ -142,14 +142,24 @@ static void obj_cgroup_release(struct percpu_ref *ref)
 	struct obj_cgroup *objcg = container_of(ref, struct obj_cgroup, refcnt);
 	unsigned int nr_bytes;
 	unsigned int nr_pages;
+	unsigned int sub_bytes;
 	unsigned long flags;
 
 	/*
-	 * At this point all allocated objects are freed, and
-	 * objcg->nr_charged_bytes can't have an arbitrary byte value.
-	 * However, it can be PAGE_SIZE or (x * PAGE_SIZE).
+	 * At this point all allocated objects are freed, but
+	 * objcg->nr_charged_bytes can still hold either
+	 *   - (x * PAGE_SIZE)  if a small-alloc/drain race left whole pages
+	 *     stranded (see the historical sequence below), or
+	 *   - any sub-page residue, now that the stock is keyed by memcg and
+	 *     sibling per-node objcgs share its reserve: bytes consumed by
+	 *     one sibling can spill into another sibling's nr_charged_bytes
+	 *     when the stock is drained.
 	 *
-	 * The following sequence can lead to it:
+	 * Uncharge the page-aligned portion from this objcg's (post-reparent)
+	 * memcg, and forward any sub-page residue into a per-node objcg of
+	 * the same memcg so it can be reconciled later instead of being lost.
+	 *
+	 * Historical race producing the (x * PAGE_SIZE) case:
 	 * 1) CPU0: objcg == stock->cached_objcg
 	 * 2) CPU1: we do a small allocation (e.g. 92 bytes),
 	 *          PAGE_SIZE bytes are charged
@@ -160,23 +170,33 @@ static void obj_cgroup_release(struct percpu_ref *ref)
 	 *          92 bytes are added to stock->nr_bytes
 	 * 6) CPU0: stock is flushed,
 	 *          92 bytes are added to objcg->nr_charged_bytes
-	 *
-	 * In the result, nr_charged_bytes == PAGE_SIZE.
-	 * This page will be uncharged in obj_cgroup_release().
 	 */
 	nr_bytes = atomic_read(&objcg->nr_charged_bytes);
-	WARN_ON_ONCE(nr_bytes & (PAGE_SIZE - 1));
 	nr_pages = nr_bytes >> PAGE_SHIFT;
+	sub_bytes = nr_bytes & (PAGE_SIZE - 1);
 
-	if (nr_pages) {
+	if (nr_pages || sub_bytes) {
 		struct mem_cgroup *memcg;
 
-		memcg = get_mem_cgroup_from_objcg(objcg);
-		mod_memcg_state(memcg, MEMCG_KMEM, -nr_pages);
-		memcg1_account_kmem(memcg, -nr_pages);
-		if (!mem_cgroup_is_root(memcg))
-			memcg_uncharge(memcg, nr_pages);
-		mem_cgroup_put(memcg);
+		rcu_read_lock();
+		memcg = obj_cgroup_memcg(objcg);
+
+		if (nr_pages) {
+			mod_memcg_state(memcg, MEMCG_KMEM, -nr_pages);
+			memcg1_account_kmem(memcg, -nr_pages);
+			if (!mem_cgroup_is_root(memcg))
+				memcg_uncharge(memcg, nr_pages);
+		}
+
+		if (sub_bytes && !mem_cgroup_is_root(memcg)) {
+			struct obj_cgroup *fwd;
+
+			fwd = rcu_dereference(
+				memcg->nodeinfo[numa_node_id()]->objcg);
+			if (fwd)
+				atomic_add(sub_bytes, &fwd->nr_charged_bytes);
+		}
+		rcu_read_unlock();
 	}
 
 	spin_lock_irqsave(&objcg_lock, flags);
@@ -3152,7 +3172,12 @@ static void unlock_stock(struct obj_stock_pcp *stock)
 		local_unlock(&obj_stock.lock);
 }
 
-/* Call after __refill_obj_stock() to ensure stock->cached_objg == objcg */
+/*
+ * Call after __consume_obj_stock() / __refill_obj_stock(). The stock may be
+ * cached for a sibling per-node objcg of the same memcg; in that case the
+ * vmstat batching slot does not match objcg and we fallthrough to the
+ * direct path.
+ */
 static void __account_obj_stock(struct obj_cgroup *objcg,
 				struct obj_stock_pcp *stock, int nr,
 				struct pglist_data *pgdat, enum node_stat_item idx)
@@ -3210,7 +3235,11 @@ static bool __consume_obj_stock(struct obj_cgroup *objcg,
 				struct obj_stock_pcp *stock,
 				unsigned int nr_bytes)
 {
-	if (objcg == READ_ONCE(stock->cached_objcg) &&
+	struct obj_cgroup *cached = READ_ONCE(stock->cached_objcg);
+
+	/* Sibling per-node objcgs share the reserve. */
+	if ((cached == objcg ||
+	     (cached && READ_ONCE(cached->memcg) == READ_ONCE(objcg->memcg))) &&
 	    stock->nr_bytes >= nr_bytes) {
 		stock->nr_bytes -= nr_bytes;
 		return true;
@@ -3318,6 +3347,7 @@ static void __refill_obj_stock(struct obj_cgroup *objcg,
 			       unsigned int nr_bytes,
 			       bool allow_uncharge)
 {
+	struct obj_cgroup *cached;
 	unsigned int nr_pages = 0;
 
 	if (!stock) {
@@ -3327,7 +3357,10 @@ static void __refill_obj_stock(struct obj_cgroup *objcg,
 		goto out;
 	}
 
-	if (READ_ONCE(stock->cached_objcg) != objcg) { /* reset if necessary */
+	cached = READ_ONCE(stock->cached_objcg);
+	/* Direct READ_ONCE due to just pointer comparison. */
+	if (cached != objcg &&
+	    (!cached || READ_ONCE(cached->memcg) != READ_ONCE(objcg->memcg))) {
 		drain_obj_stock(stock);
 		obj_cgroup_get(objcg);
 		stock->nr_bytes = atomic_read(&objcg->nr_charged_bytes)
