@@ -4,6 +4,10 @@ ccflags-y			+= -I $(src)
 
 ccflags-y			+= -I $(src)
 
+ifeq ($(CONFIG_RAID6_PQ_ARCH),y)
+CFLAGS_algos.o			+= -I$(src)/$(SRCARCH)
+endif
+
 obj-$(CONFIG_RAID6_PQ)		+= raid6_pq.o tests/
 
 raid6_pq-y			+= algos.o tables.o
