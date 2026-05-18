@@ -2,6 +2,8 @@
 
 ccflags-y			+= -I $(src)
 
+ccflags-y			+= -I $(src)
+
 obj-$(CONFIG_RAID6_PQ)		+= raid6_pq.o tests/
 
 raid6_pq-y			+= algos.o tables.o
