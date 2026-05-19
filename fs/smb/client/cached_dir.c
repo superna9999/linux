@@ -691,9 +691,11 @@ bool cached_dir_lease_break(struct cifs_tcon *tcon, __u8 lease_key[16])
 			cfid->on_list = false;
 			cfids->num_entries--;
 
+			spin_lock(&tcon->tc_lock);
 			++tcon->tc_count;
 			trace_smb3_tcon_ref(tcon->debug_id, tcon->tc_count,
 					    netfs_trace_tcon_ref_get_cached_lease_break);
+			spin_unlock(&tcon->tc_lock);
 			queue_work(cfid_put_wq, &cfid->put_work);
 			spin_unlock(&cfids->cfid_list_lock);
 			return true;
@@ -851,7 +853,9 @@ void free_cached_dirs(struct cached_fids *cfids)
 	if (cfids == NULL)
 		return;
 
+	flush_workqueue(cfid_put_wq);
 	cancel_delayed_work_sync(&cfids->laundromat_work);
+	flush_workqueue(serverclose_wq);
 
 	spin_lock(&cfids->cfid_list_lock);
 	list_for_each_entry_safe(cfid, q, &cfids->entries, entry) {
