@@ -176,6 +176,7 @@ int nvmem_add_one_cell(struct nvmem_device *nvmem,
 
 int nvmem_layout_register(struct nvmem_layout *layout);
 void nvmem_layout_unregister(struct nvmem_layout *layout);
+int nvmem_add_cells_from_dt(struct nvmem_device *nvmem, struct device_node *np);
 
 #define nvmem_layout_driver_register(drv) \
 	__nvmem_layout_driver_register(drv, THIS_MODULE)
@@ -213,6 +214,12 @@ static inline int nvmem_layout_register(struct nvmem_layout *layout)
 }
 
 static inline void nvmem_layout_unregister(struct nvmem_layout *layout) {}
+
+static inline int nvmem_add_cells_from_dt(struct nvmem_device *nvmem,
+					  struct device_node *np)
+{
+	return -EOPNOTSUPP;
+}
 
 #endif /* CONFIG_NVMEM */
 
