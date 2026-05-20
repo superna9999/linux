@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2012-2014, 2018-2025 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2026 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -263,10 +263,10 @@ static const u8 tm_if_types_ext_capa_sta[] = {
  */
 
 #define IWL_MVM_EMLSR_CAPA	(IEEE80211_EML_CAP_EMLSR_SUPP | \
-				 IEEE80211_EML_CAP_EMLSR_PADDING_DELAY_32US << \
-					__bf_shf(IEEE80211_EML_CAP_EMLSR_PADDING_DELAY) | \
+				 IEEE80211_EML_CAP_EML_PADDING_DELAY_32US << \
+					__bf_shf(IEEE80211_EML_CAP_EML_PADDING_DELAY) | \
 				 IEEE80211_EML_CAP_EMLSR_TRANSITION_DELAY_64US << \
-					__bf_shf(IEEE80211_EML_CAP_EMLSR_TRANSITION_DELAY))
+					__bf_shf(IEEE80211_EML_CAP_EML_TRANSITION_DELAY))
 #define IWL_MVM_MLD_CAPA_OPS (FIELD_PREP_CONST( \
 			IEEE80211_MLD_CAP_OP_TID_TO_LINK_MAP_NEG_SUPP, \
 			IEEE80211_MLD_CAP_OP_TID_TO_LINK_MAP_NEG_SUPP_SAME) | \
@@ -3144,7 +3144,7 @@ iwl_mvm_bss_info_changed_ap_ibss(struct iwl_mvm *mvm,
 	    iwl_mvm_mac_ctxt_beacon_changed(mvm, vif, &vif->bss_conf))
 		IWL_WARN(mvm, "Failed updating beacon data\n");
 
-	if (changes & BSS_CHANGED_FTM_RESPONDER) {
+	if ((changes & BSS_CHANGED_FTM_RESPONDER) && bss_conf->ftm_responder) {
 		int ret = iwl_mvm_ftm_start_responder(mvm, vif, &vif->bss_conf);
 
 		if (ret)

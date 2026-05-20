@@ -1133,6 +1133,10 @@ struct ieee80211_link_data {
 
 	struct ieee80211_bss_conf *conf;
 
+	struct {
+		enum ieee80211_sta_rx_bandwidth he_and_lower;
+	} bss_bw;
+
 #ifdef CONFIG_MAC80211_DEBUGFS
 	struct dentry *debugfs_dir;
 #endif
@@ -1786,6 +1790,8 @@ struct ieee802_11_elems {
 	const u8 *ie_start;
 	size_t total_len;
 	u32 crc;
+	u8 frame_type;
+	bool from_ap;
 
 	/* pointers to IEs */
 	const struct ieee80211_tdls_lnkie *lnk_id;
@@ -1969,6 +1975,10 @@ void ieee80211_clear_fast_rx(struct sta_info *sta);
 bool ieee80211_is_our_addr(struct ieee80211_sub_if_data *sdata,
 			   const u8 *addr, int *out_link_id);
 
+/* AP code */
+void ieee80211_ap_rx_queued_frame(struct ieee80211_sub_if_data *sdata,
+				  struct sk_buff *skb);
+
 /* STA code */
 void ieee80211_sta_setup_sdata(struct ieee80211_sub_if_data *sdata);
 int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
@@ -1984,10 +1994,8 @@ void ieee80211_send_pspoll(struct ieee80211_local *local,
 void ieee80211_recalc_ps(struct ieee80211_local *local);
 void ieee80211_recalc_ps_vif(struct ieee80211_sub_if_data *sdata);
 void ieee80211_sta_work(struct ieee80211_sub_if_data *sdata);
-void ieee80211_sta_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
-				  struct sk_buff *skb);
-void ieee80211_sta_rx_queued_ext(struct ieee80211_sub_if_data *sdata,
-				 struct sk_buff *skb);
+void ieee80211_sta_rx_queued_frame(struct ieee80211_sub_if_data *sdata,
+				   struct sk_buff *skb);
 void ieee80211_sta_reset_beacon_monitor(struct ieee80211_sub_if_data *sdata);
 void ieee80211_sta_reset_conn_monitor(struct ieee80211_sub_if_data *sdata);
 void ieee80211_mgd_stop(struct ieee80211_sub_if_data *sdata);
@@ -2093,7 +2101,8 @@ void ieee80211_roc_purge(struct ieee80211_local *local,
 			 struct ieee80211_sub_if_data *sdata);
 int ieee80211_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 				struct ieee80211_channel *chan,
-				unsigned int duration, u64 *cookie);
+				unsigned int duration, u64 *cookie,
+				const u8 *rx_addr);
 int ieee80211_cancel_remain_on_channel(struct wiphy *wiphy,
 				       struct wireless_dev *wdev, u64 cookie);
 int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
@@ -2299,25 +2308,6 @@ ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 				    const struct ieee80211_vht_cap *vht_cap_ie,
 				    const struct ieee80211_vht_cap *vht_cap_ie2,
 				    struct link_sta_info *link_sta);
-enum ieee80211_sta_rx_bandwidth
-_ieee80211_sta_cap_rx_bw(struct link_sta_info *link_sta,
-			 struct cfg80211_chan_def *chandef);
-static inline enum ieee80211_sta_rx_bandwidth
-ieee80211_sta_cap_rx_bw(struct link_sta_info *link_sta)
-{
-	return _ieee80211_sta_cap_rx_bw(link_sta, NULL);
-}
-enum ieee80211_sta_rx_bandwidth
-_ieee80211_sta_cur_vht_bw(struct link_sta_info *link_sta,
-			  struct cfg80211_chan_def *chandef);
-static inline enum ieee80211_sta_rx_bandwidth
-ieee80211_sta_cur_vht_bw(struct link_sta_info *link_sta)
-{
-	return _ieee80211_sta_cur_vht_bw(link_sta, NULL);
-}
-void ieee80211_sta_init_nss(struct link_sta_info *link_sta);
-enum nl80211_chan_width
-ieee80211_sta_cap_chan_bw(struct link_sta_info *link_sta);
 void ieee80211_process_mu_groups(struct ieee80211_sub_if_data *sdata,
 				 struct ieee80211_link_data *link,
 				 struct ieee80211_mgmt *mgmt);
@@ -2331,8 +2321,6 @@ void ieee80211_apply_vhtcap_overrides(struct ieee80211_sub_if_data *sdata,
 				      struct ieee80211_sta_vht_cap *vht_cap);
 void ieee80211_get_vht_mask_from_cap(__le16 vht_cap,
 				     u16 vht_mask[NL80211_VHT_NSS_MAX]);
-enum nl80211_chan_width
-ieee80211_sta_rx_bw_to_chan_width(struct link_sta_info *sta);
 
 /* HE */
 void
@@ -2718,6 +2706,9 @@ void ieee80211_add_s1g_capab_ie(struct ieee80211_sub_if_data *sdata,
 void ieee80211_add_aid_request_ie(struct ieee80211_sub_if_data *sdata,
 				  struct sk_buff *skb);
 
+enum nl80211_chan_width
+ieee80211_sta_rx_bw_to_chan_width(enum ieee80211_sta_rx_bandwidth bw);
+
 /* element building in SKBs */
 int ieee80211_put_srates_elem(struct sk_buff *skb,
 			      const struct ieee80211_supported_band *sband,
@@ -2891,8 +2882,6 @@ void ieee80211_destroy_frag_cache(struct ieee80211_fragment_cache *cache);
 
 u8 ieee80211_ie_len_eht_cap(struct ieee80211_sub_if_data *sdata);
 
-void ieee80211_rx_eml_op_mode_notif(struct ieee80211_sub_if_data *sdata,
-				    struct sk_buff *skb);
 void
 ieee80211_eht_cap_ie_to_sta_eht_cap(struct ieee80211_sub_if_data *sdata,
 				    struct ieee80211_supported_band *sband,
@@ -2900,28 +2889,17 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(struct ieee80211_sub_if_data *sdata,
 				    const struct ieee80211_eht_cap_elem *eht_cap_ie_elem,
 				    u8 eht_cap_len,
 				    struct link_sta_info *link_sta);
-void ieee80211_process_neg_ttlm_req(struct ieee80211_sub_if_data *sdata,
-				    struct ieee80211_mgmt *mgmt, size_t len);
-void ieee80211_process_neg_ttlm_res(struct ieee80211_sub_if_data *sdata,
-				    struct ieee80211_mgmt *mgmt, size_t len);
 int ieee80211_req_neg_ttlm(struct ieee80211_sub_if_data *sdata,
 			   struct cfg80211_ttlm_params *params);
-void ieee80211_process_ttlm_teardown(struct ieee80211_sub_if_data *sdata);
 
 void ieee80211_check_wbrf_support(struct ieee80211_local *local);
 void ieee80211_add_wbrf(struct ieee80211_local *local, struct cfg80211_chan_def *chandef);
 void ieee80211_remove_wbrf(struct ieee80211_local *local, struct cfg80211_chan_def *chandef);
 int ieee80211_mgd_set_epcs(struct ieee80211_sub_if_data *sdata, bool enable);
-void ieee80211_process_epcs_ena_resp(struct ieee80211_sub_if_data *sdata,
-				     struct ieee80211_mgmt *mgmt, size_t len);
-void ieee80211_process_epcs_teardown(struct ieee80211_sub_if_data *sdata,
-				     struct ieee80211_mgmt *mgmt, size_t len);
 
 int ieee80211_mgd_assoc_ml_reconf(struct ieee80211_sub_if_data *sdata,
 				  struct cfg80211_ml_reconf_req *req);
 
-void ieee80211_process_ml_reconf_resp(struct ieee80211_sub_if_data *sdata,
-				      struct ieee80211_mgmt *mgmt, size_t len);
 void ieee80211_stop_mbssid(struct ieee80211_sub_if_data *sdata);
 
 void
