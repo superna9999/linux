@@ -120,17 +120,7 @@ unsigned long pci_hotplug_bus_size = DEFAULT_HOTPLUG_BUS_SIZE;
 
 
 /* PCIe MPS/MRRS strategy; can be overridden by kernel command-line param */
-#ifdef CONFIG_PCIE_BUS_TUNE_OFF
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_TUNE_OFF;
-#elif defined CONFIG_PCIE_BUS_SAFE
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_SAFE;
-#elif defined CONFIG_PCIE_BUS_PERFORMANCE
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_PERFORMANCE;
-#elif defined CONFIG_PCIE_BUS_PEER2PEER
-enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_PEER2PEER;
-#else
 enum pcie_bus_config_types pcie_bus_config = PCIE_BUS_DEFAULT;
-#endif
 
 /*
  * The default CLS is used if arch didn't set CLS explicitly and not
@@ -1513,9 +1503,6 @@ static int pci_set_low_power_state(struct pci_dev *dev, pci_power_t state, bool 
 		pci_info_ratelimited(dev, "Refused to change power state from %s to %s\n",
 				     pci_power_name(dev->current_state),
 				     pci_power_name(state));
-
-	if (dev->bus->self)
-		pcie_aspm_pm_state_change(dev->bus->self, locked);
 
 	return 0;
 }
@@ -5770,8 +5757,7 @@ int pcix_set_mmrbc(struct pci_dev *dev, int mmrbc)
 		if (v > o && (dev->bus->bus_flags & PCI_BUS_FLAGS_NO_MMRBC))
 			return -EIO;
 
-		cmd &= ~PCI_X_CMD_MAX_READ;
-		cmd |= FIELD_PREP(PCI_X_CMD_MAX_READ, v);
+		FIELD_MODIFY(PCI_X_CMD_MAX_READ, &cmd, v);
 		if (pci_write_config_word(dev, cap + PCI_X_CMD, cmd))
 			return -EIO;
 	}
