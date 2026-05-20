@@ -1058,7 +1058,6 @@ static bool iomap_write_end_inline(const struct iomap_iter *iter,
 	void *addr;
 
 	WARN_ON_ONCE(!folio_test_uptodate(folio));
-	BUG_ON(!iomap_inline_data_valid(iomap));
 
 	if (WARN_ON_ONCE(!iomap->inline_data))
 		return false;
@@ -1542,6 +1541,8 @@ static int iomap_zero_iter(struct iomap_iter *iter, bool *did_zero,
 		struct folio *folio;
 		size_t offset;
 		bool ret;
+
+		balance_dirty_pages_ratelimited(iter->inode->i_mapping);
 
 		bytes = min_t(u64, SIZE_MAX, bytes);
 		status = iomap_write_begin(iter, write_ops, &folio, &offset,
