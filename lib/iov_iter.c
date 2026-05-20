@@ -1807,7 +1807,8 @@ static ssize_t iov_iter_extract_user_pages(struct iov_iter *i,
  *  (*) Use with ITER_DISCARD is not supported as that has no content.
  *
  * On success, the function sets *@pages to the new pagelist, if allocated, and
- * sets *offset0 to the offset into the first page.
+ * sets *offset0 to the offset into the first page. On error, new pagelist
+ * is freed if was allocated, and *@pages sets back to its original value.
  *
  * It may also return -ENOMEM and -EFAULT.
  */
@@ -1818,31 +1819,42 @@ ssize_t iov_iter_extract_pages(struct iov_iter *i,
 			       iov_iter_extraction_t extraction_flags,
 			       size_t *offset0)
 {
+	struct page **oldpages = *pages;
+	int ret;
+
 	maxsize = min_t(size_t, min_t(size_t, maxsize, i->count), MAX_RW_COUNT);
 	if (!maxsize)
 		return 0;
 
 	if (likely(user_backed_iter(i)))
-		return iov_iter_extract_user_pages(i, pages, maxsize,
-						   maxpages, extraction_flags,
-						   offset0);
-	if (iov_iter_is_kvec(i))
-		return iov_iter_extract_kvec_pages(i, pages, maxsize,
-						   maxpages, extraction_flags,
-						   offset0);
-	if (iov_iter_is_bvec(i))
-		return iov_iter_extract_bvec_pages(i, pages, maxsize,
-						   maxpages, extraction_flags,
-						   offset0);
-	if (iov_iter_is_folioq(i))
-		return iov_iter_extract_folioq_pages(i, pages, maxsize,
-						     maxpages, extraction_flags,
-						     offset0);
-	if (iov_iter_is_xarray(i))
-		return iov_iter_extract_xarray_pages(i, pages, maxsize,
-						     maxpages, extraction_flags,
-						     offset0);
-	return -EFAULT;
+		ret = iov_iter_extract_user_pages(i, pages, maxsize,
+						  maxpages, extraction_flags,
+						  offset0);
+	else if (iov_iter_is_kvec(i))
+		ret = iov_iter_extract_kvec_pages(i, pages, maxsize,
+						  maxpages, extraction_flags,
+						  offset0);
+	else if (iov_iter_is_bvec(i))
+		ret = iov_iter_extract_bvec_pages(i, pages, maxsize,
+						  maxpages, extraction_flags,
+						  offset0);
+	else if (iov_iter_is_folioq(i))
+		ret = iov_iter_extract_folioq_pages(i, pages, maxsize,
+						    maxpages, extraction_flags,
+						    offset0);
+	else if (iov_iter_is_xarray(i))
+		ret = iov_iter_extract_xarray_pages(i, pages, maxsize,
+						    maxpages, extraction_flags,
+						    offset0);
+	else
+		ret = -EFAULT;
+
+	if (unlikely(ret) && *pages && *pages != oldpages) {
+		kvfree(*pages);
+		*pages = oldpages;
+	}
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(iov_iter_extract_pages);
 

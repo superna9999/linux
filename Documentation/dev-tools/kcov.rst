@@ -246,6 +246,8 @@ KCOV supports collecting remote coverage from the following contexts:
 2. Local kernel background tasks. These are spawned when a userspace process
    interacts with some kernel interface and are usually killed when the process
    exits (e.g. vhost workers).
+   This can be combined with another KCOV instance that is configured for normal
+   coverage collection.
 
 3. Soft interrupts.
 
@@ -262,6 +264,9 @@ gets saved to the ``kcov_handle`` field in the current ``task_struct`` and
 needs to be passed to the newly spawned local tasks via custom kernel code
 modifications. Those tasks should in turn use the passed handle in their
 ``kcov_remote_start`` and ``kcov_remote_stop`` annotations.
+In the kernel, common handles are wrapped in a ``kcov_common_handle_id``, which
+consumes no space in builds without ``CONFIG_KCOV``; subsystems that integrate
+with this mechanism should not need to use any ``#ifdef CONFIG_KCOV`` or such.
 
 KCOV follows a predefined format for both global and common handles. Each
 handle is a ``u64`` integer. Currently, only the one top and the lower 4 bytes
