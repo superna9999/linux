@@ -2258,22 +2258,22 @@ int security_inode_setsecurity(struct inode *inode, const char *name,
 /**
  * security_inode_listsecurity() - List the xattr security label names
  * @inode: inode
- * @buffer: buffer
- * @buffer_size: size of buffer
+ * @buffer: pointer to buffer
+ * @remaining_size: pointer to remaining size of buffer
  *
  * Copy the extended attribute names for the security labels associated with
- * @inode into @buffer.  The maximum size of @buffer is specified by
- * @buffer_size.  @buffer may be NULL to request the size of the buffer
- * required.
+ * @inode into *(@buffer).  The remaining size of @buffer is specified by
+ * *(@remaining_size).  *(@buffer) may be NULL to request the size of the
+ * buffer required. Updates *(@buffer) and *(@remaining_size).
  *
- * Return: Returns number of bytes used/required on success.
+ * Return: Returns 0 on success, or -errno on failure.
  */
 int security_inode_listsecurity(struct inode *inode,
-				char *buffer, size_t buffer_size)
+				char **buffer, ssize_t *remaining_size)
 {
 	if (unlikely(IS_PRIVATE(inode)))
 		return 0;
-	return call_int_hook(inode_listsecurity, inode, buffer, buffer_size);
+	return call_int_hook(inode_listsecurity, inode, buffer, remaining_size);
 }
 EXPORT_SYMBOL(security_inode_listsecurity);
 
@@ -5356,6 +5356,50 @@ int security_bpf_map_create(struct bpf_map *map, union bpf_attr *attr,
 }
 
 /**
+ * security_bpf_prog_load_post_integrity() - Check if the BPF prog is allowed
+ * @prog: BPF program object
+ * @attr: BPF syscall attributes used to create BPF program
+ * @token: BPF token used to grant user access to BPF subsystem
+ * @kernel: whether or not call originated from kernel
+ * @lsmid: LSM ID of the LSM providing @verdict
+ * @verdict: result of the integrity verification
+ *
+ * See the comment block for the security_bpf_prog_load() LSM hook.
+ *
+ * This LSM hook is intended to be called from within the
+ * bpf_prog_load_integrity() callback that is part of the
+ * security_bpf_prog_load() hook; kernel subsystems outside the scope of the
+ * LSM framework should not call this hook directly.
+ *
+ * If the LSM calling into this hook receives a non-zero error code, it should
+ * return the same error code back to its caller.  If this hook returns a zero,
+ * it does not necessarily mean that all of the enabled LSMs have authorized
+ * the BPF program load, as there may be other LSMs implementing BPF integrity
+ * checks which have yet to execute.  However, if a zero is returned, the LSM
+ * calling into this hook should continue and return zero back to its caller.
+ *
+ * LSMs which implement the bpf_prog_load_post_integrity() callback and
+ * determine that a particular BPF program load is not authorized may choose to
+ * either return an error code for immediate rejection, or store their decision
+ * in their own LSM state attached to @prog, later returning an error code in
+ * the bpf_prog_load() callback.  An immediate error code return is in keeping
+ * with the "fail fast" practice, but waiting until the bpf_prog_load()
+ * callback allows the LSM to consider multiple different integrity verdicts.
+ *
+ * Return: Returns 0 on success, error on failure.
+ */
+int security_bpf_prog_load_post_integrity(struct bpf_prog *prog,
+					  union bpf_attr *attr,
+					  struct bpf_token *token,
+					  bool kernel,
+					  const struct lsm_id *lsmid,
+					  enum lsm_integrity_verdict verdict)
+{
+	return call_int_hook(bpf_prog_load_post_integrity, prog, attr, token,
+			     kernel, lsmid, verdict);
+}
+
+/**
  * security_bpf_prog_load() - Check if loading of BPF program is allowed
  * @prog: BPF program object
  * @attr: BPF syscall attributes used to create BPF program
@@ -5363,8 +5407,24 @@ int security_bpf_map_create(struct bpf_map *map, union bpf_attr *attr,
  * @kernel: whether or not call originated from kernel
  *
  * Perform an access control check when the kernel loads a BPF program and
- * allocates associated BPF program object. This hook is also responsible for
- * allocating any required LSM state for the BPF program.
+ * allocates the associated BPF program object. This hook is also responsible
+ * for allocating any required LSM state for the BPF program.
+ *
+ * This hook calls two LSM callbacks: bpf_prog_load_integrity() and
+ * bpf_prog_load().  The bpf_prog_load_integrity() callback is for those LSMs
+ * that wish to implement integrity verifications of BPF programs, e.g.
+ * signature verification, while the bpf_prog_load() callback is for general
+ * authorization of the BPF program load.  Performing both verification and
+ * authorization in a single callback, with arbitrary LSM ordering, would be
+ * a challenge.
+ *
+ * LSMs which implement the bpf_prog_load_integrity() callback should call into
+ * the security_bpf_prog_load_post_integrity() hook with their integrity
+ * verdict.  LSMs which implement BPF program integrity policy can register a
+ * callback for the security_bpf_prog_load_post_integrity() hook and
+ * either update their own internal state based on the verdict, or immediately
+ * reject the BPF program load with an error code.  See the comment block for
+ * security_bpf_prog_load_post_integrity() for more information.
  *
  * Return: Returns 0 on success, error on failure.
  */
@@ -5377,9 +5437,18 @@ int security_bpf_prog_load(struct bpf_prog *prog, union bpf_attr *attr,
 	if (unlikely(rc))
 		return rc;
 
+	rc = call_int_hook(bpf_prog_load_integrity, prog, attr, token, kernel);
+	if (unlikely(rc))
+		goto err;
+
 	rc = call_int_hook(bpf_prog_load, prog, attr, token, kernel);
 	if (unlikely(rc))
-		security_bpf_prog_free(prog);
+		goto err;
+
+	return rc;
+
+err:
+	security_bpf_prog_free(prog);
 	return rc;
 }
 

@@ -340,3 +340,66 @@ int ipe_inode_setintegrity(const struct inode *inode,
 	return -EINVAL;
 }
 #endif /* CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG */
+
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+/**
+ * ipe_bpf_prog_load_post_integrity() - Store integrity verdict in per-prog blob.
+ * @prog: Supplies the BPF program being loaded.
+ * @attr: Supplies the bpf syscall attributes.
+ * @token: Supplies the BPF token, if any.
+ * @kernel: Whether the call originated from the kernel.
+ * @lsmid: Supplies the LSM ID of the integrity provider.
+ * @verdict: Supplies the integrity verdict from the provider (e.g. Hornet).
+ *
+ * This hook stores the integrity verdict in IPE's per-prog security blob
+ * so that ipe_bpf_prog_load() can later read it for policy evaluation.
+ *
+ * Return:
+ * * %0		- Always succeeds (policy is evaluated in bpf_prog_load)
+ */
+int ipe_bpf_prog_load_post_integrity(struct bpf_prog *prog,
+				     union bpf_attr *attr,
+				     struct bpf_token *token,
+				     bool kernel,
+				     const struct lsm_id *lsmid,
+				     enum lsm_integrity_verdict verdict)
+{
+	struct ipe_bpf_prog *blob = ipe_bpf_prog(prog);
+
+	blob->verdict = verdict;
+
+	return 0;
+}
+
+/**
+ * ipe_bpf_prog_load() - IPE policy evaluation for BPF program load.
+ * @prog: Supplies the BPF program being loaded.
+ * @attr: Supplies the bpf syscall attributes.
+ * @token: Supplies the BPF token, if any.
+ * @kernel: Whether the call originated from the kernel.
+ *
+ * Reads the integrity verdict previously stored by post_integrity (if any)
+ * and evaluates IPE policy. If no integrity provider ran, the verdict
+ * defaults to LSM_INT_VERDICT_NONE.
+ *
+ * Return:
+ * * %0		- Success
+ * * %-EACCES	- Did not pass IPE policy
+ */
+int ipe_bpf_prog_load(struct bpf_prog *prog,
+		      union bpf_attr *attr,
+		      struct bpf_token *token,
+		      bool kernel)
+{
+	struct ipe_bpf_prog *blob = ipe_bpf_prog(prog);
+	struct ipe_eval_ctx ctx = IPE_EVAL_CTX_INIT;
+
+	ctx.op = IPE_OP_BPF_PROG_LOAD;
+	ctx.hook = IPE_HOOK_BPF_PROG_LOAD;
+	ctx.bpf_verdict = blob->verdict;
+	ctx.bpf_keyring_id = attr->keyring_id;
+	ctx.bpf_kernel = kernel;
+
+	return ipe_evaluate_event(&ctx);
+}
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */

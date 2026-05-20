@@ -95,6 +95,21 @@ config IPE_PROP_FS_VERITY_BUILTIN_SIG
 
 	  if unsure, answer Y.
 
+config IPE_PROP_BPF_SIGNATURE
+	bool "Enable support for Hornet BPF program signature verification"
+	depends on SECURITY_HORNET
+	help
+	  This option enables the 'bpf_signature', 'bpf_kernel' and
+	  'bpf_keyring' properties within IPE policies. The
+	  'bpf_signature' property allows IPE to make policy decisions
+	  based on the integrity verdict provided by the Hornet LSM
+	  when a BPF program is loaded.  Verdicts include OK,
+	  UNSIGNED, PARTIALSIG, BADSIG, and others.  The 'bpf_keyring'
+	  property allows policies to match against the keyring
+	  specified in bpf_attr (BUILTIN, SECONDARY, PLATFORM).
+
+	  If unsure, answer Y.
+
 endmenu
 
 config SECURITY_IPE_KUNIT_TEST

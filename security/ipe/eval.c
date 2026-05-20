@@ -11,6 +11,7 @@
 #include <linux/rcupdate.h>
 #include <linux/moduleparam.h>
 #include <linux/fsverity.h>
+#include <linux/verification.h>
 
 #include "ipe.h"
 #include "eval.h"
@@ -265,6 +266,72 @@ static bool evaluate_fsv_sig_true(const struct ipe_eval_ctx *const ctx)
 }
 #endif /* CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG */
 
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+/**
+ * evaluate_bpf_sig() - Evaluate @ctx against a bpf_signature property.
+ * @ctx: Supplies a pointer to the context being evaluated.
+ * @expected: The expected lsm_integrity_verdict to match against.
+ *
+ * Return:
+ * * %true	- The current @ctx matches the expected verdict
+ * * %false	- The current @ctx doesn't match the expected verdict
+ */
+static bool evaluate_bpf_sig(const struct ipe_eval_ctx *const ctx,
+			     enum lsm_integrity_verdict expected)
+{
+	return ctx->bpf_verdict == expected;
+}
+#else
+static bool evaluate_bpf_sig(const struct ipe_eval_ctx *const ctx,
+			     enum lsm_integrity_verdict expected)
+{
+	return false;
+}
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
+
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+/**
+ * evaluate_bpf_keyring() - Evaluate @ctx against a bpf_keyring property.
+ * @ctx: Supplies a pointer to the context being evaluated.
+ * @expected: The expected keyring_id to match against.
+ *
+ * Return:
+ * * %true	- The current @ctx matches the expected keyring
+ * * %false	- The current @ctx doesn't match the expected keyring
+ */
+static bool evaluate_bpf_keyring(const struct ipe_eval_ctx *const ctx,
+				 s32 expected)
+{
+	return ctx->bpf_keyring_id == expected;
+}
+#else
+static bool evaluate_bpf_keyring(const struct ipe_eval_ctx *const ctx,
+				 s32 expected)
+{
+	return false;
+}
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
+
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+/**
+ * evaluate_bpf_kernel() - Evaluate @ctx against the bpf_kernel property.
+ * @ctx: Supplies a pointer to the context being evaluated.
+ *
+ * Return:
+ * * %true	- The current @ctx bpf_kernel property is true
+ * * %false	- The current @ctx bpf_kernel property is false
+ */
+static bool evaluate_bpf_kernel(const struct ipe_eval_ctx *const ctx)
+{
+	return ctx->bpf_kernel;
+}
+#else
+static bool evaluate_bpf_kernel(const struct ipe_eval_ctx *const ctx)
+{
+	return false;
+}
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
+
 /**
  * evaluate_property() - Analyze @ctx against a rule property.
  * @ctx: Supplies a pointer to the context to be evaluated.
@@ -297,6 +364,32 @@ static bool evaluate_property(const struct ipe_eval_ctx *const ctx,
 		return evaluate_fsv_sig_false(ctx);
 	case IPE_PROP_FSV_SIG_TRUE:
 		return evaluate_fsv_sig_true(ctx);
+	case IPE_PROP_BPF_SIG_NONE:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_NONE);
+	case IPE_PROP_BPF_SIG_OK:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_OK);
+	case IPE_PROP_BPF_SIG_UNSIGNED:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_UNSIGNED);
+	case IPE_PROP_BPF_SIG_PARTIALSIG:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_PARTIALSIG);
+	case IPE_PROP_BPF_SIG_UNKNOWNKEY:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_UNKNOWNKEY);
+	case IPE_PROP_BPF_SIG_UNEXPECTED:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_UNEXPECTED);
+	case IPE_PROP_BPF_SIG_FAULT:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_FAULT);
+	case IPE_PROP_BPF_SIG_BADSIG:
+		return evaluate_bpf_sig(ctx, LSM_INT_VERDICT_BADSIG);
+	case IPE_PROP_BPF_KEYRING_BUILTIN:
+		return evaluate_bpf_keyring(ctx, 0);
+	case IPE_PROP_BPF_KEYRING_SECONDARY:
+		return evaluate_bpf_keyring(ctx, (s32)(unsigned long)VERIFY_USE_SECONDARY_KEYRING);
+	case IPE_PROP_BPF_KEYRING_PLATFORM:
+		return evaluate_bpf_keyring(ctx, (s32)(unsigned long)VERIFY_USE_PLATFORM_KEYRING);
+	case IPE_PROP_BPF_KERNEL_FALSE:
+		return !evaluate_bpf_kernel(ctx);
+	case IPE_PROP_BPF_KERNEL_TRUE:
+		return evaluate_bpf_kernel(ctx);
 	default:
 		return false;
 	}

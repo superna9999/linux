@@ -64,6 +64,7 @@ subdir-$(CONFIG_GENKSYMS) += genksyms
 subdir-$(CONFIG_GENDWARFKSYMS) += gendwarfksyms
 subdir-$(CONFIG_SECURITY_SELINUX) += selinux
 subdir-$(CONFIG_SECURITY_IPE) += ipe
+subdir-$(CONFIG_SECURITY_HORNET) += hornet
 
 # Let clean descend into subdirs
 subdir-	+= basic dtc gdb kconfig mod
