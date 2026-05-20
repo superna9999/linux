@@ -63,7 +63,7 @@ static void iris_vpu_setup_ucregion_memory_map(struct iris_core *core)
 	writel(QTBL_ENABLE, core->reg_base + QTBL_INFO);
 
 	if (core->sfr_daddr) {
-		value = (u32)core->sfr_daddr + core->iris_platform_data->core_arch;
+		value = (u32)core->sfr_daddr + core->iris_firmware_data->core_arch;
 		writel(value, core->reg_base + SFR_ADDR);
 	}
 
@@ -149,7 +149,7 @@ int iris_vpu_prepare_pc(struct iris_core *core)
 	if (!wfi_status || !idle_status)
 		goto skip_power_off;
 
-	ret = core->hfi_ops->sys_pc_prep(core);
+	ret = core->hfi_sys_ops->sys_pc_prep(core);
 	if (ret)
 		goto skip_power_off;
 
@@ -472,7 +472,7 @@ int iris_vpu_power_on(struct iris_core *core)
 
 	iris_opp_set_rate(core->dev, freq);
 
-	core->iris_platform_data->set_preset_registers(core);
+	iris_vpu_set_preset_registers(core);
 
 	iris_vpu_interrupt_init(core);
 	core->intr_status = 0;
@@ -488,4 +488,9 @@ err:
 	dev_err(core->dev, "power on failed\n");
 
 	return ret;
+}
+
+void iris_vpu_set_preset_registers(struct iris_core *core)
+{
+	writel(0x0, core->reg_base + 0xb0088);
 }

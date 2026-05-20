@@ -12,7 +12,6 @@
 struct iris_core;
 struct iris_inst;
 
-#define IRIS_PAS_ID				9
 #define HW_RESPONSE_TIMEOUT_VALUE               (1000) /* milliseconds */
 #define AUTOSUSPEND_DELAY_VALUE			(HW_RESPONSE_TIMEOUT_VALUE + 500) /* milliseconds */
 
@@ -40,6 +39,9 @@ enum pipe_type {
 	PIPE_2 = 2,
 	PIPE_4 = 4,
 };
+
+extern const struct iris_firmware_data iris_hfi_gen1_data;
+extern const struct iris_firmware_data iris_hfi_gen2_data;
 
 extern const struct iris_platform_data qcs8300_data;
 extern const struct iris_platform_data sc7280_data;
@@ -73,16 +75,6 @@ struct tz_cp_config {
 	u32 cp_size;
 	u32 cp_nonpixel_start;
 	u32 cp_nonpixel_size;
-};
-
-struct ubwc_config_data {
-	u32	max_channels;
-	u32	mal_length;
-	u32	highest_bank_bit;
-	u32	bank_swzl_level;
-	u32	bank_swz2_level;
-	u32	bank_swz3_level;
-	u32	bank_spreading;
 };
 
 struct platform_inst_caps {
@@ -212,13 +204,66 @@ enum platform_pm_domain_type {
 	IRIS_APV_HW_POWER_DOMAIN,
 };
 
-struct iris_platform_data {
-	void (*init_hfi_command_ops)(struct iris_core *core);
-	void (*init_hfi_response_ops)(struct iris_core *core);
-	struct iris_inst *(*get_instance)(void);
+struct iris_firmware_data {
+	void (*init_hfi_ops)(struct iris_core *core);
+
+	u32 core_arch;
+
+	const struct platform_inst_fw_cap *inst_fw_caps_dec;
+	u32 inst_fw_caps_dec_size;
+	const struct platform_inst_fw_cap *inst_fw_caps_enc;
+	u32 inst_fw_caps_enc_size;
+
+	const u32 *dec_input_config_params_default;
+	unsigned int dec_input_config_params_default_size;
+	const u32 *dec_input_config_params_hevc;
+	unsigned int dec_input_config_params_hevc_size;
+	const u32 *dec_input_config_params_vp9;
+	unsigned int dec_input_config_params_vp9_size;
+	const u32 *dec_input_config_params_av1;
+	unsigned int dec_input_config_params_av1_size;
+	const u32 *dec_output_config_params;
+	unsigned int dec_output_config_params_size;
+	const u32 *enc_input_config_params;
+	unsigned int enc_input_config_params_size;
+	const u32 *enc_output_config_params;
+	unsigned int enc_output_config_params_size;
+
+	const u32 *dec_input_prop;
+	unsigned int dec_input_prop_size;
+	const u32 *dec_output_prop_avc;
+	unsigned int dec_output_prop_avc_size;
+	const u32 *dec_output_prop_hevc;
+	unsigned int dec_output_prop_hevc_size;
+	const u32 *dec_output_prop_vp9;
+	unsigned int dec_output_prop_vp9_size;
+	const u32 *dec_output_prop_av1;
+	unsigned int dec_output_prop_av1_size;
+
+	const u32 *dec_ip_int_buf_tbl;
+	unsigned int dec_ip_int_buf_tbl_size;
+	const u32 *dec_op_int_buf_tbl;
+	unsigned int dec_op_int_buf_tbl_size;
+	const u32 *enc_ip_int_buf_tbl;
+	unsigned int enc_ip_int_buf_tbl_size;
+	const u32 *enc_op_int_buf_tbl;
+	unsigned int enc_op_int_buf_tbl_size;
+};
+
+struct iris_firmware_desc {
+	const struct iris_firmware_data *firmware_data;
 	u32 (*get_vpu_buffer_size)(struct iris_inst *inst, enum iris_buffer_type buffer_type);
+	const char *fwname;
+};
+
+struct iris_platform_data {
+	/*
+	 * XXX: replace with gen1 / gen2 pointers once we have platforms
+	 * supporting both firmware kinds.
+	 */
+	const struct iris_firmware_desc *firmware_desc;
+
 	const struct vpu_ops *vpu_ops;
-	void (*set_preset_registers)(struct iris_core *core);
 	const struct icc_info *icc_tbl;
 	unsigned int icc_tbl_size;
 	const struct bw_info *bw_tbl_dec;
@@ -235,20 +280,11 @@ struct iris_platform_data {
 	const char * const *controller_rst_tbl;
 	unsigned int controller_rst_tbl_size;
 	u64 dma_mask;
-	const char *fwname;
-	u32 pas_id;
 	struct iris_fmt *inst_iris_fmts;
 	u32 inst_iris_fmts_size;
 	struct platform_inst_caps *inst_caps;
-	const struct platform_inst_fw_cap *inst_fw_caps_dec;
-	u32 inst_fw_caps_dec_size;
-	const struct platform_inst_fw_cap *inst_fw_caps_enc;
-	u32 inst_fw_caps_enc_size;
 	const struct tz_cp_config *tz_cp_config_data;
 	u32 tz_cp_config_data_size;
-	u32 core_arch;
-	u32 hw_response_timeout;
-	struct ubwc_config_data *ubwc_config;
 	u32 num_vpp_pipe;
 	bool no_aon;
 	u32 max_session_count;
@@ -256,38 +292,6 @@ struct iris_platform_data {
 	u32 max_core_mbpf;
 	/* max number of macroblocks per second supported */
 	u32 max_core_mbps;
-	const u32 *dec_input_config_params_default;
-	unsigned int dec_input_config_params_default_size;
-	const u32 *dec_input_config_params_hevc;
-	unsigned int dec_input_config_params_hevc_size;
-	const u32 *dec_input_config_params_vp9;
-	unsigned int dec_input_config_params_vp9_size;
-	const u32 *dec_input_config_params_av1;
-	unsigned int dec_input_config_params_av1_size;
-	const u32 *dec_output_config_params;
-	unsigned int dec_output_config_params_size;
-	const u32 *enc_input_config_params;
-	unsigned int enc_input_config_params_size;
-	const u32 *enc_output_config_params;
-	unsigned int enc_output_config_params_size;
-	const u32 *dec_input_prop;
-	unsigned int dec_input_prop_size;
-	const u32 *dec_output_prop_avc;
-	unsigned int dec_output_prop_avc_size;
-	const u32 *dec_output_prop_hevc;
-	unsigned int dec_output_prop_hevc_size;
-	const u32 *dec_output_prop_vp9;
-	unsigned int dec_output_prop_vp9_size;
-	const u32 *dec_output_prop_av1;
-	unsigned int dec_output_prop_av1_size;
-	const u32 *dec_ip_int_buf_tbl;
-	unsigned int dec_ip_int_buf_tbl_size;
-	const u32 *dec_op_int_buf_tbl;
-	unsigned int dec_op_int_buf_tbl_size;
-	const u32 *enc_ip_int_buf_tbl;
-	unsigned int enc_ip_int_buf_tbl_size;
-	const u32 *enc_op_int_buf_tbl;
-	unsigned int enc_op_int_buf_tbl_size;
 };
 
 #endif
