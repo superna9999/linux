@@ -793,6 +793,7 @@ int tb_domain_disconnect_xdomain_paths(struct tb *tb, struct tb_xdomain *xd,
 				       int transmit_path, int transmit_ring,
 				       int receive_path, int receive_ring);
 int tb_domain_disconnect_all_paths(struct tb *tb);
+int tb_domain_unregister_unplugged_xdomains(struct tb *tb);
 
 static inline struct tb *tb_domain_get(struct tb *tb)
 {
@@ -1263,6 +1264,7 @@ struct tb_xdomain *tb_xdomain_alloc(struct tb *tb, struct device *parent,
 				    const uuid_t *remote_uuid);
 void tb_xdomain_add(struct tb_xdomain *xd);
 void tb_xdomain_remove(struct tb_xdomain *xd);
+void tb_xdomain_unregister(struct tb_xdomain *xd);
 struct tb_xdomain *tb_xdomain_find_by_link_depth(struct tb *tb, u8 link,
 						 u8 depth);
 
@@ -1554,6 +1556,14 @@ static inline void tb_service_debugfs_init(struct tb_service *svc) { }
 static inline void tb_service_debugfs_remove(struct tb_service *svc) { }
 static inline void tb_retimer_debugfs_init(struct tb_retimer *rt) { }
 static inline void tb_retimer_debugfs_remove(struct tb_retimer *rt) { }
+#endif
+
+#if IS_REACHABLE(CONFIG_CONFIGFS_FS)
+int tb_configfs_init(void);
+void tb_configfs_exit(void);
+#else
+static inline int tb_configfs_init(void) { return 0; }
+static inline void tb_configfs_exit(void) { }
 #endif
 
 #endif
