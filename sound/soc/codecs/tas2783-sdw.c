@@ -1082,22 +1082,12 @@ static s32 tas2783_sdca_dev_resume(struct device *dev)
 {
 	struct sdw_slave *slave = dev_to_sdw_dev(dev);
 	struct tas2783_prv *tas_dev = dev_get_drvdata(dev);
-	unsigned long t;
+	int ret;
 
-	if (!slave->unattach_request)
-		goto regmap_sync;
+	ret = sdw_slave_wait_for_init(slave, TAS2783_PROBE_TIMEOUT);
+	if (ret)
+		return ret;
 
-	t = wait_for_completion_timeout(&slave->initialization_complete,
-					msecs_to_jiffies(TAS2783_PROBE_TIMEOUT));
-	if (!t) {
-		dev_err(&slave->dev, "resume: initialization timed out\n");
-		sdw_show_ping_status(slave->bus, true);
-		return -ETIMEDOUT;
-	}
-
-	slave->unattach_request = 0;
-
-regmap_sync:
 	regcache_cache_only(tas_dev->regmap, false);
 	regcache_sync(tas_dev->regmap);
 	return 0;
@@ -1310,10 +1300,10 @@ static s32 tas_sdw_probe(struct sdw_slave *peripheral,
 			return dev_err_probe(dev, -ENOMEM,
 					     "failed to parse sdca functions");
 
+		function_data->desc = &peripheral->sdca_data.function[i];
+
 		/* Parse the function */
-		ret = sdca_parse_function(dev, peripheral,
-					  &peripheral->sdca_data.function[i],
-					  function_data);
+		ret = sdca_parse_function(dev, peripheral, function_data);
 		if (!ret)
 			tas_dev->sa_func_data = function_data;
 		else
