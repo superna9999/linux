@@ -20,10 +20,11 @@ use crate::{
         Falcon, //
     },
     fb::SysmemFlush,
-    gfw,
     gsp::Gsp,
     regs,
 };
+
+mod hal;
 
 macro_rules! define_chipset {
     ({ $($variant:ident = $value:expr),* $(,)* }) =>
@@ -86,12 +87,23 @@ define_chipset!({
     GA104 = 0x174,
     GA106 = 0x176,
     GA107 = 0x177,
+    // Hopper
+    GH100 = 0x180,
     // Ada
     AD102 = 0x192,
     AD103 = 0x193,
     AD104 = 0x194,
     AD106 = 0x196,
     AD107 = 0x197,
+    // Blackwell GB10x
+    GB100 = 0x1a0,
+    GB102 = 0x1a2,
+    // Blackwell GB20x
+    GB202 = 0x1b2,
+    GB203 = 0x1b3,
+    GB205 = 0x1b5,
+    GB206 = 0x1b6,
+    GB207 = 0x1b7,
 });
 
 impl Chipset {
@@ -103,8 +115,13 @@ impl Chipset {
             Self::GA100 | Self::GA102 | Self::GA103 | Self::GA104 | Self::GA106 | Self::GA107 => {
                 Architecture::Ampere
             }
+            Self::GH100 => Architecture::Hopper,
             Self::AD102 | Self::AD103 | Self::AD104 | Self::AD106 | Self::AD107 => {
                 Architecture::Ada
+            }
+            Self::GB100 | Self::GB102 => Architecture::BlackwellGB10x,
+            Self::GB202 | Self::GB203 | Self::GB205 | Self::GB206 | Self::GB207 => {
+                Architecture::BlackwellGB20x
             }
         }
     }
@@ -137,10 +154,14 @@ bounded_enum! {
     pub(crate) enum Architecture with TryFrom<Bounded<u32, 6>> {
         Turing = 0x16,
         Ampere = 0x17,
+        Hopper = 0x18,
         Ada = 0x19,
+        BlackwellGB10x = 0x1a,
+        BlackwellGB20x = 0x1b,
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Revision {
     major: Bounded<u8, 4>,
     minor: Bounded<u8, 4>,
@@ -162,6 +183,7 @@ impl fmt::Display for Revision {
 }
 
 /// Structure holding a basic description of the GPU: `Chipset` and `Revision`.
+#[derive(Clone, Copy)]
 pub(crate) struct Spec {
     chipset: Chipset,
     revision: Revision,
@@ -253,7 +275,7 @@ impl Gpu {
 
             // We must wait for GFW_BOOT completion before doing any significant setup on the GPU.
             _: {
-                gfw::wait_gfw_boot_completion(bar)
+                hal::gpu_hal(spec.chipset).wait_gfw_boot_completion(bar)
                     .inspect_err(|_| dev_err!(pdev, "GFW boot did not complete\n"))?;
             },
 
