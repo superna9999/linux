@@ -2605,6 +2605,11 @@ cifs_put_tcon(struct cifs_tcon *tcon, enum smb3_tcon_ref_trace trace)
 	cifs_dbg(FYI, "%s: tc_count=%d\n", __func__, tcon->tc_count);
 	spin_lock(&cifs_tcp_ses_lock);
 	spin_lock(&tcon->tc_lock);
+	if (tcon->status == TID_EXITING) {
+		spin_unlock(&tcon->tc_lock);
+		spin_unlock(&cifs_tcp_ses_lock);
+		return;
+	}
 	trace_smb3_tcon_ref(tcon->debug_id, tcon->tc_count - 1, trace);
 	if (--tcon->tc_count > 0) {
 		spin_unlock(&tcon->tc_lock);
