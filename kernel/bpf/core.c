@@ -1299,8 +1299,8 @@ static int bpf_jit_blind_insn(const struct bpf_insn *from,
 	u32 imm_rnd = get_random_u32();
 	s16 off;
 
-	BUILD_BUG_ON(BPF_REG_AX  + 1 != MAX_BPF_JIT_REG);
-	BUILD_BUG_ON(MAX_BPF_REG + 1 != MAX_BPF_JIT_REG);
+	BUILD_BUG_ON(BPF_REG_PARAMS + 2 != MAX_BPF_JIT_REG);
+	BUILD_BUG_ON(BPF_REG_AX + 1 != MAX_BPF_JIT_REG);
 
 	/* Constraints on AX register:
 	 *
@@ -1581,6 +1581,16 @@ bool bpf_insn_is_indirect_target(const struct bpf_verifier_env *env, const struc
 		return false;
 	insn_idx += prog->aux->subprog_start;
 	return env->insn_aux_data[insn_idx].indirect_target;
+}
+
+u16 bpf_out_stack_arg_cnt(const struct bpf_verifier_env *env, const struct bpf_prog *prog)
+{
+	const struct bpf_subprog_info *sub;
+
+	if (!env)
+		return 0;
+	sub = &env->subprog_info[prog->aux->func_idx];
+	return sub->stack_arg_cnt - bpf_in_stack_arg_cnt(sub);
 }
 #endif /* CONFIG_BPF_JIT */
 
@@ -3224,6 +3234,11 @@ bool __weak bpf_jit_supports_percpu_insn(void)
 }
 
 bool __weak bpf_jit_supports_kfunc_call(void)
+{
+	return false;
+}
+
+bool __weak bpf_jit_supports_stack_args(void)
 {
 	return false;
 }

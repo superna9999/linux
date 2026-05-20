@@ -2,6 +2,7 @@
 /* Copyright (c) 2026 Meta Platforms, Inc. and affiliates. */
 #include <linux/bpf.h>
 #include <linux/bpf_verifier.h>
+#include <linux/cnum.h>
 #include <linux/filter.h>
 
 #define verbose(env, fmt, args...) bpf_verifier_log_write(env, fmt, ##args)
@@ -301,14 +302,8 @@ int bpf_update_branch_counts(struct bpf_verifier_env *env, struct bpf_verifier_s
 static bool range_within(const struct bpf_reg_state *old,
 			 const struct bpf_reg_state *cur)
 {
-	return old->umin_value <= cur->umin_value &&
-	       old->umax_value >= cur->umax_value &&
-	       old->smin_value <= cur->smin_value &&
-	       old->smax_value >= cur->smax_value &&
-	       old->u32_min_value <= cur->u32_min_value &&
-	       old->u32_max_value >= cur->u32_max_value &&
-	       old->s32_min_value <= cur->s32_min_value &&
-	       old->s32_max_value >= cur->s32_max_value;
+	return cnum64_is_subset(old->r64, cur->r64) &&
+	       cnum32_is_subset(old->r32, cur->r32);
 }
 
 /* If in the old state two registers had the same id, then they need to have
@@ -838,6 +833,32 @@ static bool stacksafe(struct bpf_verifier_env *env, struct bpf_func_state *old,
 	return true;
 }
 
+/*
+ * Compare stack arg slots between old and current states.
+ * Outgoing stack args are path-local state and must agree for pruning.
+ */
+static bool stack_arg_safe(struct bpf_verifier_env *env, struct bpf_func_state *old,
+			   struct bpf_func_state *cur, struct bpf_idmap *idmap,
+			   enum exact_level exact)
+{
+	int i, nslots;
+
+	nslots = max(old->out_stack_arg_cnt, cur->out_stack_arg_cnt);
+	for (i = 0; i < nslots; i++) {
+		struct bpf_reg_state *old_arg, *cur_arg;
+		struct bpf_reg_state not_init = { .type = NOT_INIT };
+
+		old_arg = i < old->out_stack_arg_cnt ?
+			  &old->stack_arg_regs[i] : &not_init;
+		cur_arg = i < cur->out_stack_arg_cnt ?
+			  &cur->stack_arg_regs[i] : &not_init;
+		if (!regsafe(env, old_arg, cur_arg, idmap, exact))
+			return false;
+	}
+
+	return true;
+}
+
 static bool refsafe(struct bpf_verifier_state *old, struct bpf_verifier_state *cur,
 		    struct bpf_idmap *idmap)
 {
@@ -920,6 +941,9 @@ static bool func_states_equal(struct bpf_verifier_env *env, struct bpf_func_stat
 	if (old->callback_depth > cur->callback_depth)
 		return false;
 
+	if (!old->no_stack_arg_load && cur->no_stack_arg_load)
+		return false;
+
 	for (i = 0; i < MAX_BPF_REG; i++)
 		if (((1 << i) & live_regs) &&
 		    !regsafe(env, &old->regs[i], &cur->regs[i],
@@ -927,6 +951,9 @@ static bool func_states_equal(struct bpf_verifier_env *env, struct bpf_func_stat
 			return false;
 
 	if (!stacksafe(env, old, cur, &env->idmap_scratch, exact))
+		return false;
+
+	if (!stack_arg_safe(env, old, cur, &env->idmap_scratch, exact))
 		return false;
 
 	return true;
@@ -1376,7 +1403,7 @@ hit:
 			 */
 			err = 0;
 			if (bpf_is_jmp_point(env, env->insn_idx))
-				err = bpf_push_jmp_history(env, cur, 0, 0);
+				err = bpf_push_jmp_history(env, cur, 0, 0, 0, 0);
 			err = err ? : propagate_precision(env, &sl->state, cur, NULL);
 			if (err)
 				return err;
