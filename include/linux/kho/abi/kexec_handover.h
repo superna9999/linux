@@ -64,7 +64,7 @@
  *   Root KHO Node (/):
  *     - compatible: "kho-v3"
  *
- *       Indentifies the overall KHO ABI version.
+ *       Identifies the overall KHO ABI version.
  *
  *     - preserved-memory-map: u64
  *
@@ -274,7 +274,7 @@ enum kho_radix_consts {
 	 * and 1 bitmap level.
 	 */
 	KHO_TREE_MAX_DEPTH =
-		DIV_ROUND_UP(KHO_ORDER_0_LOG2 - KHO_BITMAP_SIZE_LOG2,
+		DIV_ROUND_UP(KHO_ORDER_0_LOG2 - KHO_BITMAP_SIZE_LOG2 + 1,
 			     KHO_TABLE_SIZE_LOG2) + 1,
 };
 
