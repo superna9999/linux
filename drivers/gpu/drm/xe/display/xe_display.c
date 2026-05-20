@@ -40,6 +40,7 @@
 #include "xe_display_pcode.h"
 #include "xe_display_rpm.h"
 #include "xe_dsb_buffer.h"
+#include "xe_fb_pin.h"
 #include "xe_frontbuffer.h"
 #include "xe_hdcp_gsc.h"
 #include "xe_initial_plane.h"
@@ -520,9 +521,10 @@ void xe_display_pm_runtime_resume(struct xe_device *xe)
 
 static void display_device_remove(struct drm_device *dev, void *arg)
 {
-	struct intel_display *display = arg;
+	struct xe_device *xe = arg;
 
-	intel_display_device_remove(display);
+	intel_display_device_remove(xe->display);
+	xe->display = NULL;
 }
 
 static bool irq_enabled(struct drm_device *drm)
@@ -552,6 +554,7 @@ static bool has_auxccs(struct drm_device *drm)
 static const struct intel_display_parent_interface parent = {
 	.bo = &xe_display_bo_interface,
 	.dsb = &xe_display_dsb_interface,
+	.fb_pin = &xe_display_fb_pin_interface,
 	.frontbuffer = &xe_display_frontbuffer_interface,
 	.hdcp = &xe_display_hdcp_interface,
 	.initial_plane = &xe_display_initial_plane_interface,
@@ -587,11 +590,11 @@ int xe_display_probe(struct xe_device *xe)
 	if (IS_ERR(display))
 		return PTR_ERR(display);
 
-	err = drmm_add_action_or_reset(&xe->drm, display_device_remove, display);
+	xe->display = display;
+
+	err = drmm_add_action_or_reset(&xe->drm, display_device_remove, xe);
 	if (err)
 		return err;
-
-	xe->display = display;
 
 	if (intel_display_device_present(display))
 		return 0;
