@@ -1,0 +1,43 @@
+soc/arm
+	patch
+		ARM: select legacy gpiolib interfaces where used
+
+soc/dt
+	patch
+		arm64: dts: realtek: Add pinctrl support for RTD1625
+		ARM: dts: ixp4xx: use phandle-based GPIOs in mi424wr
+
+soc/drivers
+
+soc/defconfig
+	patch
+		arm64: defconfig: Move entries to match savedefconfig
+		arm64: defconfig: Drop unused legacy netfilter options
+		arm64: defconfig: Drop default or selected drivers
+		arm64: defconfig: Drop unused Ethernet vendors
+		arm64: defconfig: Switch Ethernet drivers to modules
+	defconfig/pinctrl
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-pinctrl tags/v7.2-qcom-pinctrl-defconfigs
+	patch
+		ARM: multi_v7_defconfig: Move entries to match savedefconfig
+		ARM: configs: Drop redundant I2C_DESIGNWARE_PLATFORM
+		ARM: configs: Drop redundant SND_ATMEL_SOC
+		ARM: multi_v7_defconfig: Cleanup redundant options
+		ARM: multi_v7_defconfig: Correct QCOM_RPMH and QCOM_RPMHPD
+
+soc/late
+
+arm/fixes
+	renesas/fixes-1
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-fixes-for-v7.1-tag1
+	patch
+		ARM: integrator: Fix early initialization
+		MAINTAINERS: Add maintainers for ARM/REALTEK ARCHITECTURE
+		ARM: realtek: MAINTAINERS: Include pin controller drivers
+	ffa/fixes-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/ffa-fixes-7.1-2
+	patch
+		firmware: psci: Set pm_set_resume/suspend_via_firmware() for SYSTEM_SUSPEND
+	riscv/dt-fixes
+		https://git.kernel.org/pub/scm/linux/kernel/git/conor/linux tags/riscv-dt-fixes-for-v7.1-rc3
+
