@@ -156,6 +156,7 @@ config GPIO_74XX_MMIO
 
 config GPIO_ALTERA
 	tristate "Altera GPIO"
+	select GPIO_GENERIC
 	select GPIOLIB_IRQCHIP
 	help
 	  Say Y or M here to build support for the Altera PIO device.
@@ -698,7 +699,7 @@ config GPIO_SPACEMIT_K1
 
 config GPIO_SPEAR_SPICS
 	bool "ST SPEAr13xx SPI Chip Select as GPIO support"
-	depends on PLAT_SPEAR
+	depends on PLAT_SPEAR || COMPILE_TEST
 	select GENERIC_IRQ_CHIP
 	help
 	  Say yes here to support ST SPEAr SPI Chip Select as GPIO device.
@@ -805,8 +806,18 @@ config GPIO_VISCONTI
 	help
 	  Say yes here to support GPIO on Tohisba Visconti.
 
+config GPIO_WAVESHARE_DSI_TOUCH
+	tristate "Waveshare GPIO controller for DSI panels"
+	depends on BACKLIGHT_CLASS_DEVICE
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Enable support for the GPIO and PWM controller found on Waveshare DSI
+	  TOUCH panel kits. It provides GPIOs (used for regulator control and
+          resets) and backlight support.
+
 config GPIO_WCD934X
-	tristate "Qualcomm Technologies Inc WCD9340/WCD9341 GPIO controller driver"
+	tristate "Qualcomm WCD9340/WCD9341 GPIO controller driver"
 	depends on MFD_WCD934X
 	help
          This driver is to support GPIO block found on the Qualcomm Technologies
@@ -858,7 +869,7 @@ config GPIO_XTENSA
 
 config GPIO_ZEVIO
 	bool "LSI ZEVIO SoC memory mapped GPIOs"
-	depends on ARM
+	depends on ARM || COMPILE_TEST
 	help
 	  Say yes here to support the GPIO controller in LSI ZEVIO SoCs.
 
@@ -2060,6 +2071,7 @@ config GPIO_VIRTIO
 
 config GPIO_SIM
 	tristate "GPIO Simulator Module"
+	depends on SYSFS
 	select IRQ_SIM
 	select CONFIGFS_FS
 	help
