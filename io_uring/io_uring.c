@@ -233,6 +233,7 @@ static __cold struct io_ring_ctx *io_ring_ctx_alloc(struct io_uring_params *p)
 		return NULL;
 
 	xa_init(&ctx->io_bl_xa);
+	xa_init(&ctx->hpage_acct);
 
 	/*
 	 * Use 5 bits less than the max cq entries, that should give us around
@@ -302,6 +303,7 @@ err:
 	io_free_alloc_caches(ctx);
 	kvfree(ctx->cancel_table.hbs);
 	xa_destroy(&ctx->io_bl_xa);
+	xa_destroy(&ctx->hpage_acct);
 	kfree(ctx);
 	return NULL;
 }
@@ -1738,10 +1740,9 @@ static int io_init_req(struct io_ring_ctx *ctx, struct io_kiocb *req,
 	const struct io_issue_def *def;
 	unsigned int sqe_flags;
 	int personality;
-	u8 opcode;
 
 	req->ctx = ctx;
-	req->opcode = opcode = READ_ONCE(sqe->opcode);
+	req->opcode = READ_ONCE(sqe->opcode);
 	/* same numerical values with corresponding REQ_F_*, safe to copy */
 	sqe_flags = READ_ONCE(sqe->flags);
 	req->flags = (__force io_req_flags_t) sqe_flags;
@@ -1751,13 +1752,13 @@ static int io_init_req(struct io_ring_ctx *ctx, struct io_kiocb *req,
 	req->cancel_seq_set = false;
 	req->async_data = NULL;
 
-	if (unlikely(opcode >= IORING_OP_LAST)) {
+	if (unlikely(req->opcode >= IORING_OP_LAST)) {
 		req->opcode = 0;
 		return io_init_fail_req(req, -EINVAL);
 	}
-	opcode = array_index_nospec(opcode, IORING_OP_LAST);
+	req->opcode = array_index_nospec(req->opcode, IORING_OP_LAST);
 
-	def = &io_issue_defs[opcode];
+	def = &io_issue_defs[req->opcode];
 	if (def->is_128 && !(ctx->flags & IORING_SETUP_SQE128)) {
 		/*
 		 * A 128b op on a non-128b SQ requires mixed SQE support as
@@ -2215,6 +2216,7 @@ static __cold void io_ring_ctx_free(struct io_ring_ctx *ctx)
 	io_napi_free(ctx);
 	kvfree(ctx->cancel_table.hbs);
 	xa_destroy(&ctx->io_bl_xa);
+	xa_destroy(&ctx->hpage_acct);
 	kfree(ctx);
 }
 
