@@ -222,7 +222,7 @@ loop:
 		DEFINE_WAIT(wait);
 
 		prepare_to_wait(&journal->j_wait_commit, &wait,
-				TASK_INTERRUPTIBLE);
+				TASK_INTERRUPTIBLE|TASK_FREEZABLE);
 		transaction = journal->j_running_transaction;
 		if (transaction == NULL ||
 		    time_before(jiffies, transaction->t_expires)) {
