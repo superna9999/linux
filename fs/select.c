@@ -600,7 +600,7 @@ static noinline_for_stack int do_select(int n, fd_set_bits *fds, struct timespec
 			to = &expire;
 		}
 
-		if (!poll_schedule_timeout(&table, TASK_INTERRUPTIBLE,
+		if (!poll_schedule_timeout(&table, TASK_INTERRUPTIBLE|TASK_FREEZABLE,
 					   to, slack))
 			timed_out = 1;
 	}
@@ -707,6 +707,17 @@ static int kern_select(int n, fd_set __user *inp, fd_set __user *outp,
 	if (tvp) {
 		if (copy_from_user(&tv, tvp, sizeof(tv)))
 			return -EFAULT;
+
+		/*
+		 * Reject negative components before normalisation. The seconds
+		 * sum below is performed in signed long and a crafted negative
+		 * timeval can wrap to a positive value that passes
+		 * timespec64_valid() and turns into an effectively-infinite
+		 * deadline via timespec64_add_safe()'s saturation, instead of
+		 * the -EINVAL POSIX requires for negative timeouts.
+		 */
+		if (tv.tv_sec < 0 || tv.tv_usec < 0)
+			return -EINVAL;
 
 		to = &end_time;
 		if (poll_select_set_timeout(to,
@@ -951,7 +962,7 @@ static int do_poll(struct poll_list *list, struct poll_wqueues *wait,
 			to = &expire;
 		}
 
-		if (!poll_schedule_timeout(wait, TASK_INTERRUPTIBLE, to, slack))
+		if (!poll_schedule_timeout(wait, TASK_INTERRUPTIBLE|TASK_FREEZABLE, to, slack))
 			timed_out = 1;
 	}
 	return count;
