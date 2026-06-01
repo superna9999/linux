@@ -67,6 +67,9 @@ struct vm_fault;
  * bio, i.e. set REQ_ATOMIC.
  *
  * IOMAP_F_INTEGRITY indicates that the filesystems handles integrity metadata.
+ *
+ * IOMAP_F_ZERO_TAIL indicates the remainder of the block after the data
+ * written should be zeroed.
  */
 #define IOMAP_F_NEW		(1U << 0)
 #define IOMAP_F_DIRTY		(1U << 1)
@@ -86,6 +89,7 @@ struct vm_fault;
 #else
 #define IOMAP_F_INTEGRITY	0
 #endif /* CONFIG_BLK_DEV_INTEGRITY */
+#define IOMAP_F_ZERO_TAIL	(1U << 10)
 
 /*
  * Flag reserved for file system specific usage
@@ -140,16 +144,6 @@ static inline sector_t iomap_sector(const struct iomap *iomap, loff_t pos)
 static inline void *iomap_inline_data(const struct iomap *iomap, loff_t pos)
 {
 	return iomap->inline_data + pos - iomap->offset;
-}
-
-/*
- * Check if the mapping's length is within the valid range for inline data.
- * This is used to guard against accessing data beyond the page inline_data
- * points at.
- */
-static inline bool iomap_inline_data_valid(const struct iomap *iomap)
-{
-	return iomap->length <= PAGE_SIZE - offset_in_page(iomap->inline_data);
 }
 
 /*
