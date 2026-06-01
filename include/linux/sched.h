@@ -85,6 +85,7 @@ struct seq_file;
 struct sighand_struct;
 struct signal_struct;
 struct task_delay_info;
+struct task_exec_state;
 struct task_group;
 struct task_struct;
 struct timespec64;
@@ -961,6 +962,8 @@ struct task_struct {
 
 	struct mm_struct		*mm;
 	struct mm_struct		*active_mm;
+
+	struct task_exec_state __rcu	*exec_state;
 
 	int				exit_state;
 	int				exit_code;
