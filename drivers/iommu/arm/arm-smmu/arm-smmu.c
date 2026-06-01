@@ -921,6 +921,7 @@ static struct iommu_domain *arm_smmu_domain_alloc_paging(struct device *dev)
 	struct arm_smmu_domain *smmu_domain;
 	struct arm_smmu_master_cfg *cfg = dev_iommu_priv_get(dev);
 	struct arm_smmu_device *smmu = cfg->smmu;
+	int ret;
 
 	/*
 	 * Allocate the domain and initialise some of its data structures.
@@ -934,6 +935,35 @@ static struct iommu_domain *arm_smmu_domain_alloc_paging(struct device *dev)
 	mutex_init(&smmu_domain->init_mutex);
 	spin_lock_init(&smmu_domain->cb_lock);
 	smmu_domain->domain.pgsize_bitmap = smmu->pgsize_bitmap;
+
+	/* Pre-initialize the domain to allow mapping before device attach */
+	ret = arm_smmu_rpm_get(smmu);
+	if (ret < 0) {
+		kfree(smmu_domain);
+		return NULL;
+	}
+
+	/* Ensure that the domain is finalised */
+	ret = arm_smmu_init_domain_context(smmu_domain, smmu, dev);
+	if (ret < 0)
+		goto rpm_put;
+
+	/*
+	 * Sanity check the domain. We don't support domains across
+	 * different SMMUs.
+	 */
+	if (smmu_domain->smmu != smmu) {
+		ret = -EINVAL;
+		goto rpm_put;
+	}
+
+rpm_put:
+	arm_smmu_rpm_put(smmu);
+
+	if (ret) {
+		kfree(smmu_domain);
+		return NULL;
+	}
 
 	return &smmu_domain->domain;
 }
@@ -1191,26 +1221,11 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev,
 	if (ret < 0)
 		return ret;
 
-	/* Ensure that the domain is finalised */
-	ret = arm_smmu_init_domain_context(smmu_domain, smmu, dev);
-	if (ret < 0)
-		goto rpm_put;
-
-	/*
-	 * Sanity check the domain. We don't support domains across
-	 * different SMMUs.
-	 */
-	if (smmu_domain->smmu != smmu) {
-		ret = -EINVAL;
-		goto rpm_put;
-	}
-
 	/* Looks ok, so add the device to the domain */
 	arm_smmu_master_install_s2crs(cfg, S2CR_TYPE_TRANS,
 				      smmu_domain->cfg.cbndx, fwspec);
-rpm_put:
 	arm_smmu_rpm_put(smmu);
-	return ret;
+	return 0;
 }
 
 static int arm_smmu_attach_dev_type(struct device *dev,
