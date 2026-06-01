@@ -2238,12 +2238,20 @@ static int userfaultfd_register_range(struct userfaultfd_ctx *ctx,
 		 * userfaultfd and with the right tracking mode too.
 		 */
 		if (vma->vm_userfaultfd_ctx.ctx == ctx &&
-		    vma_test_all_mask(vma, vma_flags))
+		    (vma->vm_flags & __VM_UFFD_FLAGS) == vm_flags)
 			goto skip;
 
 		if (vma->vm_start > start)
 			start = vma->vm_start;
 		vma_end = min(end, vma->vm_end);
+
+		/*
+		 * Re-registering into the same userfaultfd can remove WP mode.
+		 * Clear any per-PTE uffd-wp state before dropping VM_UFFD_WP,
+		 * matching the UFFDIO_UNREGISTER cleanup semantics.
+		 */
+		if (userfaultfd_wp(vma) && !(vm_flags & VM_UFFD_WP))
+			uffd_wp_range(vma, start, vma_end - start, false);
 
 		new_vma_flags = vma->flags;
 		vma_flags_clear_mask(&new_vma_flags, __VMA_UFFD_FLAGS);
