@@ -190,12 +190,18 @@ struct evsel {
 			double max;
 		} retirement_latency;
 		/* duration_time is a single global time. */
-		__u64 start_time;
+		struct {
+			__u64 start_time;
+			__u64 accumulated_time;
+		} duration_time;
 		/*
 		 * user_time and system_time read an initial value potentially
 		 * per-CPU or per-pid.
 		 */
-		struct xyarray *start_times;
+		struct {
+			struct xyarray *start_times;
+			struct xyarray *accumulated_times;
+		} process_time;
 	};
 	/* Is the tool's fd for /proc/pid/stat or /proc/stat. */
 	bool pid_stat;
@@ -350,6 +356,11 @@ void arch_evsel__apply_ratio_to_prev(struct evsel *evsel, struct perf_event_attr
 int evsel__set_filter(struct evsel *evsel, const char *filter);
 int evsel__append_tp_filter(struct evsel *evsel, const char *filter);
 int evsel__append_addr_filter(struct evsel *evsel, const char *filter);
+static inline bool evsel__is_non_perf_event_open_pmu(const struct evsel *evsel)
+{
+	return evsel->pmu && evsel->pmu->type > PERF_PMU_TYPE_PE_END;
+}
+
 int evsel__enable_cpu(struct evsel *evsel, int cpu_map_idx);
 int evsel__enable(struct evsel *evsel);
 int evsel__disable(struct evsel *evsel);
@@ -371,14 +382,14 @@ bool evsel__precise_ip_fallback(struct evsel *evsel);
 struct perf_sample;
 
 #ifdef HAVE_LIBTRACEEVENT
-void *evsel__rawptr(struct evsel *evsel, struct perf_sample *sample, const char *name);
-u64 evsel__intval(struct evsel *evsel, struct perf_sample *sample, const char *name);
-u64 evsel__intval_common(struct evsel *evsel, struct perf_sample *sample, const char *name);
-char evsel__taskstate(struct evsel *evsel, struct perf_sample *sample, const char *name);
+void *perf_sample__rawptr(struct perf_sample *sample, const char *name);
+u64 perf_sample__intval(struct perf_sample *sample, const char *name);
+u64 perf_sample__intval_common(struct perf_sample *sample, const char *name);
+char perf_sample__taskstate(struct perf_sample *sample, const char *name);
 
-static inline char *evsel__strval(struct evsel *evsel, struct perf_sample *sample, const char *name)
+static inline char *perf_sample__strval(struct perf_sample *sample, const char *name)
 {
-	return evsel__rawptr(evsel, sample, name);
+	return perf_sample__rawptr(sample, name);
 }
 #endif
 
@@ -578,6 +589,7 @@ void evsel__uniquify_counter(struct evsel *counter);
 	((((src) >> (pos)) & ((1ull << (size)) - 1)) << (63 - ((pos) + (size) - 1)))
 
 u64 evsel__bitfield_swap_branch_flags(u64 value);
+bool evsel__config_exists(const struct evsel *evsel, const char *config_name);
 int evsel__get_config_val(const struct evsel *evsel, const char *config_name,
 			  u64 *val);
 void evsel__set_config_if_unset(struct evsel *evsel, const char *config_name,
