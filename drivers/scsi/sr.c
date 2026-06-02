@@ -106,7 +106,7 @@ static struct scsi_driver sr_template = {
 static unsigned long sr_index_bits[SR_DISKS / BITS_PER_LONG];
 static DEFINE_SPINLOCK(sr_index_lock);
 
-static struct lock_class_key sr_bio_compl_lkclass;
+static struct lock_class_key sr_bio_compl_lkclass[2];
 
 static int sr_open(struct cdrom_device_info *, int);
 static void sr_release(struct cdrom_device_info *);
@@ -634,7 +634,7 @@ static int sr_probe(struct scsi_device *sdev)
 		goto fail;
 
 	disk = blk_mq_alloc_disk_for_queue(sdev->request_queue,
-					   &sr_bio_compl_lkclass);
+					   sr_bio_compl_lkclass);
 	if (!disk)
 		goto fail_free;
 	mutex_init(&cd->lock);

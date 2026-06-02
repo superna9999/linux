@@ -112,7 +112,7 @@ static DEFINE_MUTEX(sd_mutex_lock);
 static mempool_t *sd_page_pool;
 static mempool_t *sd_large_page_pool;
 static atomic_t sd_large_page_pool_users = ATOMIC_INIT(0);
-static struct lock_class_key sd_bio_compl_lkclass;
+static struct lock_class_key sd_bio_compl_lkclass[2];
 
 static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
@@ -4021,7 +4021,7 @@ static int sd_probe(struct scsi_device *sdp)
 		goto out;
 
 	gd = blk_mq_alloc_disk_for_queue(sdp->request_queue,
-					 &sd_bio_compl_lkclass);
+					 sd_bio_compl_lkclass);
 	if (!gd)
 		goto out_free;
 

@@ -1444,7 +1444,7 @@ dev_t part_devt(struct gendisk *disk, u8 partno)
 }
 
 struct gendisk *__alloc_disk_node(struct request_queue *q, int node_id,
-		struct lock_class_key *lkclass)
+		struct lock_class_key lkclass[2])
 {
 	struct gendisk *disk;
 
@@ -1467,7 +1467,7 @@ struct gendisk *__alloc_disk_node(struct request_queue *q, int node_id,
 		goto out_free_bdi;
 
 	disk->node_id = node_id;
-	mutex_init(&disk->open_mutex);
+	mutex_init_with_key(&disk->open_mutex, &lkclass[1]);
 	xa_init(&disk->part_tbl);
 	if (xa_insert(&disk->part_tbl, 0, disk->part0, GFP_KERNEL))
 		goto out_destroy_part_tbl;
@@ -1482,7 +1482,7 @@ struct gendisk *__alloc_disk_node(struct request_queue *q, int node_id,
 	device_initialize(disk_to_dev(disk));
 	inc_diskseq(disk);
 	q->disk = disk;
-	lockdep_init_map(&disk->lockdep_map, "(bio completion)", lkclass, 0);
+	lockdep_init_map(&disk->lockdep_map, "(bio completion)", &lkclass[0], 0);
 #ifdef CONFIG_BLOCK_HOLDER_DEPRECATED
 	INIT_LIST_HEAD(&disk->slave_bdevs);
 #endif
@@ -1506,7 +1506,7 @@ out_free_disk:
 }
 
 struct gendisk *__blk_alloc_disk(struct queue_limits *lim, int node,
-		struct lock_class_key *lkclass)
+		struct lock_class_key lkclass[2])
 {
 	struct queue_limits default_lim = { };
 	struct request_queue *q;
