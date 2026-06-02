@@ -490,9 +490,6 @@ fastpath_t handle_fastpath_invd(struct kvm_vcpu *vcpu);
 extern struct kvm_caps kvm_caps;
 extern struct kvm_host_values kvm_host;
 
-extern bool enable_pmu;
-extern bool enable_mediated_pmu;
-
 void kvm_setup_xss_caps(void);
 
 /*
@@ -752,6 +749,12 @@ static inline void kvm_prepare_emulated_mmio_exit(struct kvm_vcpu *vcpu,
 
 	__kvm_prepare_emulated_mmio_exit(vcpu, frag->gpa, min(8u, frag->len),
 					 frag->data, vcpu->mmio_is_write);
+}
+
+static inline bool kvm_is_valid_map_gpa_range_ret(u64 hypercall_ret)
+{
+	return !hypercall_ret || hypercall_ret == EINVAL ||
+	       hypercall_ret == EAGAIN;
 }
 
 static inline bool user_exit_on_hypercall(struct kvm *kvm, unsigned long hc_nr)

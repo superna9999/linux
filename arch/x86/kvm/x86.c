@@ -133,7 +133,6 @@ static void process_nmi(struct kvm_vcpu *vcpu);
 static void __kvm_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags);
 static void store_regs(struct kvm_vcpu *vcpu);
 static int sync_regs(struct kvm_vcpu *vcpu);
-static int kvm_vcpu_do_singlestep(struct kvm_vcpu *vcpu);
 
 static int __set_sregs2(struct kvm_vcpu *vcpu, struct kvm_sregs2 *sregs2);
 static void __get_sregs2(struct kvm_vcpu *vcpu, struct kvm_sregs2 *sregs2);
@@ -152,6 +151,7 @@ struct kvm_x86_ops kvm_x86_ops __read_mostly;
 #include <asm/kvm-x86-ops.h>
 EXPORT_STATIC_CALL_GPL(kvm_x86_get_cs_db_l_bits);
 EXPORT_STATIC_CALL_GPL(kvm_x86_cache_reg);
+EXPORT_STATIC_CALL_GPL(kvm_x86_get_cpl);
 
 static bool __read_mostly ignore_msrs = 0;
 module_param(ignore_msrs, bool, 0644);
@@ -181,15 +181,6 @@ module_param(force_emulation_prefix, int, 0644);
 
 int __read_mostly pi_inject_timer = -1;
 module_param(pi_inject_timer, bint, 0644);
-
-/* Enable/disable PMU virtualization */
-bool __read_mostly enable_pmu = true;
-EXPORT_SYMBOL_FOR_KVM_INTERNAL(enable_pmu);
-module_param(enable_pmu, bool, 0444);
-
-/* Enable/disabled mediated PMU virtualization. */
-bool __read_mostly enable_mediated_pmu;
-EXPORT_SYMBOL_FOR_KVM_INTERNAL(enable_mediated_pmu);
 
 bool __read_mostly eager_page_split = true;
 module_param(eager_page_split, bool, 0644);
@@ -970,7 +961,8 @@ static int complete_emulated_insn_gp(struct kvm_vcpu *vcpu, int err)
 				       EMULTYPE_COMPLETE_USER_EXIT);
 }
 
-void kvm_inject_page_fault(struct kvm_vcpu *vcpu, struct x86_exception *fault)
+void kvm_inject_page_fault(struct kvm_vcpu *vcpu, struct x86_exception *fault,
+			   bool from_hardware)
 {
 	++vcpu->stat.pf_guest;
 
@@ -987,8 +979,9 @@ void kvm_inject_page_fault(struct kvm_vcpu *vcpu, struct x86_exception *fault)
 					fault->address);
 }
 
-void kvm_inject_emulated_page_fault(struct kvm_vcpu *vcpu,
-				    struct x86_exception *fault)
+void __kvm_inject_emulated_page_fault(struct kvm_vcpu *vcpu,
+				      struct x86_exception *fault,
+				      bool from_hardware)
 {
 	struct kvm_mmu *fault_mmu;
 	WARN_ON_ONCE(fault->vector != PF_VECTOR);
@@ -1005,9 +998,9 @@ void kvm_inject_emulated_page_fault(struct kvm_vcpu *vcpu,
 		kvm_mmu_invalidate_addr(vcpu, fault_mmu, fault->address,
 					KVM_MMU_ROOT_CURRENT);
 
-	fault_mmu->inject_page_fault(vcpu, fault);
+	fault_mmu->inject_page_fault(vcpu, fault, from_hardware);
 }
-EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_inject_emulated_page_fault);
+EXPORT_SYMBOL_FOR_KVM_INTERNAL(__kvm_inject_emulated_page_fault);
 
 void kvm_inject_nmi(struct kvm_vcpu *vcpu)
 {
@@ -1021,18 +1014,6 @@ void kvm_queue_exception_e(struct kvm_vcpu *vcpu, unsigned nr, u32 error_code)
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_queue_exception_e);
 
-/*
- * Checks if cpl <= required_cpl; if true, return true.  Otherwise queue
- * a #GP and return false.
- */
-bool kvm_require_cpl(struct kvm_vcpu *vcpu, int required_cpl)
-{
-	if (kvm_x86_call(get_cpl)(vcpu) <= required_cpl)
-		return true;
-	kvm_queue_exception_e(vcpu, GP_VECTOR, 0);
-	return false;
-}
-
 bool kvm_require_dr(struct kvm_vcpu *vcpu, int dr)
 {
 	if ((dr != 4 && dr != 5) || !kvm_is_cr4_bit_set(vcpu, X86_CR4_DE))
@@ -1043,11 +1024,16 @@ bool kvm_require_dr(struct kvm_vcpu *vcpu, int dr)
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_require_dr);
 
-static bool kvm_pv_async_pf_enabled(struct kvm_vcpu *vcpu)
+static bool __kvm_pv_async_pf_enabled(u64 data)
 {
 	u64 mask = KVM_ASYNC_PF_ENABLED | KVM_ASYNC_PF_DELIVERY_AS_INT;
 
-	return (vcpu->arch.apf.msr_en_val & mask) == mask;
+	return (data & mask) == mask;
+}
+
+static bool kvm_pv_async_pf_enabled(struct kvm_vcpu *vcpu)
+{
+	return __kvm_pv_async_pf_enabled(vcpu->arch.apf.msr_en_val);
 }
 
 static inline u64 pdptr_rsvd_bits(struct kvm_vcpu *vcpu)
@@ -1600,6 +1586,14 @@ unsigned long kvm_get_dr(struct kvm_vcpu *vcpu, int dr)
 	}
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_get_dr);
+
+static unsigned long kvm_get_effective_dr7(struct kvm_vcpu *vcpu)
+{
+	if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP)
+		return vcpu->arch.guest_debug_dr7;
+
+	return vcpu->arch.dr7;
+}
 
 int kvm_emulate_rdpmc(struct kvm_vcpu *vcpu)
 {
@@ -3648,23 +3642,19 @@ static int kvm_pv_enable_async_pf(struct kvm_vcpu *vcpu, u64 data)
 	if (!lapic_in_kernel(vcpu))
 		return data ? 1 : 0;
 
-	vcpu->arch.apf.msr_en_val = data;
-
-	if (!kvm_pv_async_pf_enabled(vcpu)) {
-		kvm_clear_async_pf_completion_queue(vcpu);
-		kvm_async_pf_hash_reset(vcpu);
-		return 0;
-	}
-
-	if (kvm_gfn_to_hva_cache_init(vcpu->kvm, &vcpu->arch.apf.data, gpa,
-					sizeof(u64)))
+	if (__kvm_pv_async_pf_enabled(data) &&
+	    kvm_gfn_to_hva_cache_init(vcpu->kvm, &vcpu->arch.apf.data, gpa,
+				      sizeof(u64)))
 		return 1;
 
-	vcpu->arch.apf.send_always = (data & KVM_ASYNC_PF_SEND_ALWAYS);
-	vcpu->arch.apf.delivery_as_pf_vmexit = data & KVM_ASYNC_PF_DELIVERY_AS_PF_VMEXIT;
+	vcpu->arch.apf.msr_en_val = data;
 
-	kvm_async_pf_wakeup_all(vcpu);
-
+	if (__kvm_pv_async_pf_enabled(data)) {
+		kvm_async_pf_wakeup_all(vcpu);
+	} else {
+		kvm_clear_async_pf_completion_queue(vcpu);
+		kvm_async_pf_hash_reset(vcpu);
+	}
 	return 0;
 }
 
@@ -4003,22 +3993,28 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		break;
 	case MSR_EFER:
 		return set_efer(vcpu, msr_info);
-	case MSR_K7_HWCR:
-		data &= ~(u64)0x40;	/* ignore flush filter disable */
-		data &= ~(u64)0x100;	/* ignore ignne emulation enable */
-		data &= ~(u64)0x8;	/* ignore TLB cache disable */
-
+	case MSR_K7_HWCR: {
 		/*
 		 * Allow McStatusWrEn and TscFreqSel. (Linux guests from v3.2
 		 * through at least v6.6 whine if TscFreqSel is clear,
 		 * depending on F/M/S.
 		 */
-		if (data & ~(BIT_ULL(18) | BIT_ULL(24))) {
+		u64 valid = BIT_ULL(18) | BIT_ULL(24);
+
+		data &= ~(u64)0x40;	/* ignore flush filter disable */
+		data &= ~(u64)0x100;	/* ignore ignne emulation enable */
+		data &= ~(u64)0x8;	/* ignore TLB cache disable */
+
+		if (guest_cpu_cap_has(vcpu, X86_FEATURE_GP_ON_USER_CPUID))
+			valid |= MSR_K7_HWCR_CPUID_USER_DIS;
+
+		if (data & ~valid) {
 			kvm_pr_unimpl_wrmsr(vcpu, msr, data);
 			return 1;
 		}
 		vcpu->arch.msr_hwcr = data;
 		break;
+	}
 	case MSR_FAM10H_MMIO_CONF_BASE:
 		if (data != 0) {
 			kvm_pr_unimpl_wrmsr(vcpu, msr, data);
@@ -4265,7 +4261,7 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 	case MSR_MISC_FEATURES_ENABLES:
 		if (data & ~MSR_MISC_FEATURES_ENABLES_CPUID_FAULT ||
 		    (data & MSR_MISC_FEATURES_ENABLES_CPUID_FAULT &&
-		     !supports_cpuid_fault(vcpu)))
+		     !(vcpu->arch.msr_platform_info & MSR_PLATFORM_INFO_CPUID_FAULT)))
 			return 1;
 		vcpu->arch.msr_misc_features_enables = data;
 		break;
@@ -6915,6 +6911,10 @@ disable_exits_unlock:
 		if (!enable_pmu || (cap->args[0] & ~KVM_CAP_PMU_VALID_MASK))
 			break;
 
+		if (kvm->arch.has_protected_pmu &&
+		    cap->args[0] != KVM_PMU_CAP_DISABLE)
+			break;
+
 		mutex_lock(&kvm->lock);
 		if (!kvm->created_vcpus && !kvm->arch.created_mediated_pmu) {
 			kvm->arch.enable_pmu = !(cap->args[0] & KVM_PMU_CAP_DISABLE);
@@ -8553,6 +8553,11 @@ static void emulator_wbinvd(struct x86_emulate_ctxt *ctxt)
 	kvm_emulate_wbinvd_noskip(emul_to_vcpu(ctxt));
 }
 
+static unsigned long emulator_get_effective_dr7(struct x86_emulate_ctxt *ctxt)
+{
+	return kvm_get_effective_dr7(emul_to_vcpu(ctxt));
+}
+
 static unsigned long emulator_get_dr(struct x86_emulate_ctxt *ctxt, int dr)
 {
 	return kvm_get_dr(emul_to_vcpu(ctxt), dr);
@@ -8810,6 +8815,11 @@ static int emulator_intercept(struct x86_emulate_ctxt *ctxt,
 					     &ctxt->exception);
 }
 
+static bool emulator_is_cpuid_allowed(struct x86_emulate_ctxt *ctxt)
+{
+	return kvm_is_cpuid_allowed(emul_to_vcpu(ctxt));
+}
+
 static bool emulator_get_cpuid(struct x86_emulate_ctxt *ctxt,
 			      u32 *eax, u32 *ebx, u32 *ecx, u32 *edx,
 			      bool exact_only)
@@ -8935,6 +8945,7 @@ static const struct x86_emulate_ops emulate_ops = {
 	.get_cr              = emulator_get_cr,
 	.set_cr              = emulator_set_cr,
 	.cpl                 = emulator_get_cpl,
+	.get_effective_dr7   = emulator_get_effective_dr7,
 	.get_dr              = emulator_get_dr,
 	.set_dr              = emulator_set_dr,
 	.set_msr_with_filter = emulator_set_msr_with_filter,
@@ -8946,6 +8957,7 @@ static const struct x86_emulate_ops emulate_ops = {
 	.wbinvd              = emulator_wbinvd,
 	.fix_hypercall       = emulator_fix_hypercall,
 	.intercept           = emulator_intercept,
+	.is_cpuid_allowed    = emulator_is_cpuid_allowed,
 	.get_cpuid           = emulator_get_cpuid,
 	.guest_has_movbe     = emulator_guest_has_movbe,
 	.guest_has_fxsr      = emulator_guest_has_fxsr,
@@ -8981,17 +8993,36 @@ static void toggle_interruptibility(struct kvm_vcpu *vcpu, u32 mask)
 	}
 }
 
-static void inject_emulated_exception(struct kvm_vcpu *vcpu)
+static int kvm_inject_emulated_db(struct kvm_vcpu *vcpu, unsigned long dr6)
 {
-	struct x86_emulate_ctxt *ctxt = vcpu->arch.emulate_ctxt;
+	struct kvm_run *kvm_run = vcpu->run;
 
-	if (ctxt->exception.vector == PF_VECTOR)
-		kvm_inject_emulated_page_fault(vcpu, &ctxt->exception);
-	else if (ctxt->exception.error_code_valid)
-		kvm_queue_exception_e(vcpu, ctxt->exception.vector,
-				      ctxt->exception.error_code);
+	if (vcpu->guest_debug & (KVM_GUESTDBG_USE_HW_BP | KVM_GUESTDBG_SINGLESTEP)) {
+		kvm_run->debug.arch.dr6 = dr6 | DR6_ACTIVE_LOW;
+		kvm_run->debug.arch.pc = kvm_get_linear_rip(vcpu);
+		kvm_run->debug.arch.exception = DB_VECTOR;
+		kvm_run->exit_reason = KVM_EXIT_DEBUG;
+		return 0;
+	}
+
+	kvm_queue_exception_p(vcpu, DB_VECTOR, dr6);
+	return 1;
+}
+
+static int inject_emulated_exception(struct kvm_vcpu *vcpu)
+{
+	struct x86_exception *ex = &vcpu->arch.emulate_ctxt->exception;
+
+	if (ex->vector == DB_VECTOR)
+		return kvm_inject_emulated_db(vcpu, ex->dr6);
+
+	if (ex->vector == PF_VECTOR)
+		kvm_inject_emulated_page_fault(vcpu, ex);
+	else if (ex->error_code_valid)
+		kvm_queue_exception_e(vcpu, ex->vector, ex->error_code);
 	else
-		kvm_queue_exception(vcpu, ctxt->exception.vector);
+		kvm_queue_exception(vcpu, ex->vector);
+	return 1;
 }
 
 static struct x86_emulate_ctxt *alloc_emulate_ctxt(struct kvm_vcpu *vcpu)
@@ -9031,6 +9062,7 @@ static void init_emulate_ctxt(struct kvm_vcpu *vcpu)
 	ctxt->interruptibility = 0;
 	ctxt->have_exception = false;
 	ctxt->exception.vector = -1;
+	ctxt->exception.payload = 0;
 	ctxt->perm_ok = false;
 
 	init_decode_cache(ctxt);
@@ -9248,21 +9280,6 @@ static int kvm_vcpu_check_hw_bp(unsigned long addr, u32 type, u32 dr7,
 	return dr6;
 }
 
-static int kvm_vcpu_do_singlestep(struct kvm_vcpu *vcpu)
-{
-	struct kvm_run *kvm_run = vcpu->run;
-
-	if (vcpu->guest_debug & KVM_GUESTDBG_SINGLESTEP) {
-		kvm_run->debug.arch.dr6 = DR6_BS | DR6_ACTIVE_LOW;
-		kvm_run->debug.arch.pc = kvm_get_linear_rip(vcpu);
-		kvm_run->debug.arch.exception = DB_VECTOR;
-		kvm_run->exit_reason = KVM_EXIT_DEBUG;
-		return 0;
-	}
-	kvm_queue_exception_p(vcpu, DB_VECTOR, DR6_BS);
-	return 1;
-}
-
 int kvm_skip_emulated_instruction(struct kvm_vcpu *vcpu)
 {
 	unsigned long rflags = kvm_x86_call(get_rflags)(vcpu);
@@ -9283,13 +9300,16 @@ int kvm_skip_emulated_instruction(struct kvm_vcpu *vcpu)
 	 * that sets the TF flag".
 	 */
 	if (unlikely(rflags & X86_EFLAGS_TF))
-		r = kvm_vcpu_do_singlestep(vcpu);
+		r = kvm_inject_emulated_db(vcpu, DR6_BS);
 	return r;
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_skip_emulated_instruction);
 
 static bool kvm_is_code_breakpoint_inhibited(struct kvm_vcpu *vcpu)
 {
+	if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP)
+		return false;
+
 	if (kvm_get_rflags(vcpu) & X86_EFLAGS_RF)
 		return true;
 
@@ -9306,6 +9326,8 @@ static bool kvm_is_code_breakpoint_inhibited(struct kvm_vcpu *vcpu)
 static bool kvm_vcpu_check_code_breakpoint(struct kvm_vcpu *vcpu,
 					   int emulation_type, int *r)
 {
+	unsigned long dr7 = kvm_get_effective_dr7(vcpu);
+
 	WARN_ON_ONCE(emulation_type & EMULTYPE_NO_DECODE);
 
 	/*
@@ -9326,34 +9348,14 @@ static bool kvm_vcpu_check_code_breakpoint(struct kvm_vcpu *vcpu,
 			      EMULTYPE_TRAP_UD | EMULTYPE_VMWARE_GP | EMULTYPE_PF))
 		return false;
 
-	if (unlikely(vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP) &&
-	    (vcpu->arch.guest_debug_dr7 & DR7_BP_EN_MASK)) {
-		struct kvm_run *kvm_run = vcpu->run;
-		unsigned long eip = kvm_get_linear_rip(vcpu);
-		u32 dr6 = kvm_vcpu_check_hw_bp(eip, 0,
-					   vcpu->arch.guest_debug_dr7,
-					   vcpu->arch.eff_db);
-
-		if (dr6 != 0) {
-			kvm_run->debug.arch.dr6 = dr6 | DR6_ACTIVE_LOW;
-			kvm_run->debug.arch.pc = eip;
-			kvm_run->debug.arch.exception = DB_VECTOR;
-			kvm_run->exit_reason = KVM_EXIT_DEBUG;
-			*r = 0;
-			return true;
-		}
-	}
-
-	if (unlikely(vcpu->arch.dr7 & DR7_BP_EN_MASK) &&
+	if (unlikely(dr7 & DR7_BP_EN_MASK) &&
 	    !kvm_is_code_breakpoint_inhibited(vcpu)) {
 		unsigned long eip = kvm_get_linear_rip(vcpu);
-		u32 dr6 = kvm_vcpu_check_hw_bp(eip, 0,
-					   vcpu->arch.dr7,
-					   vcpu->arch.db);
+		u32 dr6 = kvm_vcpu_check_hw_bp(eip, 0, dr7,
+					       vcpu->arch.eff_db);
 
-		if (dr6 != 0) {
-			kvm_queue_exception_p(vcpu, DB_VECTOR, dr6);
-			*r = 1;
+		if (dr6) {
+			*r = kvm_inject_emulated_db(vcpu, dr6);
 			return true;
 		}
 	}
@@ -9499,8 +9501,7 @@ int x86_emulate_instruction(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
 				 */
 				WARN_ON_ONCE(ctxt->exception.vector == UD_VECTOR ||
 					     exception_type(ctxt->exception.vector) == EXCPT_TRAP);
-				inject_emulated_exception(vcpu);
-				return 1;
+				return inject_emulated_exception(vcpu);
 			}
 			return handle_emulation_failure(vcpu, emulation_type);
 		}
@@ -9595,8 +9596,7 @@ restart:
 	if (ctxt->have_exception) {
 		WARN_ON_ONCE(vcpu->mmio_needed && !vcpu->mmio_is_write);
 		vcpu->mmio_needed = false;
-		r = 1;
-		inject_emulated_exception(vcpu);
+		r = inject_emulated_exception(vcpu);
 	} else if (vcpu->arch.pio.count) {
 		if (!vcpu->arch.pio.in) {
 			/* FIXME: return into emulator if single-stepping.  */
@@ -9639,7 +9639,7 @@ writeback:
 				kvm_pmu_branch_retired(vcpu);
 			kvm_rip_write(vcpu, ctxt->eip);
 			if (r && (ctxt->tf || (vcpu->guest_debug & KVM_GUESTDBG_SINGLESTEP)))
-				r = kvm_vcpu_do_singlestep(vcpu);
+				r = kvm_inject_emulated_db(vcpu, DR6_BS);
 			kvm_x86_call(update_emulated_instruction)(vcpu);
 			__kvm_set_rflags(vcpu, ctxt->eflags);
 		}
@@ -11593,9 +11593,6 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	if (vcpu->arch.apic_attention)
 		kvm_lapic_sync_from_vapic(vcpu);
 
-	if (unlikely(exit_fastpath == EXIT_FASTPATH_EXIT_USERSPACE))
-		return 0;
-
 	r = kvm_x86_call(handle_exit)(vcpu, exit_fastpath);
 	return r;
 
@@ -13368,7 +13365,7 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 	kvm->arch.default_tsc_khz = max_tsc_khz ? : tsc_khz;
 	kvm->arch.apic_bus_cycle_ns = APIC_BUS_CYCLE_NS_DEFAULT;
 	kvm->arch.guest_can_read_msr_platform_info = true;
-	kvm->arch.enable_pmu = enable_pmu;
+	kvm->arch.enable_pmu = enable_pmu && !kvm->arch.has_protected_pmu;
 
 #if IS_ENABLED(CONFIG_HYPERV)
 	spin_lock_init(&kvm->arch.hv_root_tdp_lock);
@@ -14013,7 +14010,7 @@ static bool kvm_can_deliver_async_pf(struct kvm_vcpu *vcpu)
 	if (!kvm_pv_async_pf_enabled(vcpu))
 		return false;
 
-	if (!vcpu->arch.apf.send_always &&
+	if (!(vcpu->arch.apf.msr_en_val & KVM_ASYNC_PF_SEND_ALWAYS) &&
 	    (vcpu->arch.guest_state_protected || !kvm_x86_call(get_cpl)(vcpu)))
 		return false;
 
@@ -14022,7 +14019,7 @@ static bool kvm_can_deliver_async_pf(struct kvm_vcpu *vcpu)
 		 * L1 needs to opt into the special #PF vmexits that are
 		 * used to deliver async page faults.
 		 */
-		return vcpu->arch.apf.delivery_as_pf_vmexit;
+		return vcpu->arch.apf.msr_en_val & KVM_ASYNC_PF_DELIVERY_AS_PF_VMEXIT;
 	} else {
 		/*
 		 * Play it safe in case the guest temporarily disables paging.
@@ -14066,7 +14063,7 @@ bool kvm_arch_async_page_not_present(struct kvm_vcpu *vcpu,
 		fault.nested_page_fault = false;
 		fault.address = work->arch.token;
 		fault.async_page_fault = true;
-		kvm_inject_page_fault(vcpu, &fault);
+		kvm_inject_page_fault(vcpu, &fault, false);
 		return true;
 	} else {
 		/*
@@ -14237,7 +14234,7 @@ void kvm_fixup_and_inject_pf_error(struct kvm_vcpu *vcpu, gva_t gva, u16 error_c
 		fault.address = gva;
 		fault.async_page_fault = false;
 	}
-	vcpu->arch.walk_mmu->inject_page_fault(vcpu, &fault);
+	vcpu->arch.walk_mmu->inject_page_fault(vcpu, &fault, true);
 }
 EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_fixup_and_inject_pf_error);
 
