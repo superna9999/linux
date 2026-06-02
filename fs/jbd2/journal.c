@@ -222,7 +222,7 @@ loop:
 		DEFINE_WAIT(wait);
 
 		prepare_to_wait(&journal->j_wait_commit, &wait,
-				TASK_INTERRUPTIBLE);
+				TASK_INTERRUPTIBLE|TASK_FREEZABLE);
 		transaction = journal->j_running_transaction;
 		if (transaction == NULL ||
 		    time_before(jiffies, transaction->t_expires)) {
@@ -2784,7 +2784,7 @@ void *jbd2_alloc(size_t size, gfp_t flags)
 	if (size < PAGE_SIZE)
 		ptr = kmem_cache_alloc(get_slab(size), flags);
 	else
-		ptr = (void *)__get_free_pages(flags, get_order(size));
+		ptr = kmalloc(size, flags);
 
 	/* Check alignment; SLUB has gotten this wrong in the past,
 	 * and this can lead to user data corruption! */
@@ -2795,10 +2795,7 @@ void *jbd2_alloc(size_t size, gfp_t flags)
 
 void jbd2_free(void *ptr, size_t size)
 {
-	if (size < PAGE_SIZE)
-		kmem_cache_free(get_slab(size), ptr);
-	else
-		free_pages((unsigned long)ptr, get_order(size));
+	kfree(ptr);
 };
 
 /*

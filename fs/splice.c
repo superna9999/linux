@@ -159,22 +159,6 @@ const struct pipe_buf_operations page_cache_pipe_buf_ops = {
 	.get		= generic_pipe_buf_get,
 };
 
-static bool user_page_pipe_buf_try_steal(struct pipe_inode_info *pipe,
-		struct pipe_buffer *buf)
-{
-	if (!(buf->flags & PIPE_BUF_FLAG_GIFT))
-		return false;
-
-	buf->flags |= PIPE_BUF_FLAG_LRU;
-	return generic_pipe_buf_try_steal(pipe, buf);
-}
-
-static const struct pipe_buf_operations user_page_pipe_buf_ops = {
-	.release	= page_cache_pipe_buf_release,
-	.try_steal	= user_page_pipe_buf_try_steal,
-	.get		= generic_pipe_buf_get,
-};
-
 static void wakeup_pipe_readers(struct pipe_inode_info *pipe)
 {
 	smp_mb();
@@ -589,8 +573,7 @@ static void splice_from_pipe_end(struct pipe_inode_info *pipe, struct splice_des
  * Description:
  *    This function does little more than loop over the pipe and call
  *    @actor to do the actual moving of a single struct pipe_buffer to
- *    the desired destination. See pipe_to_file, pipe_to_sendmsg, or
- *    pipe_to_user.
+ *    the desired destination. See pipe_to_file or pipe_to_sendmsg.
  *
  */
 ssize_t __splice_from_pipe(struct pipe_inode_info *pipe, struct splice_desc *sd,
@@ -1440,179 +1423,6 @@ static ssize_t __do_splice(struct file *in, loff_t __user *off_in,
 	return ret;
 }
 
-static ssize_t iter_to_pipe(struct iov_iter *from,
-			    struct pipe_inode_info *pipe,
-			    unsigned int flags)
-{
-	struct pipe_buffer buf = {
-		.ops = &user_page_pipe_buf_ops,
-		.flags = flags
-	};
-	size_t total = 0;
-	ssize_t ret = 0;
-
-	while (iov_iter_count(from)) {
-		struct page *pages[16];
-		ssize_t left;
-		size_t start;
-		int i, n;
-
-		left = iov_iter_get_pages2(from, pages, ~0UL, 16, &start);
-		if (left <= 0) {
-			ret = left;
-			break;
-		}
-
-		n = DIV_ROUND_UP(left + start, PAGE_SIZE);
-		for (i = 0; i < n; i++) {
-			int size = umin(left, PAGE_SIZE - start);
-
-			buf.page = pages[i];
-			buf.offset = start;
-			buf.len = size;
-			ret = add_to_pipe(pipe, &buf);
-			if (unlikely(ret < 0)) {
-				iov_iter_revert(from, left);
-				// this one got dropped by add_to_pipe()
-				while (++i < n)
-					put_page(pages[i]);
-				goto out;
-			}
-			total += ret;
-			left -= size;
-			start = 0;
-		}
-	}
-out:
-	return total ? total : ret;
-}
-
-static int pipe_to_user(struct pipe_inode_info *pipe, struct pipe_buffer *buf,
-			struct splice_desc *sd)
-{
-	int n = copy_page_to_iter(buf->page, buf->offset, sd->len, sd->u.data);
-	return n == sd->len ? n : -EFAULT;
-}
-
-/*
- * For lack of a better implementation, implement vmsplice() to userspace
- * as a simple copy of the pipe's pages to the user iov.
- */
-static ssize_t vmsplice_to_user(struct file *file, struct iov_iter *iter,
-				unsigned int flags)
-{
-	struct pipe_inode_info *pipe = get_pipe_info(file, true);
-	struct splice_desc sd = {
-		.total_len = iov_iter_count(iter),
-		.flags = flags,
-		.u.data = iter
-	};
-	ssize_t ret = 0;
-
-	if (!pipe)
-		return -EBADF;
-
-	pipe_clear_nowait(file);
-
-	if (sd.total_len) {
-		pipe_lock(pipe);
-		ret = __splice_from_pipe(pipe, &sd, pipe_to_user);
-		pipe_unlock(pipe);
-	}
-
-	if (ret > 0)
-		fsnotify_access(file);
-
-	return ret;
-}
-
-/*
- * vmsplice splices a user address range into a pipe. It can be thought of
- * as splice-from-memory, where the regular splice is splice-from-file (or
- * to file). In both cases the output is a pipe, naturally.
- */
-static ssize_t vmsplice_to_pipe(struct file *file, struct iov_iter *iter,
-				unsigned int flags)
-{
-	struct pipe_inode_info *pipe;
-	ssize_t ret = 0;
-	unsigned buf_flag = 0;
-
-	if (flags & SPLICE_F_GIFT)
-		buf_flag = PIPE_BUF_FLAG_GIFT;
-
-	pipe = get_pipe_info(file, true);
-	if (!pipe)
-		return -EBADF;
-
-	pipe_clear_nowait(file);
-
-	pipe_lock(pipe);
-	ret = wait_for_space(pipe, flags);
-	if (!ret)
-		ret = iter_to_pipe(iter, pipe, buf_flag);
-	pipe_unlock(pipe);
-	if (ret > 0) {
-		wakeup_pipe_readers(pipe);
-		fsnotify_modify(file);
-	}
-	return ret;
-}
-
-/*
- * Note that vmsplice only really supports true splicing _from_ user memory
- * to a pipe, not the other way around. Splicing from user memory is a simple
- * operation that can be supported without any funky alignment restrictions
- * or nasty vm tricks. We simply map in the user memory and fill them into
- * a pipe. The reverse isn't quite as easy, though. There are two possible
- * solutions for that:
- *
- *	- memcpy() the data internally, at which point we might as well just
- *	  do a regular read() on the buffer anyway.
- *	- Lots of nasty vm tricks, that are neither fast nor flexible (it
- *	  has restriction limitations on both ends of the pipe).
- *
- * Currently we punt and implement it as a normal copy, see pipe_to_user().
- *
- */
-SYSCALL_DEFINE4(vmsplice, int, fd, const struct iovec __user *, uiov,
-		unsigned long, nr_segs, unsigned int, flags)
-{
-	struct iovec iovstack[UIO_FASTIOV];
-	struct iovec *iov = iovstack;
-	struct iov_iter iter;
-	ssize_t error;
-	int type;
-
-	if (unlikely(flags & ~SPLICE_F_ALL))
-		return -EINVAL;
-
-	CLASS(fd, f)(fd);
-	if (fd_empty(f))
-		return -EBADF;
-	if (fd_file(f)->f_mode & FMODE_WRITE)
-		type = ITER_SOURCE;
-	else if (fd_file(f)->f_mode & FMODE_READ)
-		type = ITER_DEST;
-	else
-		return -EBADF;
-
-	error = import_iovec(type, uiov, nr_segs,
-			     ARRAY_SIZE(iovstack), &iov, &iter);
-	if (error < 0)
-		return error;
-
-	if (!iov_iter_count(&iter))
-		error = 0;
-	else if (type == ITER_SOURCE)
-		error = vmsplice_to_pipe(fd_file(f), &iter, flags);
-	else
-		error = vmsplice_to_user(fd_file(f), &iter, flags);
-
-	kfree(iov);
-	return error;
-}
-
 SYSCALL_DEFINE6(splice, int, fd_in, loff_t __user *, off_in,
 		int, fd_out, loff_t __user *, off_out,
 		size_t, len, unsigned int, flags)
@@ -1812,10 +1622,9 @@ retry:
 			*obuf = *ibuf;
 
 			/*
-			 * Don't inherit the gift and merge flags, we need to
+			 * Don't inherit the merge flag, we need to
 			 * prevent multiple steals of this page.
 			 */
-			obuf->flags &= ~PIPE_BUF_FLAG_GIFT;
 			obuf->flags &= ~PIPE_BUF_FLAG_CAN_MERGE;
 
 			obuf->len = len;
@@ -1849,7 +1658,7 @@ retry:
  */
 static ssize_t link_pipe(struct pipe_inode_info *ipipe,
 			 struct pipe_inode_info *opipe,
-			 size_t len, unsigned int flags)
+			 size_t len)
 {
 	struct pipe_buffer *ibuf, *obuf;
 	unsigned int i_head, o_head;
@@ -1901,10 +1710,9 @@ static ssize_t link_pipe(struct pipe_inode_info *ipipe,
 		*obuf = *ibuf;
 
 		/*
-		 * Don't inherit the gift and merge flag, we need to prevent
+		 * Don't inherit the merge flag, we need to prevent
 		 * multiple steals of this page.
 		 */
-		obuf->flags &= ~PIPE_BUF_FLAG_GIFT;
 		obuf->flags &= ~PIPE_BUF_FLAG_CAN_MERGE;
 
 		if (obuf->len > len)
@@ -1962,7 +1770,7 @@ ssize_t do_tee(struct file *in, struct file *out, size_t len,
 		if (!ret) {
 			ret = opipe_prep(opipe, flags);
 			if (!ret)
-				ret = link_pipe(ipipe, opipe, len, flags);
+				ret = link_pipe(ipipe, opipe, len);
 		}
 	}
 

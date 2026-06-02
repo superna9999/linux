@@ -505,7 +505,7 @@ enum {
 	SKBFL_ZEROCOPY_ENABLE = BIT(0),
 
 	/* This indicates at least one fragment might be overwritten
-	 * (as in vmsplice(), sendfile() ...)
+	 * (as in sendfile(), ...)
 	 * If we need to compute a TX checksum, we'll need to copy
 	 * all frags to avoid possible bad checksum
 	 */
@@ -4017,7 +4017,7 @@ static inline int skb_linearize(struct sk_buff *skb)
  * @skb: buffer to test
  *
  * Return: true if the skb has at least one frag that might be modified
- * by an external entity (as in vmsplice()/sendfile())
+ * by an external entity (as in sendfile())
  */
 static inline bool skb_has_shared_frag(const struct sk_buff *skb)
 {
