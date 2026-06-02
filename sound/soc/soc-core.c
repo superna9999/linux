@@ -194,9 +194,6 @@ static void soc_init_card_debugfs(struct snd_soc_card *card)
 	card->debugfs_card_root = debugfs_create_dir(card->name,
 						     snd_soc_debugfs_root);
 
-	debugfs_create_u32("dapm_pop_time", 0644, card->debugfs_card_root,
-			   &card->pop_time);
-
 	snd_soc_dapm_debugfs_init(snd_soc_card_to_dapm(card), card->debugfs_card_root);
 }
 
@@ -215,6 +212,8 @@ static void snd_soc_debugfs_init(void)
 
 	debugfs_create_file("components", 0444, snd_soc_debugfs_root, NULL,
 			    &component_list_fops);
+
+	snd_soc_dapm_debugfs_pop_time(snd_soc_debugfs_root);
 }
 
 static void snd_soc_debugfs_exit(void)
@@ -1986,7 +1985,6 @@ static inline int snd_soc_set_dmi_name(struct snd_soc_card *card)
 static void soc_check_tplg_fes(struct snd_soc_card *card)
 {
 	struct snd_soc_component *component;
-	const struct snd_soc_component_driver *comp_drv;
 	struct snd_soc_dai_link *dai_link;
 	int i;
 
@@ -2047,21 +2045,7 @@ match:
 		}
 
 		/* Inform userspace we are using alternate topology */
-		if (component->driver->topology_name_prefix) {
-
-			/* topology shortname created? */
-			if (!card->topology_shortname_created) {
-				comp_drv = component->driver;
-
-				snprintf(card->topology_shortname, 32, "%s-%s",
-					 comp_drv->topology_name_prefix,
-					 card->name);
-				card->topology_shortname_created = true;
-			}
-
-			/* use topology shortname */
-			card->name = card->topology_shortname;
-		}
+		snd_soc_card_set_topology_name(card, component->driver->topology_name_prefix);
 	}
 }
 
@@ -2168,6 +2152,7 @@ static int snd_soc_bind_card(struct snd_soc_card *card)
 	snd_soc_fill_dummy_dai(card);
 
 	snd_soc_dapm_init(dapm, card, NULL);
+	list_del_init(&card->list);
 
 	/* check whether any platform is ignore machine FE and using topology */
 	soc_check_tplg_fes(card);
@@ -2289,6 +2274,10 @@ static int snd_soc_bind_card(struct snd_soc_card *card)
 	if (ret < 0)
 		goto probe_end;
 
+	ret = snd_soc_dapm_ignore_suspend_widgets(card);
+	if (ret < 0)
+		goto probe_end;
+
 	snd_soc_dapm_new_widgets(card);
 	snd_soc_card_fixup_controls(card);
 
@@ -2311,6 +2300,10 @@ static int snd_soc_bind_card(struct snd_soc_card *card)
 probe_end:
 	if (ret < 0)
 		soc_cleanup_card_resources(card);
+	if (ret == -EPROBE_DEFER) {
+		list_add(&card->list, &unbind_card_list);
+		ret = 0;
+	}
 	snd_soc_card_mutex_unlock(card);
 
 	return ret;
@@ -2326,12 +2319,15 @@ static int devm_snd_soc_bind_card(struct device *dev, struct snd_soc_card *card)
 	struct snd_soc_card **ptr;
 	int ret;
 
+	/* The procedure may be called many times during the lifetime of the card. */
+	devres_destroy(dev, devm_card_bind_release, NULL, NULL);
+
 	ptr = devres_alloc(devm_card_bind_release, sizeof(*ptr), GFP_KERNEL);
 	if (!ptr)
 		return -ENOMEM;
 
 	ret = snd_soc_bind_card(card);
-	if (ret == 0 || ret == -EPROBE_DEFER) {
+	if (ret == 0) {
 		*ptr = card;
 		devres_add(dev, ptr);
 	} else {
@@ -2341,21 +2337,11 @@ static int devm_snd_soc_bind_card(struct device *dev, struct snd_soc_card *card)
 	return ret;
 }
 
-static int snd_soc_rebind_card(struct snd_soc_card *card)
+static int call_soc_bind_card(struct snd_soc_card *card)
 {
-	int ret;
-
-	if (card->devres_dev) {
-		devres_destroy(card->devres_dev, devm_card_bind_release, NULL, NULL);
-		ret = devm_snd_soc_bind_card(card->devres_dev, card);
-	} else {
-		ret = snd_soc_bind_card(card);
-	}
-
-	if (ret != -EPROBE_DEFER)
-		list_del_init(&card->list);
-
-	return ret;
+	if (card->devres_dev)
+		return devm_snd_soc_bind_card(card->devres_dev, card);
+	return snd_soc_bind_card(card);
 }
 
 /* probes a new socdev */
@@ -2553,8 +2539,6 @@ EXPORT_SYMBOL_GPL(snd_soc_add_dai_controls);
  */
 int snd_soc_register_card(struct snd_soc_card *card)
 {
-	int ret;
-
 	if (!card->name || !card->dev)
 		return -EINVAL;
 
@@ -2580,17 +2564,7 @@ int snd_soc_register_card(struct snd_soc_card *card)
 
 	guard(mutex)(&client_mutex);
 
-	if (card->devres_dev) {
-		ret = devm_snd_soc_bind_card(card->devres_dev, card);
-		if (ret == -EPROBE_DEFER) {
-			list_add(&card->list, &unbind_card_list);
-			ret = 0;
-		}
-	} else {
-		ret = snd_soc_bind_card(card);
-	}
-
-	return ret;
+	return call_soc_bind_card(card);
 }
 EXPORT_SYMBOL_GPL(snd_soc_register_card);
 
@@ -2910,7 +2884,7 @@ int snd_soc_add_component(struct snd_soc_component *component,
 	list_add(&component->list, &component_list);
 
 	list_for_each_entry_safe(card, c, &unbind_card_list, list)
-		snd_soc_rebind_card(card);
+		call_soc_bind_card(card);
 
 err_cleanup:
 	if (ret < 0)
@@ -3293,6 +3267,45 @@ int snd_soc_of_parse_aux_devs(struct snd_soc_card *card, const char *propname)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snd_soc_of_parse_aux_devs);
+
+int snd_soc_of_parse_ignore_suspend_widgets(struct snd_soc_card *card,
+					    const char *propname)
+{
+	struct device_node *np = card->dev->of_node;
+	int num_widgets;
+	const char **widgets;
+	int i;
+
+	num_widgets = of_property_count_strings(np, propname);
+	if (num_widgets < 0) {
+		dev_err(card->dev,
+			"ASoC: Property '%s' does not exist\n", propname);
+		return -EINVAL;
+	}
+
+	widgets = devm_kcalloc(card->dev, num_widgets, sizeof(char *), GFP_KERNEL);
+	if (!widgets)
+		return -ENOMEM;
+
+	for (i = 0; i < num_widgets; i++) {
+		const char *name;
+		int ret = of_property_read_string_index(np, propname, i, &name);
+
+		if (ret) {
+			dev_err(card->dev,
+				"ASoC: Property '%s' could not be read: %d\n",
+				propname, ret);
+			return -EINVAL;
+		}
+		widgets[i] = name;
+	}
+
+	card->num_of_ignore_suspend_widgets = num_widgets;
+	card->of_ignore_suspend_widgets = widgets;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_soc_of_parse_ignore_suspend_widgets);
 
 unsigned int snd_soc_daifmt_clock_provider_flipped(unsigned int dai_fmt)
 {
