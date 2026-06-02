@@ -35,10 +35,23 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/wait.h>
+#include <linux/static_key.h>
+#include <linux/init.h>
 
-#ifdef CONFIG_SLUB_DEBUG_ON
-#define DMAPOOL_DEBUG 1
-#endif
+/*
+ * Debugging support for dmapool using static key.
+ *
+ * This allows enabling dmapool debug at boot time via:
+ *   dmapool_debug
+ */
+static DEFINE_STATIC_KEY_FALSE(dmapool_debug_enabled);
+
+static int __init dmapool_debug_setup(char *str)
+{
+	static_branch_enable(&dmapool_debug_enabled);
+	return 1;
+}
+__setup("dmapool_debug", dmapool_debug_setup);
 
 struct dma_block {
 	struct dma_block *next_block;
@@ -92,12 +105,14 @@ static ssize_t pools_show(struct device *dev, struct device_attribute *attr, cha
 
 static DEVICE_ATTR_RO(pools);
 
-#ifdef DMAPOOL_DEBUG
 static void pool_check_block(struct dma_pool *pool, struct dma_block *block,
 			     gfp_t mem_flags)
 {
 	u8 *data = (void *)block;
 	int i;
+
+	if (!static_branch_unlikely(&dmapool_debug_enabled))
+		return;
 
 	for (i = sizeof(struct dma_block); i < pool->size; i++) {
 		if (data[i] == POOL_POISON_FREED)
@@ -133,8 +148,14 @@ static struct dma_page *pool_find_page(struct dma_pool *pool, dma_addr_t dma)
 
 static bool pool_block_err(struct dma_pool *pool, void *vaddr, dma_addr_t dma)
 {
-	struct dma_block *block = pool->next_block;
 	struct dma_page *page;
+	struct dma_block *block;
+
+	if (!static_branch_unlikely(&dmapool_debug_enabled)) {
+		if (want_init_on_free())
+			memset(vaddr, 0, pool->size);
+		return false;
+	}
 
 	page = pool_find_page(pool, dma);
 	if (!page) {
@@ -143,6 +164,7 @@ static bool pool_block_err(struct dma_pool *pool, void *vaddr, dma_addr_t dma)
 		return true;
 	}
 
+	block = pool->next_block;
 	while (block) {
 		if (block != vaddr) {
 			block = block->next_block;
@@ -159,25 +181,9 @@ static bool pool_block_err(struct dma_pool *pool, void *vaddr, dma_addr_t dma)
 
 static void pool_init_page(struct dma_pool *pool, struct dma_page *page)
 {
-	memset(page->vaddr, POOL_POISON_FREED, pool->allocation);
+	if (static_branch_unlikely(&dmapool_debug_enabled))
+		memset(page->vaddr, POOL_POISON_FREED, pool->allocation);
 }
-#else
-static void pool_check_block(struct dma_pool *pool, struct dma_block *block,
-			     gfp_t mem_flags)
-{
-}
-
-static bool pool_block_err(struct dma_pool *pool, void *vaddr, dma_addr_t dma)
-{
-	if (want_init_on_free())
-		memset(vaddr, 0, pool->size);
-	return false;
-}
-
-static void pool_init_page(struct dma_pool *pool, struct dma_page *page)
-{
-}
-#endif
 
 static struct dma_block *pool_block_pop(struct dma_pool *pool)
 {
