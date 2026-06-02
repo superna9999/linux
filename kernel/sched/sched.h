@@ -421,6 +421,10 @@ extern void ext_server_init(struct rq *rq);
 extern void __dl_server_attach_root(struct sched_dl_entity *dl_se, struct rq *rq);
 extern int dl_server_apply_params(struct sched_dl_entity *dl_se,
 		    u64 runtime, u64 period, bool init);
+extern int dl_server_attach_bw(struct sched_dl_entity *dl_se);
+extern void dl_server_detach_bw(struct sched_dl_entity *dl_se);
+extern int dl_server_swap_bw(struct sched_dl_entity *detach_se,
+			     struct sched_dl_entity *attach_se);
 
 static inline bool dl_server_active(struct sched_dl_entity *dl_se)
 {
@@ -1187,6 +1191,12 @@ struct rq {
 	struct scx_rq		scx;
 	struct sched_dl_entity	ext_server;
 #endif
+#ifdef CONFIG_SCHED_CACHE
+	raw_spinlock_t		cpu_epoch_lock ____cacheline_aligned;
+	u64			cpu_runtime;
+	unsigned long		cpu_epoch;
+	unsigned long		cpu_epoch_next;
+#endif
 
 	struct sched_dl_entity	fair_server;
 
@@ -1199,6 +1209,12 @@ struct rq {
 #ifdef CONFIG_NUMA_BALANCING
 	unsigned int		numa_migrate_on;
 #endif
+
+#ifdef CONFIG_SCHED_CACHE
+	unsigned int		nr_pref_llc_running;
+	unsigned int		nr_llc_running;
+#endif
+
 	/*
 	 * This is part of a global counter where only the total sum
 	 * over all CPUs matters. A task can increase this counter on
@@ -1546,6 +1562,14 @@ extern void sched_core_dequeue(struct rq *rq, struct task_struct *p, int flags);
 extern void sched_core_get(void);
 extern void sched_core_put(void);
 
+static inline bool task_has_sched_core(struct task_struct *p)
+{
+	if (sched_core_disabled())
+		return false;
+
+	return !!p->core_cookie;
+}
+
 #else /* !CONFIG_SCHED_CORE: */
 
 static inline bool sched_core_enabled(struct rq *rq)
@@ -1584,6 +1608,11 @@ static inline bool sched_group_cookie_match(struct rq *rq,
 					    struct sched_group *group)
 {
 	return true;
+}
+
+static inline bool task_has_sched_core(struct task_struct *p)
+{
+	return false;
 }
 
 #endif /* !CONFIG_SCHED_CORE */
@@ -1667,21 +1696,15 @@ do {						\
 	flags = _raw_spin_rq_lock_irqsave(rq);	\
 } while (0)
 
-#ifdef CONFIG_SCHED_SMT
 extern void __update_idle_core(struct rq *rq);
 
 static inline void update_idle_core(struct rq *rq)
 {
-	if (static_branch_unlikely(&sched_smt_present))
+	if (sched_smt_active())
 		__update_idle_core(rq);
 }
 
-#else /* !CONFIG_SCHED_SMT: */
-static inline void update_idle_core(struct rq *rq) { }
-#endif /* !CONFIG_SCHED_SMT */
-
 #ifdef CONFIG_FAIR_GROUP_SCHED
-
 static inline struct task_struct *task_of(struct sched_entity *se)
 {
 	WARN_ON_ONCE(!entity_is_task(se));
@@ -2082,6 +2105,8 @@ init_numa_balancing(u64 clone_flags, struct task_struct *p)
 
 #endif /* !CONFIG_NUMA_BALANCING */
 
+int task_llc(const struct task_struct *p);
+
 static inline void
 queue_balance_callback(struct rq *rq,
 		       struct balance_callback *head,
@@ -2171,6 +2196,7 @@ DECLARE_PER_CPU(int, sd_llc_size);
 DECLARE_PER_CPU(int, sd_llc_id);
 DECLARE_PER_CPU(int, sd_share_id);
 DECLARE_PER_CPU(struct sched_domain_shared __rcu *, sd_llc_shared);
+DECLARE_PER_CPU(struct sched_domain_shared __rcu *, sd_balance_shared);
 DECLARE_PER_CPU(struct sched_domain __rcu *, sd_numa);
 DECLARE_PER_CPU(struct sched_domain __rcu *, sd_asym_packing);
 DECLARE_PER_CPU(struct sched_domain __rcu *, sd_asym_cpucapacity);
@@ -2567,17 +2593,6 @@ struct sched_class {
 	 * schedule/pick_next_task: rq->lock
 	 */
 	struct task_struct *(*pick_task)(struct rq *rq, struct rq_flags *rf);
-	/*
-	 * Optional! When implemented pick_next_task() should be equivalent to:
-	 *
-	 *   next = pick_task();
-	 *   if (next) {
-	 *       put_prev_task(prev);
-	 *       set_next_task_first(next);
-	 *   }
-	 */
-	struct task_struct *(*pick_next_task)(struct rq *rq, struct task_struct *prev,
-					      struct rq_flags *rf);
 
 	/*
 	 * sched_change:
@@ -2801,8 +2816,7 @@ static inline bool sched_fair_runnable(struct rq *rq)
 	return rq->cfs.nr_queued > 0;
 }
 
-extern struct task_struct *pick_next_task_fair(struct rq *rq, struct task_struct *prev,
-					       struct rq_flags *rf);
+extern struct task_struct *pick_task_fair(struct rq *rq, struct rq_flags *rf);
 extern struct task_struct *pick_task_idle(struct rq *rq, struct rq_flags *rf);
 
 #define SCA_CHECK		0x01
@@ -4036,6 +4050,29 @@ static inline void mm_cid_switch_to(struct task_struct *prev, struct task_struct
 #else /* !CONFIG_SCHED_MM_CID: */
 static inline void mm_cid_switch_to(struct task_struct *prev, struct task_struct *next) { }
 #endif /* !CONFIG_SCHED_MM_CID */
+
+#ifdef CONFIG_SCHED_CACHE
+DECLARE_STATIC_KEY_FALSE(sched_cache_present);
+DECLARE_STATIC_KEY_FALSE(sched_cache_active);
+extern int sysctl_sched_cache_user;
+extern unsigned int llc_aggr_tolerance;
+extern unsigned int llc_epoch_period;
+extern unsigned int llc_epoch_affinity_timeout;
+extern unsigned int llc_imb_pct;
+extern unsigned int llc_overaggr_pct;
+
+static inline bool sched_cache_enabled(void)
+{
+	return static_branch_unlikely(&sched_cache_active);
+}
+
+extern void sched_cache_active_set(void);
+
+#endif
+
+void sched_domains_free_llc_id(int cpu);
+
+extern void init_sched_mm(struct task_struct *p);
 
 extern u64 avg_vruntime(struct cfs_rq *cfs_rq);
 extern int entity_eligible(struct cfs_rq *cfs_rq, struct sched_entity *se);
