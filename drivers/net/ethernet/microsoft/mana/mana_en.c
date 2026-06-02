@@ -355,9 +355,9 @@ netdev_tx_t mana_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	if (skb_cow_head(skb, MANA_HEADROOM))
 		goto tx_drop_count;
 
-	txq = &apc->tx_qp[txq_idx].txq;
+	txq = &apc->tx_qp[txq_idx]->txq;
 	gdma_sq = txq->gdma_sq;
-	cq = &apc->tx_qp[txq_idx].tx_cq;
+	cq = &apc->tx_qp[txq_idx]->tx_cq;
 	tx_stats = &txq->stats;
 
 	BUILD_BUG_ON(MAX_TX_WQE_SGL_ENTRIES != MANA_MAX_TX_WQE_SGL_ENTRIES);
@@ -614,7 +614,7 @@ static void mana_get_stats64(struct net_device *ndev,
 	}
 
 	for (q = 0; q < num_queues; q++) {
-		tx_stats = &apc->tx_qp[q].txq.stats;
+		tx_stats = &apc->tx_qp[q]->txq.stats;
 
 		do {
 			start = u64_stats_fetch_begin(&tx_stats->syncp);
@@ -685,11 +685,11 @@ void mana_pre_dealloc_rxbufs(struct mana_port_context *mpc)
 		put_page(virt_to_head_page(mpc->rxbufs_pre[i]));
 	}
 
-	kfree(mpc->das_pre);
+	kvfree(mpc->das_pre);
 	mpc->das_pre = NULL;
 
 out2:
-	kfree(mpc->rxbufs_pre);
+	kvfree(mpc->rxbufs_pre);
 	mpc->rxbufs_pre = NULL;
 
 out1:
@@ -806,11 +806,11 @@ int mana_pre_alloc_rxbufs(struct mana_port_context *mpc, int new_mtu, int num_qu
 	num_rxb = num_queues * mpc->rx_queue_size;
 
 	WARN(mpc->rxbufs_pre, "mana rxbufs_pre exists\n");
-	mpc->rxbufs_pre = kmalloc_array(num_rxb, sizeof(void *), GFP_KERNEL);
+	mpc->rxbufs_pre = kvmalloc_array(num_rxb, sizeof(void *), GFP_KERNEL);
 	if (!mpc->rxbufs_pre)
 		goto error;
 
-	mpc->das_pre = kmalloc_objs(dma_addr_t, num_rxb);
+	mpc->das_pre = kvmalloc_objs(dma_addr_t, num_rxb);
 	if (!mpc->das_pre)
 		goto error;
 
@@ -1262,6 +1262,12 @@ static int mana_query_vport_cfg(struct mana_port_context *apc, u32 vport_index,
 
 	*max_sq = resp.max_num_sq;
 	*max_rq = resp.max_num_rq;
+
+	if (*max_sq == 0 || *max_rq == 0) {
+		netdev_err(apc->ndev, "Invalid max queues from vPort config\n");
+		return -EPROTO;
+	}
+
 	if (resp.num_indirection_ent > 0 &&
 	    resp.num_indirection_ent <= MANA_INDIRECT_TABLE_MAX_SIZE &&
 	    is_power_of_2(resp.num_indirection_ent)) {
@@ -1275,6 +1281,9 @@ static int mana_query_vport_cfg(struct mana_port_context *apc, u32 vport_index,
 
 	apc->port_handle = resp.vport;
 	ether_addr_copy(apc->mac_addr, resp.mac_addr);
+
+	apc->vport_max_sq = *max_sq;
+	apc->vport_max_rq = *max_rq;
 
 	return 0;
 }
@@ -1430,6 +1439,11 @@ static int mana_cfg_vport_steering(struct mana_port_context *apc,
 
 	netdev_info(ndev, "Configured steering vPort %llu entries %u\n",
 		    apc->port_handle, apc->indir_table_sz);
+
+	apc->steer_rx = rx;
+	apc->steer_rss = apc->rss_state;
+	apc->steer_update_tab = update_tab;
+	apc->steer_cqe_coalescing = req->cqe_coalescing_enable;
 out:
 	kfree(req);
 	return err;
@@ -2324,21 +2338,26 @@ static void mana_destroy_txq(struct mana_port_context *apc)
 		return;
 
 	for (i = 0; i < apc->num_queues; i++) {
-		debugfs_remove_recursive(apc->tx_qp[i].mana_tx_debugfs);
-		apc->tx_qp[i].mana_tx_debugfs = NULL;
+		if (!apc->tx_qp[i])
+			continue;
 
-		napi = &apc->tx_qp[i].tx_cq.napi;
-		if (apc->tx_qp[i].txq.napi_initialized) {
+		debugfs_remove_recursive(apc->tx_qp[i]->mana_tx_debugfs);
+		apc->tx_qp[i]->mana_tx_debugfs = NULL;
+
+		napi = &apc->tx_qp[i]->tx_cq.napi;
+		if (apc->tx_qp[i]->txq.napi_initialized) {
 			napi_synchronize(napi);
 			napi_disable_locked(napi);
 			netif_napi_del_locked(napi);
-			apc->tx_qp[i].txq.napi_initialized = false;
+			apc->tx_qp[i]->txq.napi_initialized = false;
 		}
-		mana_destroy_wq_obj(apc, GDMA_SQ, apc->tx_qp[i].tx_object);
+		mana_destroy_wq_obj(apc, GDMA_SQ, apc->tx_qp[i]->tx_object);
 
-		mana_deinit_cq(apc, &apc->tx_qp[i].tx_cq);
+		mana_deinit_cq(apc, &apc->tx_qp[i]->tx_cq);
 
-		mana_deinit_txq(apc, &apc->tx_qp[i].txq);
+		mana_deinit_txq(apc, &apc->tx_qp[i]->txq);
+
+		kvfree(apc->tx_qp[i]);
 	}
 
 	kfree(apc->tx_qp);
@@ -2347,7 +2366,7 @@ static void mana_destroy_txq(struct mana_port_context *apc)
 
 static void mana_create_txq_debugfs(struct mana_port_context *apc, int idx)
 {
-	struct mana_tx_qp *tx_qp = &apc->tx_qp[idx];
+	struct mana_tx_qp *tx_qp = apc->tx_qp[idx];
 	char qnum[32];
 
 	sprintf(qnum, "TX-%d", idx);
@@ -2386,7 +2405,7 @@ static int mana_create_txq(struct mana_port_context *apc,
 	int err;
 	int i;
 
-	apc->tx_qp = kzalloc_objs(struct mana_tx_qp, apc->num_queues);
+	apc->tx_qp = kzalloc_objs(struct mana_tx_qp *, apc->num_queues);
 	if (!apc->tx_qp)
 		return -ENOMEM;
 
@@ -2406,10 +2425,16 @@ static int mana_create_txq(struct mana_port_context *apc,
 	gc = gd->gdma_context;
 
 	for (i = 0; i < apc->num_queues; i++) {
-		apc->tx_qp[i].tx_object = INVALID_MANA_HANDLE;
+		apc->tx_qp[i] = kvzalloc_obj(*apc->tx_qp[i]);
+		if (!apc->tx_qp[i]) {
+			err = -ENOMEM;
+			goto out;
+		}
+
+		apc->tx_qp[i]->tx_object = INVALID_MANA_HANDLE;
 
 		/* Create SQ */
-		txq = &apc->tx_qp[i].txq;
+		txq = &apc->tx_qp[i]->txq;
 
 		u64_stats_init(&txq->stats.syncp);
 		txq->ndev = net;
@@ -2427,7 +2452,7 @@ static int mana_create_txq(struct mana_port_context *apc,
 			goto out;
 
 		/* Create SQ's CQ */
-		cq = &apc->tx_qp[i].tx_cq;
+		cq = &apc->tx_qp[i]->tx_cq;
 		cq->type = MANA_CQ_TYPE_TX;
 
 		cq->txq = txq;
@@ -2456,7 +2481,7 @@ static int mana_create_txq(struct mana_port_context *apc,
 
 		err = mana_create_wq_obj(apc, apc->port_handle, GDMA_SQ,
 					 &wq_spec, &cq_spec,
-					 &apc->tx_qp[i].tx_object);
+					 &apc->tx_qp[i]->tx_object);
 
 		if (err)
 			goto out;
@@ -2559,7 +2584,7 @@ static void mana_destroy_rxq(struct mana_port_context *apc,
 	if (rxq->gdma_rq)
 		mana_gd_destroy_queue(gc, rxq->gdma_rq);
 
-	kfree(rxq);
+	kvfree(rxq);
 }
 
 static int mana_fill_rx_oob(struct mana_recv_buf_oob *rx_oob, u32 mem_key,
@@ -2699,7 +2724,7 @@ static struct mana_rxq *mana_create_rxq(struct mana_port_context *apc,
 
 	gc = gd->gdma_context;
 
-	rxq = kzalloc_flex(*rxq, rx_oobs, apc->rx_queue_size);
+	rxq = kvzalloc_flex(*rxq, rx_oobs, apc->rx_queue_size);
 	if (!rxq)
 		return NULL;
 
@@ -3167,6 +3192,23 @@ static int mana_init_port(struct net_device *ndev)
 	eth_hw_addr_set(ndev, apc->mac_addr);
 	sprintf(vport, "vport%d", port_idx);
 	apc->mana_port_debugfs = debugfs_create_dir(vport, gc->mana_pci_debugfs);
+
+	debugfs_create_u64("port_handle", 0400, apc->mana_port_debugfs,
+			   &apc->port_handle);
+	debugfs_create_u32("max_sq", 0400, apc->mana_port_debugfs,
+			   &apc->vport_max_sq);
+	debugfs_create_u32("max_rq", 0400, apc->mana_port_debugfs,
+			   &apc->vport_max_rq);
+	debugfs_create_u32("indir_table_sz", 0400, apc->mana_port_debugfs,
+			   &apc->indir_table_sz);
+	debugfs_create_u32("steer_rx", 0400, apc->mana_port_debugfs,
+			   &apc->steer_rx);
+	debugfs_create_u32("steer_rss", 0400, apc->mana_port_debugfs,
+			   &apc->steer_rss);
+	debugfs_create_bool("steer_update_tab", 0400, apc->mana_port_debugfs,
+			    &apc->steer_update_tab);
+	debugfs_create_u32("steer_cqe_coalescing", 0400, apc->mana_port_debugfs,
+			   &apc->steer_cqe_coalescing);
 	debugfs_create_u32("current_speed", 0400, apc->mana_port_debugfs,
 			   &apc->speed);
 	return 0;
@@ -3296,7 +3338,7 @@ static int mana_dealloc_queues(struct net_device *ndev)
 
 	if (apc->tx_qp) {
 		for (i = 0; i < apc->num_queues; i++) {
-			txq = &apc->tx_qp[i].txq;
+			txq = &apc->tx_qp[i]->txq;
 			tsleep = 1000;
 			while (atomic_read(&txq->pending_sends) > 0 &&
 			       time_before(jiffies, timeout)) {
@@ -3317,7 +3359,7 @@ static int mana_dealloc_queues(struct net_device *ndev)
 		}
 
 		for (i = 0; i < apc->num_queues; i++) {
-			txq = &apc->tx_qp[i].txq;
+			txq = &apc->tx_qp[i]->txq;
 			while ((skb = skb_dequeue(&txq->pending_skbs))) {
 				mana_unmap_skb(skb, apc);
 				dev_kfree_skb_any(skb);
@@ -3696,6 +3738,11 @@ int mana_probe(struct gdma_dev *gd, bool resuming)
 	if (ac->num_ports > MAX_PORTS_IN_MANA_DEV)
 		ac->num_ports = MAX_PORTS_IN_MANA_DEV;
 
+	debugfs_create_u16("num_vports", 0400, gc->mana_pci_debugfs,
+			   &ac->num_ports);
+	debugfs_create_u8("bm_hostmode", 0400, gc->mana_pci_debugfs,
+			  &ac->bm_hostmode);
+
 	ac->per_port_queue_reset_wq =
 		create_singlethread_workqueue("mana_per_port_queue_reset_wq");
 	if (!ac->per_port_queue_reset_wq) {
@@ -3817,6 +3864,11 @@ void mana_remove(struct gdma_dev *gd, bool suspending)
 	}
 
 	mana_gd_deregister_device(gd);
+
+	if (gc->mana_pci_debugfs) {
+		debugfs_lookup_and_remove("bm_hostmode", gc->mana_pci_debugfs);
+		debugfs_lookup_and_remove("num_vports", gc->mana_pci_debugfs);
+	}
 
 	if (suspending)
 		return;

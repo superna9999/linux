@@ -1,11 +1,40 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * MDIO controller for RTL9300 switches with integrated SoC.
+ * Realtek switches of the Otto series (RTL838x, RTL839x, RTL930x and RTL931x SoCs) have multiple
+ * integrated MDIO controllers. This driver targets the ethernet MDIO controller. It serves only
+ * 1G/2.5G/10G ethernet PHYs attached to up to 4 individual buses.
  *
- * The MDIO communication is abstracted by the switch. At the software level
- * communication uses the switch port to address the PHY. We work out the
- * mapping based on the MDIO bus described in device tree and phandles on the
- * ethernet-ports property.
+ * The controller is programmed through MMIO. The MDIO communication is abstracted by the hardware
+ * and uses the switch port number for its addressing. For this to work, mapping registers need to
+ * be setup in advance. With that the controller translates each port based I/O operation into the
+ * physical bus and address. This gives the following end-to-end communication
+ *
+ *     +----------+       +----------+           +----------+       +----------+
+ *     |  phydev  |  ...  |  phydev  |           |  phydev  |  ...  |  phydev  |
+ *     +----------+       +----------+           +----------+       +----------+
+ *              |                  |               |                  |
+ *   mii_bus 0  +------------------+               +------------------+  mii_bus 1
+ *                                 |               |
+ *           +-----------------------------------------------------+
+ *           |  MDIO driver                                        |
+ *           |                      translate bus/address -> port  |
+ *           +-----------------------------------------------------+
+ *                                        |                             Software
+ *                             - - - - - - - - - - - - - - - - - - - - - - - - -
+ *                                        |                             Hardware
+ *           +-----------------------------------------------------+
+ *           | MDIO controller                                     |
+ *           |                      translate port -> bus/address  |
+ *           +-----------------------------------------------------+
+ *                                 |               |
+ *       bus 0  +------------------+               +------------------+  bus 1
+ *              |                  |               |                  |
+ *     +----------+       +----------+           +----------+       +----------+
+ *     | PHY 0/1  |  ...  | PHY 0/31 |           | PHY 1/1  |  ...  | PHY 1/31 |
+ *     +----------+       +----------+           +----------+       +----------+
+ *
+ * The driver works out the mapping based on the MDIO bus described in device tree and phandles on
+ * the ethernet-ports property.
  */
 
 #include <linux/bitfield.h>
@@ -22,11 +51,14 @@
 #include <linux/property.h>
 #include <linux/regmap.h>
 
+#define RTL9300_NUM_BUSES		4
+#define RTL9300_NUM_PAGES		4096
+#define RTL9300_NUM_PORTS		28
 #define SMI_GLB_CTRL			0xca00
 #define   GLB_CTRL_INTF_SEL(intf)	BIT(16 + (intf))
 #define SMI_PORT0_15_POLLING_SEL	0xca08
-#define SMI_ACCESS_PHY_CTRL_0		0xcb70
-#define SMI_ACCESS_PHY_CTRL_1		0xcb74
+#define RTL9300_SMI_ACCESS_PHY_CTRL_0	0xcb70
+#define RTL9300_SMI_ACCESS_PHY_CTRL_1	0xcb74
 #define   PHY_CTRL_REG_ADDR		GENMASK(24, 20)
 #define   PHY_CTRL_PARK_PAGE		GENMASK(19, 15)
 #define   PHY_CTRL_MAIN_PAGE		GENMASK(14, 3)
@@ -36,10 +68,10 @@
 #define   PHY_CTRL_TYPE_C22		0
 #define   PHY_CTRL_CMD			BIT(0)
 #define   PHY_CTRL_FAIL			BIT(25)
-#define SMI_ACCESS_PHY_CTRL_2		0xcb78
+#define RTL9300_SMI_ACCESS_PHY_CTRL_2	0xcb78
 #define   PHY_CTRL_INDATA		GENMASK(31, 16)
 #define   PHY_CTRL_DATA			GENMASK(15, 0)
-#define SMI_ACCESS_PHY_CTRL_3		0xcb7c
+#define RTL9300_SMI_ACCESS_PHY_CTRL_3	0xcb7c
 #define   PHY_CTRL_MMD_DEVAD		GENMASK(20, 16)
 #define   PHY_CTRL_MMD_REG		GENMASK(15, 0)
 #define SMI_PORT0_5_ADDR_CTRL		0xcb80
@@ -47,8 +79,32 @@
 #define MAX_PORTS       28
 #define MAX_SMI_BUSSES  4
 #define MAX_SMI_ADDR	0x1f
+#define RAW_PAGE(priv)	((priv)->info->num_pages - 1)
 
-struct rtl9300_mdio_priv {
+
+struct otto_emdio_cmd_regs {
+	u32 c22_data;
+	u32 c45_data;
+	u32 io_data;
+	u32 port_mask_low;
+};
+
+struct otto_emdio_info {
+	u32 cmd_fail;
+	u32 cmd_read;
+	u32 cmd_write;
+	struct otto_emdio_cmd_regs cmd_regs;
+	u8 num_buses;
+	u8 num_ports;
+	u16 num_pages;
+	int (*read_c22)(struct mii_bus *bus, int port, int regnum, u32 *value);
+	int (*read_c45)(struct mii_bus *bus, int port, int dev_addr, int regnum, u32 *value);
+	int (*write_c22)(struct mii_bus *bus, int port, int regnum, u16 value);
+	int (*write_c45)(struct mii_bus *bus, int port, int dev_addr, int regnum, u16 value);
+};
+
+struct otto_emdio_priv {
+	const struct otto_emdio_info *info;
 	struct regmap *regmap;
 	struct mutex lock; /* protect HW access */
 	DECLARE_BITMAP(valid_ports, MAX_PORTS);
@@ -58,20 +114,20 @@ struct rtl9300_mdio_priv {
 	struct mii_bus *bus[MAX_SMI_BUSSES];
 };
 
-struct rtl9300_mdio_chan {
-	struct rtl9300_mdio_priv *priv;
+struct otto_emdio_chan {
+	struct otto_emdio_priv *priv;
 	u8 mdio_bus;
 };
 
-static int rtl9300_mdio_phy_to_port(struct mii_bus *bus, int phy_id)
+static int otto_emdio_phy_to_port(struct mii_bus *bus, int phy_id)
 {
-	struct rtl9300_mdio_chan *chan = bus->priv;
-	struct rtl9300_mdio_priv *priv;
+	struct otto_emdio_chan *chan = bus->priv;
+	struct otto_emdio_priv *priv;
 	int i;
 
 	priv = chan->priv;
 
-	for_each_set_bit(i, priv->valid_ports, MAX_PORTS)
+	for_each_set_bit(i, priv->valid_ports, priv->info->num_ports)
 		if (priv->smi_bus[i] == chan->mdio_bus &&
 		    priv->smi_addr[i] == phy_id)
 			return i;
@@ -79,235 +135,200 @@ static int rtl9300_mdio_phy_to_port(struct mii_bus *bus, int phy_id)
 	return -ENOENT;
 }
 
-static int rtl9300_mdio_wait_ready(struct rtl9300_mdio_priv *priv)
+static struct otto_emdio_priv *otto_emdio_bus_to_priv(struct mii_bus *bus)
 {
-	struct regmap *regmap = priv->regmap;
-	u32 val;
+	struct otto_emdio_chan *chan = bus->priv;
+
+	return chan->priv;
+}
+
+static int otto_emdio_run_cmd(struct mii_bus *bus, u32 cmd,
+			      struct otto_emdio_cmd_regs *cmd_data)
+{
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	const struct otto_emdio_info *info = priv->info;
+	u32 cmdstate;
+	int ret;
+
+	/* Defensive pre check just in case something goes horrible wrong */
+	ret = regmap_read_poll_timeout(priv->regmap, info->cmd_regs.c22_data,
+				       cmdstate, !(cmdstate & PHY_CTRL_CMD), 10, 1000);
+	if (ret)
+		return ret;
+
+	/* Fill all registers. Hardware will read only the needed bits depending on command */
+	ret = regmap_write(priv->regmap, info->cmd_regs.port_mask_low, cmd_data->port_mask_low);
+	if (ret)
+		return ret;
+
+	ret = regmap_write(priv->regmap, info->cmd_regs.io_data, cmd_data->io_data);
+	if (ret)
+		return ret;
+
+	ret = regmap_write(priv->regmap, info->cmd_regs.c45_data, cmd_data->c45_data);
+	if (ret)
+		return ret;
+
+	/* C22 data and command bits share the same register. */
+	ret = regmap_write(priv->regmap, info->cmd_regs.c22_data,
+			   cmd_data->c22_data | cmd | PHY_CTRL_CMD);
+	if (ret)
+		return ret;
+
+	ret = regmap_read_poll_timeout(priv->regmap, info->cmd_regs.c22_data,
+				       cmdstate, !(cmdstate & PHY_CTRL_CMD), 10, 1000);
+	if (ret)
+		return ret;
+
+	return cmdstate & info->cmd_fail ? -ENXIO : 0;
+}
+
+static int otto_emdio_read_cmd(struct mii_bus *bus, u32 cmd,
+			       struct otto_emdio_cmd_regs *cmd_data, u32 *value)
+{
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	int ret;
+
+	lockdep_assert_held(&priv->lock);
+	ret = otto_emdio_run_cmd(bus, cmd | priv->info->cmd_read, cmd_data);
+	if (ret)
+		return ret;
+
+	ret = regmap_read(priv->regmap, priv->info->cmd_regs.io_data, value);
+	if (ret)
+		return ret;
+
+	*value = FIELD_GET(PHY_CTRL_DATA, *value);
+
+	return 0;
+}
+
+static int otto_emdio_write_cmd(struct mii_bus *bus, u32 cmd,
+				struct otto_emdio_cmd_regs *cmd_data)
+{
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
 
 	lockdep_assert_held(&priv->lock);
 
-	return regmap_read_poll_timeout(regmap, SMI_ACCESS_PHY_CTRL_1,
-					val, !(val & PHY_CTRL_CMD), 10, 1000);
+	return otto_emdio_run_cmd(bus, cmd | priv->info->cmd_write, cmd_data);
 }
 
-static int rtl9300_mdio_read_c22(struct mii_bus *bus, int phy_id, int regnum)
+static int otto_emdio_9300_read_c22(struct mii_bus *bus, int port, int regnum, u32 *value)
 {
-	struct rtl9300_mdio_chan *chan = bus->priv;
-	struct rtl9300_mdio_priv *priv;
-	struct regmap *regmap;
-	int port;
-	u32 val;
-	int err;
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	struct otto_emdio_cmd_regs cmd_data = {
+		.c22_data	= FIELD_PREP(PHY_CTRL_REG_ADDR, regnum) |
+				  FIELD_PREP(PHY_CTRL_PARK_PAGE, 0x1f) |
+				  FIELD_PREP(PHY_CTRL_MAIN_PAGE, RAW_PAGE(priv)),
+		.io_data	= FIELD_PREP(PHY_CTRL_INDATA, port),
+	};
 
-	priv = chan->priv;
-	regmap = priv->regmap;
+	return otto_emdio_read_cmd(bus, PHY_CTRL_TYPE_C22, &cmd_data, value);
+}
 
-	port = rtl9300_mdio_phy_to_port(bus, phy_id);
+static int otto_emdio_9300_write_c22(struct mii_bus *bus, int port, int regnum, u16 value)
+{
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	struct otto_emdio_cmd_regs cmd_data = {
+		.c22_data	= FIELD_PREP(PHY_CTRL_REG_ADDR, regnum) |
+				  FIELD_PREP(PHY_CTRL_PARK_PAGE, 0x1f) |
+				  FIELD_PREP(PHY_CTRL_MAIN_PAGE, RAW_PAGE(priv)),
+		.io_data	= FIELD_PREP(PHY_CTRL_INDATA, value),
+		.port_mask_low	= BIT(port),
+	};
+
+	return otto_emdio_write_cmd(bus, PHY_CTRL_TYPE_C22, &cmd_data);
+}
+
+static int otto_emdio_9300_read_c45(struct mii_bus *bus, int port,
+				    int dev_addr, int regnum, u32 *value)
+{
+	struct otto_emdio_cmd_regs cmd_data = {
+		.c45_data	= FIELD_PREP(PHY_CTRL_MMD_DEVAD, dev_addr) |
+				  FIELD_PREP(PHY_CTRL_MMD_REG, regnum),
+		.io_data	= FIELD_PREP(PHY_CTRL_INDATA, port),
+	};
+
+	return otto_emdio_read_cmd(bus, PHY_CTRL_TYPE_C45, &cmd_data, value);
+}
+
+static int otto_emdio_9300_write_c45(struct mii_bus *bus, int port,
+				     int dev_addr, int regnum, u16 value)
+{
+	struct otto_emdio_cmd_regs cmd_data = {
+		.c45_data	= FIELD_PREP(PHY_CTRL_MMD_DEVAD, dev_addr) |
+				  FIELD_PREP(PHY_CTRL_MMD_REG, regnum),
+		.io_data	= FIELD_PREP(PHY_CTRL_INDATA, value),
+		.port_mask_low	= BIT(port),
+	};
+
+	return otto_emdio_write_cmd(bus, PHY_CTRL_TYPE_C45, &cmd_data);
+}
+
+static int otto_emdio_read_c22(struct mii_bus *bus, int phy_id, int regnum)
+{
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	int ret, port;
+	u32 value;
+
+	port = otto_emdio_phy_to_port(bus, phy_id);
 	if (port < 0)
 		return port;
 
-	mutex_lock(&priv->lock);
-	err = rtl9300_mdio_wait_ready(priv);
-	if (err)
-		goto out_err;
+	scoped_guard(mutex, &priv->lock)
+		ret = priv->info->read_c22(bus, port, regnum, &value);
 
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_2, FIELD_PREP(PHY_CTRL_INDATA, port));
-	if (err)
-		goto out_err;
-
-	val = FIELD_PREP(PHY_CTRL_REG_ADDR, regnum) |
-	      FIELD_PREP(PHY_CTRL_PARK_PAGE, 0x1f) |
-	      FIELD_PREP(PHY_CTRL_MAIN_PAGE, 0xfff) |
-	      PHY_CTRL_READ | PHY_CTRL_TYPE_C22 | PHY_CTRL_CMD;
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_1, val);
-	if (err)
-		goto out_err;
-
-	err = rtl9300_mdio_wait_ready(priv);
-	if (err)
-		goto out_err;
-
-	err = regmap_read(regmap, SMI_ACCESS_PHY_CTRL_2, &val);
-	if (err)
-		goto out_err;
-
-	mutex_unlock(&priv->lock);
-	return FIELD_GET(PHY_CTRL_DATA, val);
-
-out_err:
-	mutex_unlock(&priv->lock);
-	return err;
+	return ret ? ret : value;
 }
 
-static int rtl9300_mdio_write_c22(struct mii_bus *bus, int phy_id, int regnum, u16 value)
+static int otto_emdio_write_c22(struct mii_bus *bus, int phy_id, int regnum, u16 value)
 {
-	struct rtl9300_mdio_chan *chan = bus->priv;
-	struct rtl9300_mdio_priv *priv;
-	struct regmap *regmap;
-	int port;
-	u32 val;
-	int err;
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	int ret, port;
 
-	priv = chan->priv;
-	regmap = priv->regmap;
-
-	port = rtl9300_mdio_phy_to_port(bus, phy_id);
+	port = otto_emdio_phy_to_port(bus, phy_id);
 	if (port < 0)
 		return port;
 
-	mutex_lock(&priv->lock);
-	err = rtl9300_mdio_wait_ready(priv);
-	if (err)
-		goto out_err;
+	scoped_guard(mutex, &priv->lock)
+		ret = priv->info->write_c22(bus, port, regnum, value);
 
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_0, BIT(port));
-	if (err)
-		goto out_err;
-
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_2, FIELD_PREP(PHY_CTRL_INDATA, value));
-	if (err)
-		goto out_err;
-
-	val = FIELD_PREP(PHY_CTRL_REG_ADDR, regnum) |
-	      FIELD_PREP(PHY_CTRL_PARK_PAGE, 0x1f) |
-	      FIELD_PREP(PHY_CTRL_MAIN_PAGE, 0xfff) |
-	      PHY_CTRL_WRITE | PHY_CTRL_TYPE_C22 | PHY_CTRL_CMD;
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_1, val);
-	if (err)
-		goto out_err;
-
-	err = regmap_read_poll_timeout(regmap, SMI_ACCESS_PHY_CTRL_1,
-				       val, !(val & PHY_CTRL_CMD), 10, 100);
-	if (err)
-		goto out_err;
-
-	if (val & PHY_CTRL_FAIL) {
-		err = -ENXIO;
-		goto out_err;
-	}
-
-	mutex_unlock(&priv->lock);
-	return 0;
-
-out_err:
-	mutex_unlock(&priv->lock);
-	return err;
+	return ret;
 }
 
-static int rtl9300_mdio_read_c45(struct mii_bus *bus, int phy_id, int dev_addr, int regnum)
+static int otto_emdio_read_c45(struct mii_bus *bus, int phy_id, int dev_addr, int regnum)
 {
-	struct rtl9300_mdio_chan *chan = bus->priv;
-	struct rtl9300_mdio_priv *priv;
-	struct regmap *regmap;
-	int port;
-	u32 val;
-	int err;
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	int ret, port;
+	u32 value;
 
-	priv = chan->priv;
-	regmap = priv->regmap;
-
-	port = rtl9300_mdio_phy_to_port(bus, phy_id);
+	port = otto_emdio_phy_to_port(bus, phy_id);
 	if (port < 0)
 		return port;
 
-	mutex_lock(&priv->lock);
-	err = rtl9300_mdio_wait_ready(priv);
-	if (err)
-		goto out_err;
+	scoped_guard(mutex, &priv->lock)
+		ret = priv->info->read_c45(bus, port, dev_addr, regnum, &value);
 
-	val = FIELD_PREP(PHY_CTRL_INDATA, port);
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_2, val);
-	if (err)
-		goto out_err;
-
-	val = FIELD_PREP(PHY_CTRL_MMD_DEVAD, dev_addr) |
-	      FIELD_PREP(PHY_CTRL_MMD_REG, regnum);
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_3, val);
-	if (err)
-		goto out_err;
-
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_1,
-			   PHY_CTRL_READ | PHY_CTRL_TYPE_C45 | PHY_CTRL_CMD);
-	if (err)
-		goto out_err;
-
-	err = rtl9300_mdio_wait_ready(priv);
-	if (err)
-		goto out_err;
-
-	err = regmap_read(regmap, SMI_ACCESS_PHY_CTRL_2, &val);
-	if (err)
-		goto out_err;
-
-	mutex_unlock(&priv->lock);
-	return FIELD_GET(PHY_CTRL_DATA, val);
-
-out_err:
-	mutex_unlock(&priv->lock);
-	return err;
+	return ret ? ret : value;
 }
 
-static int rtl9300_mdio_write_c45(struct mii_bus *bus, int phy_id, int dev_addr,
-				  int regnum, u16 value)
+static int otto_emdio_write_c45(struct mii_bus *bus, int phy_id,
+				int dev_addr, int regnum, u16 value)
 {
-	struct rtl9300_mdio_chan *chan = bus->priv;
-	struct rtl9300_mdio_priv *priv;
-	struct regmap *regmap;
-	int port;
-	u32 val;
-	int err;
+	struct otto_emdio_priv *priv = otto_emdio_bus_to_priv(bus);
+	int ret, port;
 
-	priv = chan->priv;
-	regmap = priv->regmap;
-
-	port = rtl9300_mdio_phy_to_port(bus, phy_id);
+	port = otto_emdio_phy_to_port(bus, phy_id);
 	if (port < 0)
 		return port;
 
-	mutex_lock(&priv->lock);
-	err = rtl9300_mdio_wait_ready(priv);
-	if (err)
-		goto out_err;
+	scoped_guard(mutex, &priv->lock)
+		ret = priv->info->write_c45(bus, port, dev_addr, regnum, value);
 
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_0, BIT(port));
-	if (err)
-		goto out_err;
-
-	val = FIELD_PREP(PHY_CTRL_INDATA, value);
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_2, val);
-	if (err)
-		goto out_err;
-
-	val = FIELD_PREP(PHY_CTRL_MMD_DEVAD, dev_addr) |
-	      FIELD_PREP(PHY_CTRL_MMD_REG, regnum);
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_3, val);
-	if (err)
-		goto out_err;
-
-	err = regmap_write(regmap, SMI_ACCESS_PHY_CTRL_1,
-			   PHY_CTRL_TYPE_C45 | PHY_CTRL_WRITE | PHY_CTRL_CMD);
-	if (err)
-		goto out_err;
-
-	err = regmap_read_poll_timeout(regmap, SMI_ACCESS_PHY_CTRL_1,
-				       val, !(val & PHY_CTRL_CMD), 10, 100);
-	if (err)
-		goto out_err;
-
-	if (val & PHY_CTRL_FAIL) {
-		err = -ENXIO;
-		goto out_err;
-	}
-
-	mutex_unlock(&priv->lock);
-	return 0;
-
-out_err:
-	mutex_unlock(&priv->lock);
-	return err;
+	return ret;
 }
 
-static int rtl9300_mdiobus_init(struct rtl9300_mdio_priv *priv)
+static int otto_emdio_9300_mdiobus_init(struct otto_emdio_priv *priv)
 {
 	u32 glb_ctrl_mask = 0, glb_ctrl_val = 0;
 	struct regmap *regmap = priv->regmap;
@@ -316,7 +337,7 @@ static int rtl9300_mdiobus_init(struct rtl9300_mdio_priv *priv)
 	int i, err;
 
 	/* Associate the port with the SMI interface and PHY */
-	for_each_set_bit(i, priv->valid_ports, MAX_PORTS) {
+	for_each_set_bit(i, priv->valid_ports, priv->info->num_ports) {
 		int pos;
 
 		pos = (i % 6) * 5;
@@ -328,7 +349,7 @@ static int rtl9300_mdiobus_init(struct rtl9300_mdio_priv *priv)
 
 	/* Put the interfaces into C45 mode if required */
 	glb_ctrl_mask = GENMASK(19, 16);
-	for (i = 0; i < MAX_SMI_BUSSES; i++)
+	for (i = 0; i < priv->info->num_buses; i++)
 		if (priv->smi_bus_is_c45[i])
 			glb_ctrl_val |= GLB_CTRL_INTF_SEL(i);
 
@@ -350,10 +371,10 @@ static int rtl9300_mdiobus_init(struct rtl9300_mdio_priv *priv)
 	return 0;
 }
 
-static int rtl9300_mdiobus_probe_one(struct device *dev, struct rtl9300_mdio_priv *priv,
-				     struct fwnode_handle *node)
+static int otto_emdio_probe_one(struct device *dev, struct otto_emdio_priv *priv,
+				 struct fwnode_handle *node)
 {
-	struct rtl9300_mdio_chan *chan;
+	struct otto_emdio_chan *chan;
 	struct mii_bus *bus;
 	u32 mdio_bus;
 	int err;
@@ -380,11 +401,11 @@ static int rtl9300_mdiobus_probe_one(struct device *dev, struct rtl9300_mdio_pri
 
 	bus->name = "Realtek Switch MDIO Bus";
 	if (priv->smi_bus_is_c45[mdio_bus]) {
-		bus->read_c45 = rtl9300_mdio_read_c45;
-		bus->write_c45 =  rtl9300_mdio_write_c45;
+		bus->read_c45 = otto_emdio_read_c45;
+		bus->write_c45 = otto_emdio_write_c45;
 	} else {
-		bus->read = rtl9300_mdio_read_c22;
-		bus->write = rtl9300_mdio_write_c22;
+		bus->read = otto_emdio_read_c22;
+		bus->write = otto_emdio_write_c22;
 	}
 	bus->parent = dev;
 	chan = bus->priv;
@@ -404,9 +425,9 @@ static int rtl9300_mdiobus_probe_one(struct device *dev, struct rtl9300_mdio_pri
  * ethernet-ports node and build a mapping of the switch port to MDIO bus/addr
  * based on the phy-handle.
  */
-static int rtl9300_mdiobus_map_ports(struct device *dev)
+static int otto_emdio_map_ports(struct device *dev)
 {
-	struct rtl9300_mdio_priv *priv = dev_get_drvdata(dev);
+	struct otto_emdio_priv *priv = dev_get_drvdata(dev);
 	struct device *parent = dev->parent;
 	int err;
 
@@ -437,7 +458,7 @@ static int rtl9300_mdiobus_map_ports(struct device *dev)
 		if (err)
 			return err;
 
-		if (pn >= MAX_PORTS)
+		if (pn >= priv->info->num_ports)
 			return dev_err_probe(dev, -EINVAL, "illegal port number %d\n", pn);
 
 		if (test_bit(pn, priv->valid_ports))
@@ -447,7 +468,7 @@ static int rtl9300_mdiobus_map_ports(struct device *dev)
 		if (err)
 			return err;
 
-		if (bus >= MAX_SMI_BUSSES)
+		if (bus >= priv->info->num_buses)
 			return dev_err_probe(dev, -EINVAL, "illegal smi bus number %d\n", bus);
 
 		err = of_property_read_u32(phy_dn, "reg", &addr);
@@ -462,10 +483,10 @@ static int rtl9300_mdiobus_map_ports(struct device *dev)
 	return 0;
 }
 
-static int rtl9300_mdiobus_probe(struct platform_device *pdev)
+static int otto_emdio_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct rtl9300_mdio_priv *priv;
+	struct otto_emdio_priv *priv;
 	int err;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
@@ -476,44 +497,64 @@ static int rtl9300_mdiobus_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
+	priv->info = device_get_match_data(dev);
 	priv->regmap = syscon_node_to_regmap(dev->parent->of_node);
 	if (IS_ERR(priv->regmap))
 		return PTR_ERR(priv->regmap);
 
 	platform_set_drvdata(pdev, priv);
 
-	err = rtl9300_mdiobus_map_ports(dev);
+	err = otto_emdio_map_ports(dev);
 	if (err)
 		return err;
 
 	device_for_each_child_node_scoped(dev, child) {
-		err = rtl9300_mdiobus_probe_one(dev, priv, child);
+		err = otto_emdio_probe_one(dev, priv, child);
 		if (err)
 			return err;
 	}
 
-	err = rtl9300_mdiobus_init(priv);
+	err = otto_emdio_9300_mdiobus_init(priv);
 	if (err)
 		return dev_err_probe(dev, err, "failed to initialise MDIO bus controller\n");
 
 	return 0;
 }
 
-static const struct of_device_id rtl9300_mdio_ids[] = {
-	{ .compatible = "realtek,rtl9301-mdio" },
+static const struct otto_emdio_info otto_emdio_9300_info = {
+	.cmd_fail = PHY_CTRL_FAIL,
+	.cmd_read = PHY_CTRL_READ,
+	.cmd_write = PHY_CTRL_WRITE,
+	.cmd_regs = {
+		.c22_data = RTL9300_SMI_ACCESS_PHY_CTRL_1,
+		.c45_data = RTL9300_SMI_ACCESS_PHY_CTRL_3,
+		.io_data = RTL9300_SMI_ACCESS_PHY_CTRL_2,
+		.port_mask_low = RTL9300_SMI_ACCESS_PHY_CTRL_0,
+	},
+	.num_buses = RTL9300_NUM_BUSES,
+	.num_ports = RTL9300_NUM_PORTS,
+	.num_pages = RTL9300_NUM_PAGES,
+	.read_c22 = otto_emdio_9300_read_c22,
+	.read_c45 = otto_emdio_9300_read_c45,
+	.write_c22 = otto_emdio_9300_write_c22,
+	.write_c45 = otto_emdio_9300_write_c45,
+};
+
+static const struct of_device_id otto_emdio_ids[] = {
+	{ .compatible = "realtek,rtl9301-mdio", .data = &otto_emdio_9300_info },
 	{}
 };
-MODULE_DEVICE_TABLE(of, rtl9300_mdio_ids);
+MODULE_DEVICE_TABLE(of, otto_emdio_ids);
 
-static struct platform_driver rtl9300_mdio_driver = {
-	.probe = rtl9300_mdiobus_probe,
+static struct platform_driver otto_emdio_driver = {
+	.probe = otto_emdio_probe,
 	.driver = {
 		.name = "mdio-rtl9300",
-		.of_match_table = rtl9300_mdio_ids,
+		.of_match_table = otto_emdio_ids,
 	},
 };
 
-module_platform_driver(rtl9300_mdio_driver);
+module_platform_driver(otto_emdio_driver);
 
 MODULE_DESCRIPTION("RTL9300 MDIO driver");
 MODULE_LICENSE("GPL");

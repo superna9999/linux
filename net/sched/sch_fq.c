@@ -217,7 +217,7 @@ static void fq_flow_unset_throttled(struct fq_sched_data *q, struct fq_flow *f)
 	fq_flow_add_tail(q, f, OLD_FLOW);
 }
 
-static void fq_flow_set_throttled(struct fq_sched_data *q, struct fq_flow *f)
+static void fq_flow_rb_insert(struct fq_sched_data *q, struct fq_flow *f)
 {
 	struct rb_node **p = &q->delayed.rb_node, *parent = NULL;
 
@@ -233,14 +233,18 @@ static void fq_flow_set_throttled(struct fq_sched_data *q, struct fq_flow *f)
 	}
 	rb_link_node(&f->rate_node, parent, p);
 	rb_insert_color(&f->rate_node, &q->delayed);
-	q->throttled_flows++;
-	q->stat_throttled++;
 
-	f->next = &throttled;
 	if (q->time_next_delayed_flow > f->time_next_packet)
 		q->time_next_delayed_flow = f->time_next_packet;
 }
 
+static void fq_flow_set_throttled(struct fq_sched_data *q, struct fq_flow *f)
+{
+	fq_flow_rb_insert(q, f);
+	q->throttled_flows++;
+	q->stat_throttled++;
+	f->next = &throttled;
+}
 
 static struct kmem_cache *fq_flow_cachep __read_mostly;
 
@@ -497,7 +501,7 @@ static void fq_dequeue_skb(struct Qdisc *sch, struct fq_flow *flow,
 	fq_erase_head(sch, flow, skb);
 	skb_mark_not_on_list(skb);
 	qdisc_qstats_backlog_dec(sch, skb);
-	sch->q.qlen--;
+	qdisc_qlen_dec(sch);
 	qdisc_bstats_update(sch, skb);
 }
 
@@ -537,6 +541,24 @@ static bool fq_packet_beyond_horizon(const struct sk_buff *skb,
 				     const struct fq_sched_data *q, u64 now)
 {
 	return unlikely((s64)skb->tstamp > (s64)(now + q->horizon));
+}
+
+static void fq_flow_adjust_timer(struct fq_sched_data *q, struct fq_flow *flow,
+				 u64 time_to_send, u64 now)
+{
+	if (time_to_send <= now) {
+		fq_flow_unset_throttled(q, flow);
+		if (q->time_next_delayed_flow == flow->time_next_packet) {
+			struct rb_node *p = rb_first(&q->delayed);
+
+			q->time_next_delayed_flow = p ? rb_entry(p, struct fq_flow, rate_node)->time_next_packet : ~0ULL;
+		}
+		flow->time_next_packet = time_to_send;
+	} else {
+		rb_erase(&flow->rate_node, &q->delayed);
+		flow->time_next_packet = time_to_send;
+		fq_flow_rb_insert(q, flow);
+	}
 }
 
 static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
@@ -596,8 +618,12 @@ static int fq_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 	/* Note: this overwrites f->age */
 	flow_queue_add(f, skb);
 
+	if (fq_skb_cb(skb)->time_to_send < f->time_next_packet && skb->tstamp &&
+	    fq_flow_is_throttled(f) && q->flow_max_rate == ~0UL)
+		fq_flow_adjust_timer(q, f, fq_skb_cb(skb)->time_to_send, now);
+
 	qdisc_qstats_backlog_inc(sch, skb);
-	sch->q.qlen++;
+	qdisc_qlen_inc(sch);
 
 	return NET_XMIT_SUCCESS;
 }
@@ -801,8 +827,8 @@ static void fq_reset(struct Qdisc *sch)
 	struct fq_flow *f;
 	unsigned int idx;
 
-	sch->q.qlen = 0;
-	sch->qstats.backlog = 0;
+	WRITE_ONCE(sch->q.qlen, 0);
+	WRITE_ONCE(sch->qstats.backlog, 0);
 
 	fq_flow_purge(&q->internal);
 

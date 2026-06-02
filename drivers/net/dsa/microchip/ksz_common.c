@@ -256,16 +256,6 @@ static const struct ksz_drive_strength ksz88x3_drive_strengths[] = {
 	{ KSZ8873_DRIVE_STRENGTH_16MA, 16000 },
 };
 
-static void ksz88x3_phylink_mac_config(struct phylink_config *config,
-				       unsigned int mode,
-				       const struct phylink_link_state *state);
-static void ksz_phylink_mac_config(struct phylink_config *config,
-				   unsigned int mode,
-				   const struct phylink_link_state *state);
-static void ksz_phylink_mac_link_down(struct phylink_config *config,
-				      unsigned int mode,
-				      phy_interface_t interface);
-
 /**
  * ksz_phylink_mac_disable_tx_lpi() - Callback to signal LPI support (Dummy)
  * @config: phylink config structure
@@ -273,7 +263,7 @@ static void ksz_phylink_mac_link_down(struct phylink_config *config,
  * This function is a dummy handler. See ksz_phylink_mac_enable_tx_lpi() for
  * a detailed explanation of EEE/LPI handling in KSZ switches.
  */
-static void ksz_phylink_mac_disable_tx_lpi(struct phylink_config *config)
+void ksz_phylink_mac_disable_tx_lpi(struct phylink_config *config)
 {
 }
 
@@ -310,245 +300,11 @@ static void ksz_phylink_mac_disable_tx_lpi(struct phylink_config *config)
  *
  * Returns: 0 (Always success)
  */
-static int ksz_phylink_mac_enable_tx_lpi(struct phylink_config *config,
-					 u32 timer, bool tx_clock_stop)
+int ksz_phylink_mac_enable_tx_lpi(struct phylink_config *config,
+				  u32 timer, bool tx_clock_stop)
 {
 	return 0;
 }
-
-static const struct phylink_mac_ops ksz88x3_phylink_mac_ops = {
-	.mac_config	= ksz88x3_phylink_mac_config,
-	.mac_link_down	= ksz_phylink_mac_link_down,
-	.mac_link_up	= ksz8_phylink_mac_link_up,
-	.mac_disable_tx_lpi = ksz_phylink_mac_disable_tx_lpi,
-	.mac_enable_tx_lpi = ksz_phylink_mac_enable_tx_lpi,
-};
-
-static const struct phylink_mac_ops ksz8_phylink_mac_ops = {
-	.mac_config	= ksz_phylink_mac_config,
-	.mac_link_down	= ksz_phylink_mac_link_down,
-	.mac_link_up	= ksz8_phylink_mac_link_up,
-	.mac_disable_tx_lpi = ksz_phylink_mac_disable_tx_lpi,
-	.mac_enable_tx_lpi = ksz_phylink_mac_enable_tx_lpi,
-};
-
-static const struct ksz_dev_ops ksz8463_dev_ops = {
-	.setup = ksz8_setup,
-	.get_port_addr = ksz8463_get_port_addr,
-	.cfg_port_member = ksz8_cfg_port_member,
-	.flush_dyn_mac_table = ksz8_flush_dyn_mac_table,
-	.port_setup = ksz8_port_setup,
-	.r_phy = ksz8463_r_phy,
-	.w_phy = ksz8463_w_phy,
-	.r_mib_cnt = ksz8_r_mib_cnt,
-	.r_mib_pkt = ksz8_r_mib_pkt,
-	.r_mib_stat64 = ksz88xx_r_mib_stats64,
-	.freeze_mib = ksz8_freeze_mib,
-	.port_init_cnt = ksz8_port_init_cnt,
-	.fdb_dump = ksz8_fdb_dump,
-	.fdb_add = ksz8_fdb_add,
-	.fdb_del = ksz8_fdb_del,
-	.mdb_add = ksz8_mdb_add,
-	.mdb_del = ksz8_mdb_del,
-	.vlan_filtering = ksz8_port_vlan_filtering,
-	.vlan_add = ksz8_port_vlan_add,
-	.vlan_del = ksz8_port_vlan_del,
-	.mirror_add = ksz8_port_mirror_add,
-	.mirror_del = ksz8_port_mirror_del,
-	.get_caps = ksz8_get_caps,
-	.config_cpu_port = ksz8_config_cpu_port,
-	.enable_stp_addr = ksz8_enable_stp_addr,
-	.reset = ksz8_reset_switch,
-	.init = ksz8_switch_init,
-	.exit = ksz8_switch_exit,
-	.change_mtu = ksz8_change_mtu,
-};
-
-static const struct ksz_dev_ops ksz88xx_dev_ops = {
-	.setup = ksz8_setup,
-	.get_port_addr = ksz8_get_port_addr,
-	.cfg_port_member = ksz8_cfg_port_member,
-	.flush_dyn_mac_table = ksz8_flush_dyn_mac_table,
-	.port_setup = ksz8_port_setup,
-	.r_phy = ksz8_r_phy,
-	.w_phy = ksz8_w_phy,
-	.r_mib_cnt = ksz8_r_mib_cnt,
-	.r_mib_pkt = ksz8_r_mib_pkt,
-	.r_mib_stat64 = ksz88xx_r_mib_stats64,
-	.freeze_mib = ksz8_freeze_mib,
-	.port_init_cnt = ksz8_port_init_cnt,
-	.fdb_dump = ksz8_fdb_dump,
-	.fdb_add = ksz8_fdb_add,
-	.fdb_del = ksz8_fdb_del,
-	.mdb_add = ksz8_mdb_add,
-	.mdb_del = ksz8_mdb_del,
-	.vlan_filtering = ksz8_port_vlan_filtering,
-	.vlan_add = ksz8_port_vlan_add,
-	.vlan_del = ksz8_port_vlan_del,
-	.mirror_add = ksz8_port_mirror_add,
-	.mirror_del = ksz8_port_mirror_del,
-	.get_caps = ksz8_get_caps,
-	.config_cpu_port = ksz8_config_cpu_port,
-	.enable_stp_addr = ksz8_enable_stp_addr,
-	.reset = ksz8_reset_switch,
-	.init = ksz8_switch_init,
-	.exit = ksz8_switch_exit,
-	.change_mtu = ksz8_change_mtu,
-	.pme_write8 = ksz8_pme_write8,
-	.pme_pread8 = ksz8_pme_pread8,
-	.pme_pwrite8 = ksz8_pme_pwrite8,
-};
-
-static const struct ksz_dev_ops ksz87xx_dev_ops = {
-	.setup = ksz8_setup,
-	.get_port_addr = ksz8_get_port_addr,
-	.cfg_port_member = ksz8_cfg_port_member,
-	.flush_dyn_mac_table = ksz8_flush_dyn_mac_table,
-	.port_setup = ksz8_port_setup,
-	.r_phy = ksz8_r_phy,
-	.w_phy = ksz8_w_phy,
-	.r_mib_cnt = ksz8_r_mib_cnt,
-	.r_mib_pkt = ksz8_r_mib_pkt,
-	.r_mib_stat64 = ksz_r_mib_stats64,
-	.freeze_mib = ksz8_freeze_mib,
-	.port_init_cnt = ksz8_port_init_cnt,
-	.fdb_dump = ksz8_fdb_dump,
-	.fdb_add = ksz8_fdb_add,
-	.fdb_del = ksz8_fdb_del,
-	.mdb_add = ksz8_mdb_add,
-	.mdb_del = ksz8_mdb_del,
-	.vlan_filtering = ksz8_port_vlan_filtering,
-	.vlan_add = ksz8_port_vlan_add,
-	.vlan_del = ksz8_port_vlan_del,
-	.mirror_add = ksz8_port_mirror_add,
-	.mirror_del = ksz8_port_mirror_del,
-	.get_caps = ksz8_get_caps,
-	.config_cpu_port = ksz8_config_cpu_port,
-	.enable_stp_addr = ksz8_enable_stp_addr,
-	.reset = ksz8_reset_switch,
-	.init = ksz8_switch_init,
-	.exit = ksz8_switch_exit,
-	.change_mtu = ksz8_change_mtu,
-	.pme_write8 = ksz8_pme_write8,
-	.pme_pread8 = ksz8_pme_pread8,
-	.pme_pwrite8 = ksz8_pme_pwrite8,
-};
-
-static void ksz9477_phylink_mac_link_up(struct phylink_config *config,
-					struct phy_device *phydev,
-					unsigned int mode,
-					phy_interface_t interface,
-					int speed, int duplex, bool tx_pause,
-					bool rx_pause);
-
-static struct phylink_pcs *
-ksz_phylink_mac_select_pcs(struct phylink_config *config,
-			   phy_interface_t interface)
-{
-	struct dsa_port *dp = dsa_phylink_to_port(config);
-	struct ksz_device *dev = dp->ds->priv;
-	struct ksz_port *p = &dev->ports[dp->index];
-
-	if (ksz_is_sgmii_port(dev, dp->index) &&
-	    (interface == PHY_INTERFACE_MODE_SGMII ||
-	    interface == PHY_INTERFACE_MODE_1000BASEX))
-		return p->pcs;
-
-	return NULL;
-}
-
-static const struct phylink_mac_ops ksz9477_phylink_mac_ops = {
-	.mac_config	= ksz_phylink_mac_config,
-	.mac_link_down	= ksz_phylink_mac_link_down,
-	.mac_link_up	= ksz9477_phylink_mac_link_up,
-	.mac_disable_tx_lpi = ksz_phylink_mac_disable_tx_lpi,
-	.mac_enable_tx_lpi = ksz_phylink_mac_enable_tx_lpi,
-	.mac_select_pcs	= ksz_phylink_mac_select_pcs,
-};
-
-static const struct ksz_dev_ops ksz9477_dev_ops = {
-	.setup = ksz9477_setup,
-	.get_port_addr = ksz9477_get_port_addr,
-	.cfg_port_member = ksz9477_cfg_port_member,
-	.flush_dyn_mac_table = ksz9477_flush_dyn_mac_table,
-	.port_setup = ksz9477_port_setup,
-	.set_ageing_time = ksz9477_set_ageing_time,
-	.r_phy = ksz9477_r_phy,
-	.w_phy = ksz9477_w_phy,
-	.r_mib_cnt = ksz9477_r_mib_cnt,
-	.r_mib_pkt = ksz9477_r_mib_pkt,
-	.r_mib_stat64 = ksz_r_mib_stats64,
-	.freeze_mib = ksz9477_freeze_mib,
-	.port_init_cnt = ksz9477_port_init_cnt,
-	.vlan_filtering = ksz9477_port_vlan_filtering,
-	.vlan_add = ksz9477_port_vlan_add,
-	.vlan_del = ksz9477_port_vlan_del,
-	.mirror_add = ksz9477_port_mirror_add,
-	.mirror_del = ksz9477_port_mirror_del,
-	.get_caps = ksz9477_get_caps,
-	.fdb_dump = ksz9477_fdb_dump,
-	.fdb_add = ksz9477_fdb_add,
-	.fdb_del = ksz9477_fdb_del,
-	.mdb_add = ksz9477_mdb_add,
-	.mdb_del = ksz9477_mdb_del,
-	.change_mtu = ksz9477_change_mtu,
-	.pme_write8 = ksz_write8,
-	.pme_pread8 = ksz_pread8,
-	.pme_pwrite8 = ksz_pwrite8,
-	.config_cpu_port = ksz9477_config_cpu_port,
-	.tc_cbs_set_cinc = ksz9477_tc_cbs_set_cinc,
-	.enable_stp_addr = ksz9477_enable_stp_addr,
-	.reset = ksz9477_reset_switch,
-	.init = ksz9477_switch_init,
-	.exit = ksz9477_switch_exit,
-	.pcs_create = ksz9477_pcs_create,
-};
-
-static const struct phylink_mac_ops lan937x_phylink_mac_ops = {
-	.mac_config	= ksz_phylink_mac_config,
-	.mac_link_down	= ksz_phylink_mac_link_down,
-	.mac_link_up	= ksz9477_phylink_mac_link_up,
-	.mac_disable_tx_lpi = ksz_phylink_mac_disable_tx_lpi,
-	.mac_enable_tx_lpi = ksz_phylink_mac_enable_tx_lpi,
-};
-
-static const struct ksz_dev_ops lan937x_dev_ops = {
-	.setup = lan937x_setup,
-	.teardown = lan937x_teardown,
-	.get_port_addr = ksz9477_get_port_addr,
-	.cfg_port_member = ksz9477_cfg_port_member,
-	.flush_dyn_mac_table = ksz9477_flush_dyn_mac_table,
-	.port_setup = lan937x_port_setup,
-	.set_ageing_time = lan937x_set_ageing_time,
-	.mdio_bus_preinit = lan937x_mdio_bus_preinit,
-	.create_phy_addr_map = lan937x_create_phy_addr_map,
-	.r_phy = lan937x_r_phy,
-	.w_phy = lan937x_w_phy,
-	.r_mib_cnt = ksz9477_r_mib_cnt,
-	.r_mib_pkt = ksz9477_r_mib_pkt,
-	.r_mib_stat64 = ksz_r_mib_stats64,
-	.freeze_mib = ksz9477_freeze_mib,
-	.port_init_cnt = ksz9477_port_init_cnt,
-	.vlan_filtering = ksz9477_port_vlan_filtering,
-	.vlan_add = ksz9477_port_vlan_add,
-	.vlan_del = ksz9477_port_vlan_del,
-	.mirror_add = ksz9477_port_mirror_add,
-	.mirror_del = ksz9477_port_mirror_del,
-	.get_caps = lan937x_phylink_get_caps,
-	.setup_rgmii_delay = lan937x_setup_rgmii_delay,
-	.fdb_dump = ksz9477_fdb_dump,
-	.fdb_add = ksz9477_fdb_add,
-	.fdb_del = ksz9477_fdb_del,
-	.mdb_add = ksz9477_mdb_add,
-	.mdb_del = ksz9477_mdb_del,
-	.change_mtu = lan937x_change_mtu,
-	.config_cpu_port = lan937x_config_cpu_port,
-	.tc_cbs_set_cinc = lan937x_tc_cbs_set_cinc,
-	.enable_stp_addr = ksz9477_enable_stp_addr,
-	.reset = lan937x_reset_switch,
-	.init = lan937x_switch_init,
-	.exit = lan937x_switch_exit,
-};
 
 static const u16 ksz8463_regs[] = {
 	[REG_SW_MAC_ADDR]		= 0x10,
@@ -1502,6 +1258,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 4,
 		.ops = &ksz8463_dev_ops,
+		.switch_ops = &ksz8463_switch_ops,
 		.phylink_mac_ops = &ksz88x3_phylink_mac_ops,
 		.mib_names = ksz88xx_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz88xx_mib_names),
@@ -1527,6 +1284,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_ipms = 8,
 		.tc_cbs_supported = true,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -1557,6 +1315,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 4,
 		.ops = &ksz87xx_dev_ops,
+		.switch_ops = &ksz87xx_switch_ops,
 		.phylink_mac_ops = &ksz8_phylink_mac_ops,
 		.ksz87xx_eee_link_erratum = true,
 		.mib_names = ksz9477_mib_names,
@@ -1598,6 +1357,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 4,
 		.ops = &ksz87xx_dev_ops,
+		.switch_ops = &ksz87xx_switch_ops,
 		.phylink_mac_ops = &ksz8_phylink_mac_ops,
 		.ksz87xx_eee_link_erratum = true,
 		.mib_names = ksz9477_mib_names,
@@ -1625,6 +1385,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 4,
 		.ops = &ksz87xx_dev_ops,
+		.switch_ops = &ksz87xx_switch_ops,
 		.phylink_mac_ops = &ksz8_phylink_mac_ops,
 		.ksz87xx_eee_link_erratum = true,
 		.mib_names = ksz9477_mib_names,
@@ -1652,6 +1413,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 4,
 		.ops = &ksz88xx_dev_ops,
+		.switch_ops = &ksz88xx_switch_ops,
 		.phylink_mac_ops = &ksz88x3_phylink_mac_ops,
 		.mib_names = ksz88xx_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz88xx_mib_names),
@@ -1686,6 +1448,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 4,
 		.ops = &ksz88xx_dev_ops,
+		.switch_ops = &ksz88xx_switch_ops,
 		.phylink_mac_ops = &ksz88x3_phylink_mac_ops,
 		.mib_names = ksz88xx_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz88xx_mib_names),
@@ -1709,6 +1472,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 4,
 		.ops = &ksz88xx_dev_ops,
+		.switch_ops = &ksz88xx_switch_ops,
 		.phylink_mac_ops = &ksz88x3_phylink_mac_ops,
 		.mib_names = ksz88xx_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz88xx_mib_names),
@@ -1734,6 +1498,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_ipms = 8,
 		.tc_cbs_supported = true,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.phy_errata_9477 = true,
 		.mib_names = ksz9477_mib_names,
@@ -1771,6 +1536,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 8,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.phy_errata_9477 = true,
 		.mib_names = ksz9477_mib_names,
@@ -1806,6 +1572,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 8,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.phy_errata_9477 = true,
 		.mib_names = ksz9477_mib_names,
@@ -1839,6 +1606,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 8,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -1868,6 +1636,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_ipms = 8,
 		.tc_cbs_supported = true,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -1898,6 +1667,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_ipms = 8,
 		.tc_cbs_supported = true,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.phy_errata_9477 = true,
 		.mib_names = ksz9477_mib_names,
@@ -1934,6 +1704,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_ipms = 8,
 		.tc_cbs_supported = true,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
 		.reg_mib_cnt = MIB_COUNTER_NUM,
@@ -1968,6 +1739,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.tc_cbs_supported = true,
 		.phy_side_mdio_supported = true,
 		.ops = &lan937x_dev_ops,
+		.switch_ops = &lan937x_switch_ops,
 		.phylink_mac_ops = &lan937x_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -1998,6 +1770,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.tc_cbs_supported = true,
 		.phy_side_mdio_supported = true,
 		.ops = &lan937x_dev_ops,
+		.switch_ops = &lan937x_switch_ops,
 		.phylink_mac_ops = &lan937x_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -2028,6 +1801,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.tc_cbs_supported = true,
 		.phy_side_mdio_supported = true,
 		.ops = &lan937x_dev_ops,
+		.switch_ops = &lan937x_switch_ops,
 		.phylink_mac_ops = &lan937x_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -2062,6 +1836,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.tc_cbs_supported = true,
 		.phy_side_mdio_supported = true,
 		.ops = &lan937x_dev_ops,
+		.switch_ops = &lan937x_switch_ops,
 		.phylink_mac_ops = &lan937x_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -2096,6 +1871,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.tc_cbs_supported = true,
 		.phy_side_mdio_supported = true,
 		.ops = &lan937x_dev_ops,
+		.switch_ops = &lan937x_switch_ops,
 		.phylink_mac_ops = &lan937x_phylink_mac_ops,
 		.mib_names = ksz9477_mib_names,
 		.mib_cnt = ARRAY_SIZE(ksz9477_mib_names),
@@ -2128,6 +1904,7 @@ const struct ksz_chip_data ksz_switch_chips[] = {
 		.num_tx_queues = 4,
 		.num_ipms = 8,
 		.ops = &ksz9477_dev_ops,
+		.switch_ops = &ksz9477_switch_ops,
 		.phylink_mac_ops = &ksz9477_phylink_mac_ops,
 		.phy_errata_9477 = true,
 		.mib_names = ksz9477_mib_names,
@@ -2193,8 +1970,8 @@ static int ksz_check_device_id(struct ksz_device *dev)
 	return 0;
 }
 
-static void ksz_phylink_get_caps(struct dsa_switch *ds, int port,
-				 struct phylink_config *config)
+void ksz_phylink_get_caps(struct dsa_switch *ds, int port,
+			  struct phylink_config *config)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -2217,9 +1994,6 @@ static void ksz_phylink_get_caps(struct dsa_switch *ds, int port,
 		__set_bit(PHY_INTERFACE_MODE_GMII,
 			  config->supported_interfaces);
 	}
-
-	if (dev->dev_ops->get_caps)
-		dev->dev_ops->get_caps(dev, port, config);
 
 	if (ds->ops->support_eee && ds->ops->support_eee(ds, port)) {
 		memcpy(config->lpi_interfaces, config->supported_interfaces,
@@ -2339,8 +2113,8 @@ void ksz88xx_r_mib_stats64(struct ksz_device *dev, int port)
 	spin_unlock(&mib->stats64_lock);
 }
 
-static void ksz_get_stats64(struct dsa_switch *ds, int port,
-			    struct rtnl_link_stats64 *s)
+void ksz_get_stats64(struct dsa_switch *ds, int port,
+		     struct rtnl_link_stats64 *s)
 {
 	struct ksz_device *dev = ds->priv;
 	struct ksz_port_mib *mib;
@@ -2352,8 +2126,8 @@ static void ksz_get_stats64(struct dsa_switch *ds, int port,
 	spin_unlock(&mib->stats64_lock);
 }
 
-static void ksz_get_pause_stats(struct dsa_switch *ds, int port,
-				struct ethtool_pause_stats *pause_stats)
+void ksz_get_pause_stats(struct dsa_switch *ds, int port,
+			 struct ethtool_pause_stats *pause_stats)
 {
 	struct ksz_device *dev = ds->priv;
 	struct ksz_port_mib *mib;
@@ -2365,8 +2139,8 @@ static void ksz_get_pause_stats(struct dsa_switch *ds, int port,
 	spin_unlock(&mib->stats64_lock);
 }
 
-static void ksz_get_strings(struct dsa_switch *ds, int port,
-			    u32 stringset, uint8_t *buf)
+void ksz_get_strings(struct dsa_switch *ds, int port,
+		     u32 stringset, uint8_t *buf)
 {
 	struct ksz_device *dev = ds->priv;
 	int i;
@@ -2486,22 +2260,18 @@ static void ksz_update_port_member(struct ksz_device *dev, int port)
 static int ksz_sw_mdio_read(struct mii_bus *bus, int addr, int regnum)
 {
 	struct ksz_device *dev = bus->priv;
-	u16 val;
-	int ret;
+	struct dsa_switch *ds = dev->ds;
 
-	ret = dev->dev_ops->r_phy(dev, addr, regnum, &val);
-	if (ret < 0)
-		return ret;
-
-	return val;
+	return ds->ops->phy_read(ds, addr, regnum);
 }
 
 static int ksz_sw_mdio_write(struct mii_bus *bus, int addr, int regnum,
 			     u16 val)
 {
 	struct ksz_device *dev = bus->priv;
+	struct dsa_switch *ds = dev->ds;
 
-	return dev->dev_ops->w_phy(dev, addr, regnum, val);
+	return ds->ops->phy_write(ds, addr, regnum, val);
 }
 
 /**
@@ -2714,7 +2484,7 @@ static int ksz_parse_dt_phy_config(struct ksz_device *dev, struct mii_bus *bus,
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-static int ksz_mdio_register(struct ksz_device *dev)
+int ksz_mdio_register(struct ksz_device *dev)
 {
 	struct device_node *parent_bus_node;
 	struct mii_bus *parent_bus = NULL;
@@ -2870,7 +2640,7 @@ static const struct irq_domain_ops ksz_irq_domain_ops = {
 	.xlate	= irq_domain_xlate_twocell,
 };
 
-static void ksz_irq_free(struct ksz_irq *kirq)
+void ksz_irq_free(struct ksz_irq *kirq)
 {
 	int irq, virq;
 
@@ -2939,7 +2709,7 @@ out:
 	return ret;
 }
 
-static int ksz_girq_setup(struct ksz_device *dev)
+int ksz_girq_setup(struct ksz_device *dev)
 {
 	struct ksz_irq *girq = &dev->girq;
 
@@ -2954,7 +2724,7 @@ static int ksz_girq_setup(struct ksz_device *dev)
 	return ksz_irq_common_setup(dev, girq);
 }
 
-static int ksz_pirq_setup(struct ksz_device *dev, u8 p)
+int ksz_pirq_setup(struct ksz_device *dev, u8 p)
 {
 	struct ksz_irq *pirq = &dev->ports[p].pirq;
 
@@ -2971,139 +2741,7 @@ static int ksz_pirq_setup(struct ksz_device *dev, u8 p)
 	return ksz_irq_common_setup(dev, pirq);
 }
 
-static int ksz_parse_drive_strength(struct ksz_device *dev);
-
-static int ksz_setup(struct dsa_switch *ds)
-{
-	struct ksz_device *dev = ds->priv;
-	u16 storm_mask, storm_rate;
-	struct dsa_port *dp;
-	struct ksz_port *p;
-	const u16 *regs;
-	int ret;
-
-	regs = dev->info->regs;
-
-	dev->vlan_cache = devm_kcalloc(dev->dev, sizeof(struct vlan_table),
-				       dev->info->num_vlans, GFP_KERNEL);
-	if (!dev->vlan_cache)
-		return -ENOMEM;
-
-	ret = dev->dev_ops->reset(dev);
-	if (ret) {
-		dev_err(ds->dev, "failed to reset switch\n");
-		return ret;
-	}
-
-	ret = ksz_parse_drive_strength(dev);
-	if (ret)
-		return ret;
-
-	if (ksz_has_sgmii_port(dev) && dev->dev_ops->pcs_create) {
-		ret = dev->dev_ops->pcs_create(dev);
-		if (ret)
-			return ret;
-	}
-
-	/* set broadcast storm protection 10% rate */
-	storm_mask = BROADCAST_STORM_RATE;
-	storm_rate = (BROADCAST_STORM_VALUE * BROADCAST_STORM_PROT_RATE) / 100;
-	if (ksz_is_ksz8463(dev)) {
-		storm_mask = swab16(storm_mask);
-		storm_rate = swab16(storm_rate);
-	}
-	regmap_update_bits(ksz_regmap_16(dev), regs[S_BROADCAST_CTRL],
-			   storm_mask, storm_rate);
-
-	dev->dev_ops->config_cpu_port(ds);
-
-	dev->dev_ops->enable_stp_addr(dev);
-
-	ds->num_tx_queues = dev->info->num_tx_queues;
-
-	regmap_update_bits(ksz_regmap_8(dev), regs[S_MULTICAST_CTRL],
-			   MULTICAST_STORM_DISABLE, MULTICAST_STORM_DISABLE);
-
-	ksz_init_mib_timer(dev);
-
-	ds->configure_vlan_while_not_filtering = false;
-	ds->dscp_prio_mapping_is_global = true;
-
-	if (dev->dev_ops->setup) {
-		ret = dev->dev_ops->setup(ds);
-		if (ret)
-			return ret;
-	}
-
-	/* Start with learning disabled on standalone user ports, and enabled
-	 * on the CPU port. In lack of other finer mechanisms, learning on the
-	 * CPU port will avoid flooding bridge local addresses on the network
-	 * in some cases.
-	 */
-	p = &dev->ports[dev->cpu_port];
-	p->learning = true;
-
-	if (dev->irq > 0) {
-		ret = ksz_girq_setup(dev);
-		if (ret)
-			return ret;
-
-		dsa_switch_for_each_user_port(dp, dev->ds) {
-			ret = ksz_pirq_setup(dev, dp->index);
-			if (ret)
-				goto port_release;
-
-			if (dev->info->ptp_capable) {
-				ret = ksz_ptp_irq_setup(ds, dp->index);
-				if (ret)
-					goto pirq_release;
-			}
-		}
-	}
-
-	if (dev->info->ptp_capable) {
-		ret = ksz_ptp_clock_register(ds);
-		if (ret) {
-			dev_err(dev->dev, "Failed to register PTP clock: %d\n",
-				ret);
-			goto port_release;
-		}
-	}
-
-	ret = ksz_mdio_register(dev);
-	if (ret < 0) {
-		dev_err(dev->dev, "failed to register the mdio");
-		goto out_ptp_clock_unregister;
-	}
-
-	ret = ksz_dcb_init(dev);
-	if (ret)
-		goto out_ptp_clock_unregister;
-
-	/* start switch */
-	regmap_update_bits(ksz_regmap_8(dev), regs[S_START_CTRL],
-			   SW_START, SW_START);
-
-	return 0;
-
-out_ptp_clock_unregister:
-	if (dev->info->ptp_capable)
-		ksz_ptp_clock_unregister(ds);
-port_release:
-	if (dev->irq > 0) {
-		dsa_switch_for_each_user_port_continue_reverse(dp, dev->ds) {
-			if (dev->info->ptp_capable)
-				ksz_ptp_irq_free(ds, dp->index);
-pirq_release:
-			ksz_irq_free(&dev->ports[dp->index].pirq);
-		}
-		ksz_irq_free(&dev->girq);
-	}
-
-	return ret;
-}
-
-static void ksz_teardown(struct dsa_switch *ds)
+void ksz_teardown(struct dsa_switch *ds)
 {
 	struct ksz_device *dev = ds->priv;
 	struct dsa_port *dp;
@@ -3121,9 +2759,6 @@ static void ksz_teardown(struct dsa_switch *ds)
 
 		ksz_irq_free(&dev->girq);
 	}
-
-	if (dev->dev_ops->teardown)
-		dev->dev_ops->teardown(ds);
 }
 
 static void port_r_cnt(struct ksz_device *dev, int port)
@@ -3203,32 +2838,7 @@ void ksz_init_mib_timer(struct ksz_device *dev)
 	}
 }
 
-static int ksz_phy_read16(struct dsa_switch *ds, int addr, int reg)
-{
-	struct ksz_device *dev = ds->priv;
-	u16 val = 0xffff;
-	int ret;
-
-	ret = dev->dev_ops->r_phy(dev, addr, reg, &val);
-	if (ret)
-		return ret;
-
-	return val;
-}
-
-static int ksz_phy_write16(struct dsa_switch *ds, int addr, int reg, u16 val)
-{
-	struct ksz_device *dev = ds->priv;
-	int ret;
-
-	ret = dev->dev_ops->w_phy(dev, addr, reg, val);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
-static u32 ksz_get_phy_flags(struct dsa_switch *ds, int port)
+u32 ksz_get_phy_flags(struct dsa_switch *ds, int port)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -3246,9 +2856,9 @@ static u32 ksz_get_phy_flags(struct dsa_switch *ds, int port)
 	return 0;
 }
 
-static void ksz_phylink_mac_link_down(struct phylink_config *config,
-				      unsigned int mode,
-				      phy_interface_t interface)
+void ksz_phylink_mac_link_down(struct phylink_config *config,
+			       unsigned int mode,
+			       phy_interface_t interface)
 {
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct ksz_device *dev = dp->ds->priv;
@@ -3260,7 +2870,7 @@ static void ksz_phylink_mac_link_down(struct phylink_config *config,
 		schedule_delayed_work(&dev->mib_read, 0);
 }
 
-static int ksz_sset_count(struct dsa_switch *ds, int port, int sset)
+int ksz_sset_count(struct dsa_switch *ds, int port, int sset)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -3270,8 +2880,8 @@ static int ksz_sset_count(struct dsa_switch *ds, int port, int sset)
 	return dev->info->mib_cnt;
 }
 
-static void ksz_get_ethtool_stats(struct dsa_switch *ds, int port,
-				  uint64_t *buf)
+void ksz_get_ethtool_stats(struct dsa_switch *ds, int port,
+			   uint64_t *buf)
 {
 	const struct dsa_port *dp = dsa_to_port(ds, port);
 	struct ksz_device *dev = ds->priv;
@@ -3288,10 +2898,10 @@ static void ksz_get_ethtool_stats(struct dsa_switch *ds, int port,
 	mutex_unlock(&mib->cnt_mutex);
 }
 
-static int ksz_port_bridge_join(struct dsa_switch *ds, int port,
-				struct dsa_bridge bridge,
-				bool *tx_fwd_offload,
-				struct netlink_ext_ack *extack)
+int ksz_port_bridge_join(struct dsa_switch *ds, int port,
+			 struct dsa_bridge bridge,
+			 bool *tx_fwd_offload,
+			 struct netlink_ext_ack *extack)
 {
 	/* port_stp_state_set() will be called after to put the port in
 	 * appropriate state so there is no need to do anything.
@@ -3300,92 +2910,15 @@ static int ksz_port_bridge_join(struct dsa_switch *ds, int port,
 	return 0;
 }
 
-static void ksz_port_bridge_leave(struct dsa_switch *ds, int port,
-				  struct dsa_bridge bridge)
+void ksz_port_bridge_leave(struct dsa_switch *ds, int port,
+			   struct dsa_bridge bridge)
 {
 	/* port_stp_state_set() will be called after to put the port in
 	 * forwarding state so there is no need to do anything.
 	 */
 }
 
-static void ksz_port_fast_age(struct dsa_switch *ds, int port)
-{
-	struct ksz_device *dev = ds->priv;
-
-	dev->dev_ops->flush_dyn_mac_table(dev, port);
-}
-
-static int ksz_set_ageing_time(struct dsa_switch *ds, unsigned int msecs)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->set_ageing_time)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->set_ageing_time(dev, msecs);
-}
-
-static int ksz_port_fdb_add(struct dsa_switch *ds, int port,
-			    const unsigned char *addr, u16 vid,
-			    struct dsa_db db)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->fdb_add)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->fdb_add(dev, port, addr, vid, db);
-}
-
-static int ksz_port_fdb_del(struct dsa_switch *ds, int port,
-			    const unsigned char *addr,
-			    u16 vid, struct dsa_db db)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->fdb_del)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->fdb_del(dev, port, addr, vid, db);
-}
-
-static int ksz_port_fdb_dump(struct dsa_switch *ds, int port,
-			     dsa_fdb_dump_cb_t *cb, void *data)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->fdb_dump)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->fdb_dump(dev, port, cb, data);
-}
-
-static int ksz_port_mdb_add(struct dsa_switch *ds, int port,
-			    const struct switchdev_obj_port_mdb *mdb,
-			    struct dsa_db db)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->mdb_add)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->mdb_add(dev, port, mdb, db);
-}
-
-static int ksz_port_mdb_del(struct dsa_switch *ds, int port,
-			    const struct switchdev_obj_port_mdb *mdb,
-			    struct dsa_db db)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->mdb_del)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->mdb_del(dev, port, mdb, db);
-}
-
-static int ksz9477_set_default_prio_queue_mapping(struct ksz_device *dev,
-						  int port)
+int ksz9477_set_default_prio_queue_mapping(struct ksz_device *dev, int port)
 {
 	u32 queue_map = 0;
 	int ipm;
@@ -3405,30 +2938,6 @@ static int ksz9477_set_default_prio_queue_mapping(struct ksz_device *dev,
 	}
 
 	return ksz_pwrite32(dev, port, KSZ9477_PORT_MRI_TC_MAP__4, queue_map);
-}
-
-static int ksz_port_setup(struct dsa_switch *ds, int port)
-{
-	struct ksz_device *dev = ds->priv;
-	int ret;
-
-	if (!dsa_is_user_port(ds, port))
-		return 0;
-
-	/* setup user port */
-	dev->dev_ops->port_setup(dev, port, false);
-
-	if (!is_ksz8(dev)) {
-		ret = ksz9477_set_default_prio_queue_mapping(dev, port);
-		if (ret)
-			return ret;
-	}
-
-	/* port_stp_state_set() will be called after to enable the port so
-	 * there is no need to do anything.
-	 */
-
-	return ksz_dcb_init_port(dev, port);
 }
 
 void ksz_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
@@ -3477,7 +2986,7 @@ void ksz_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
 	ksz_update_port_member(dev, port);
 }
 
-static void ksz_port_teardown(struct dsa_switch *ds, int port)
+void ksz_port_teardown(struct dsa_switch *ds, int port)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -3496,9 +3005,9 @@ static void ksz_port_teardown(struct dsa_switch *ds, int port)
 	}
 }
 
-static int ksz_port_pre_bridge_flags(struct dsa_switch *ds, int port,
-				     struct switchdev_brport_flags flags,
-				     struct netlink_ext_ack *extack)
+int ksz_port_pre_bridge_flags(struct dsa_switch *ds, int port,
+			      struct switchdev_brport_flags flags,
+			      struct netlink_ext_ack *extack)
 {
 	if (flags.mask & ~(BR_LEARNING | BR_ISOLATED))
 		return -EINVAL;
@@ -3506,9 +3015,9 @@ static int ksz_port_pre_bridge_flags(struct dsa_switch *ds, int port,
 	return 0;
 }
 
-static int ksz_port_bridge_flags(struct dsa_switch *ds, int port,
-				 struct switchdev_brport_flags flags,
-				 struct netlink_ext_ack *extack)
+int ksz_port_bridge_flags(struct dsa_switch *ds, int port,
+			  struct switchdev_brport_flags flags,
+			  struct netlink_ext_ack *extack)
 {
 	struct ksz_device *dev = ds->priv;
 	struct ksz_port *p = &dev->ports[port];
@@ -3527,122 +3036,7 @@ static int ksz_port_bridge_flags(struct dsa_switch *ds, int port,
 	return 0;
 }
 
-static enum dsa_tag_protocol ksz_get_tag_protocol(struct dsa_switch *ds,
-						  int port,
-						  enum dsa_tag_protocol mp)
-{
-	struct ksz_device *dev = ds->priv;
-	enum dsa_tag_protocol proto = DSA_TAG_PROTO_NONE;
-
-	if (ksz_is_ksz87xx(dev) || ksz_is_8895_family(dev))
-		proto = DSA_TAG_PROTO_KSZ8795;
-
-	if (dev->chip_id == KSZ88X3_CHIP_ID ||
-	    dev->chip_id == KSZ8463_CHIP_ID ||
-	    dev->chip_id == KSZ8563_CHIP_ID ||
-	    dev->chip_id == KSZ9893_CHIP_ID ||
-	    dev->chip_id == KSZ9563_CHIP_ID)
-		proto = DSA_TAG_PROTO_KSZ9893;
-
-	if (dev->chip_id == KSZ8567_CHIP_ID ||
-	    dev->chip_id == KSZ9477_CHIP_ID ||
-	    dev->chip_id == KSZ9896_CHIP_ID ||
-	    dev->chip_id == KSZ9897_CHIP_ID ||
-	    dev->chip_id == KSZ9567_CHIP_ID ||
-	    dev->chip_id == LAN9646_CHIP_ID)
-		proto = DSA_TAG_PROTO_KSZ9477;
-
-	if (is_lan937x(dev))
-		proto = DSA_TAG_PROTO_LAN937X;
-
-	return proto;
-}
-
-static int ksz_connect_tag_protocol(struct dsa_switch *ds,
-				    enum dsa_tag_protocol proto)
-{
-	struct ksz_tagger_data *tagger_data;
-
-	switch (proto) {
-	case DSA_TAG_PROTO_KSZ8795:
-		return 0;
-	case DSA_TAG_PROTO_KSZ9893:
-	case DSA_TAG_PROTO_KSZ9477:
-	case DSA_TAG_PROTO_LAN937X:
-		tagger_data = ksz_tagger_data(ds);
-		tagger_data->xmit_work_fn = ksz_port_deferred_xmit;
-		return 0;
-	default:
-		return -EPROTONOSUPPORT;
-	}
-}
-
-static int ksz_port_vlan_filtering(struct dsa_switch *ds, int port,
-				   bool flag, struct netlink_ext_ack *extack)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->vlan_filtering)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->vlan_filtering(dev, port, flag, extack);
-}
-
-static int ksz_port_vlan_add(struct dsa_switch *ds, int port,
-			     const struct switchdev_obj_port_vlan *vlan,
-			     struct netlink_ext_ack *extack)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->vlan_add)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->vlan_add(dev, port, vlan, extack);
-}
-
-static int ksz_port_vlan_del(struct dsa_switch *ds, int port,
-			     const struct switchdev_obj_port_vlan *vlan)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->vlan_del)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->vlan_del(dev, port, vlan);
-}
-
-static int ksz_port_mirror_add(struct dsa_switch *ds, int port,
-			       struct dsa_mall_mirror_tc_entry *mirror,
-			       bool ingress, struct netlink_ext_ack *extack)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->mirror_add)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->mirror_add(dev, port, mirror, ingress, extack);
-}
-
-static void ksz_port_mirror_del(struct dsa_switch *ds, int port,
-				struct dsa_mall_mirror_tc_entry *mirror)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (dev->dev_ops->mirror_del)
-		dev->dev_ops->mirror_del(dev, port, mirror);
-}
-
-static int ksz_change_mtu(struct dsa_switch *ds, int port, int mtu)
-{
-	struct ksz_device *dev = ds->priv;
-
-	if (!dev->dev_ops->change_mtu)
-		return -EOPNOTSUPP;
-
-	return dev->dev_ops->change_mtu(dev, port, mtu);
-}
-
-static int ksz_max_mtu(struct dsa_switch *ds, int port)
+int ksz_max_mtu(struct dsa_switch *ds, int port)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -3690,7 +3084,7 @@ static int ksz_max_mtu(struct dsa_switch *ds, int port)
  * Returns: true if the internal PHY on the given port supports fully
  * operational EEE, false otherwise.
  */
-static bool ksz_support_eee(struct dsa_switch *ds, int port)
+bool ksz_support_eee(struct dsa_switch *ds, int port)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -3733,8 +3127,8 @@ static bool ksz_support_eee(struct dsa_switch *ds, int port)
 	return false;
 }
 
-static int ksz_set_mac_eee(struct dsa_switch *ds, int port,
-			   struct ethtool_keee *e)
+int ksz_set_mac_eee(struct dsa_switch *ds, int port,
+		    struct ethtool_keee *e)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -3835,19 +3229,9 @@ phy_interface_t ksz_get_xmii(struct ksz_device *dev, int port, bool gbit)
 	return interface;
 }
 
-static void ksz88x3_phylink_mac_config(struct phylink_config *config,
-				       unsigned int mode,
-				       const struct phylink_link_state *state)
-{
-	struct dsa_port *dp = dsa_phylink_to_port(config);
-	struct ksz_device *dev = dp->ds->priv;
-
-	dev->ports[dp->index].manual_flow = !(state->pause & MLO_PAUSE_AN);
-}
-
-static void ksz_phylink_mac_config(struct phylink_config *config,
-				   unsigned int mode,
-				   const struct phylink_link_state *state)
+void ksz_phylink_mac_config(struct phylink_config *config,
+			    unsigned int mode,
+			    const struct phylink_link_state *state)
 {
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct ksz_device *dev = dp->ds->priv;
@@ -3888,106 +3272,6 @@ bool ksz_get_gbit(struct ksz_device *dev, int port)
 		gbit = true;
 
 	return gbit;
-}
-
-static void ksz_set_gbit(struct ksz_device *dev, int port, bool gbit)
-{
-	const u8 *bitval = dev->info->xmii_ctrl1;
-	const u16 *regs = dev->info->regs;
-	u8 data8;
-
-	ksz_pread8(dev, port, regs[P_XMII_CTRL_1], &data8);
-
-	data8 &= ~P_GMII_1GBIT_M;
-
-	if (gbit)
-		data8 |= FIELD_PREP(P_GMII_1GBIT_M, bitval[P_GMII_1GBIT]);
-	else
-		data8 |= FIELD_PREP(P_GMII_1GBIT_M, bitval[P_GMII_NOT_1GBIT]);
-
-	/* Write the updated value */
-	ksz_pwrite8(dev, port, regs[P_XMII_CTRL_1], data8);
-}
-
-static void ksz_set_100_10mbit(struct ksz_device *dev, int port, int speed)
-{
-	const u8 *bitval = dev->info->xmii_ctrl0;
-	const u16 *regs = dev->info->regs;
-	u8 data8;
-
-	ksz_pread8(dev, port, regs[P_XMII_CTRL_0], &data8);
-
-	data8 &= ~P_MII_100MBIT_M;
-
-	if (speed == SPEED_100)
-		data8 |= FIELD_PREP(P_MII_100MBIT_M, bitval[P_MII_100MBIT]);
-	else
-		data8 |= FIELD_PREP(P_MII_100MBIT_M, bitval[P_MII_10MBIT]);
-
-	/* Write the updated value */
-	ksz_pwrite8(dev, port, regs[P_XMII_CTRL_0], data8);
-}
-
-static void ksz_port_set_xmii_speed(struct ksz_device *dev, int port, int speed)
-{
-	if (speed == SPEED_1000)
-		ksz_set_gbit(dev, port, true);
-	else
-		ksz_set_gbit(dev, port, false);
-
-	if (speed == SPEED_100 || speed == SPEED_10)
-		ksz_set_100_10mbit(dev, port, speed);
-}
-
-static void ksz_duplex_flowctrl(struct ksz_device *dev, int port, int duplex,
-				bool tx_pause, bool rx_pause)
-{
-	const u8 *bitval = dev->info->xmii_ctrl0;
-	const u32 *masks = dev->info->masks;
-	const u16 *regs = dev->info->regs;
-	u8 mask;
-	u8 val;
-
-	mask = P_MII_DUPLEX_M | masks[P_MII_TX_FLOW_CTRL] |
-	       masks[P_MII_RX_FLOW_CTRL];
-
-	if (duplex == DUPLEX_FULL)
-		val = FIELD_PREP(P_MII_DUPLEX_M, bitval[P_MII_FULL_DUPLEX]);
-	else
-		val = FIELD_PREP(P_MII_DUPLEX_M, bitval[P_MII_HALF_DUPLEX]);
-
-	if (tx_pause)
-		val |= masks[P_MII_TX_FLOW_CTRL];
-
-	if (rx_pause)
-		val |= masks[P_MII_RX_FLOW_CTRL];
-
-	ksz_prmw8(dev, port, regs[P_XMII_CTRL_0], mask, val);
-}
-
-static void ksz9477_phylink_mac_link_up(struct phylink_config *config,
-					struct phy_device *phydev,
-					unsigned int mode,
-					phy_interface_t interface,
-					int speed, int duplex, bool tx_pause,
-					bool rx_pause)
-{
-	struct dsa_port *dp = dsa_phylink_to_port(config);
-	struct ksz_device *dev = dp->ds->priv;
-	int port = dp->index;
-	struct ksz_port *p;
-
-	p = &dev->ports[port];
-
-	/* Internal PHYs */
-	if (dev->info->internal_phy[port])
-		return;
-
-	p->speed = speed;
-
-	ksz_port_set_xmii_speed(dev, port, speed);
-
-	ksz_duplex_flowctrl(dev, port, duplex, tx_pause, rx_pause);
 }
 
 static int ksz_switch_detect(struct ksz_device *dev)
@@ -4089,8 +3373,8 @@ static int ksz_switch_detect(struct ksz_device *dev)
 	return 0;
 }
 
-static int ksz_cls_flower_add(struct dsa_switch *ds, int port,
-			      struct flow_cls_offload *cls, bool ingress)
+int ksz_cls_flower_add(struct dsa_switch *ds, int port,
+		       struct flow_cls_offload *cls, bool ingress)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -4110,8 +3394,8 @@ static int ksz_cls_flower_add(struct dsa_switch *ds, int port,
 	return -EOPNOTSUPP;
 }
 
-static int ksz_cls_flower_del(struct dsa_switch *ds, int port,
-			      struct flow_cls_offload *cls, bool ingress)
+int ksz_cls_flower_del(struct dsa_switch *ds, int port,
+		       struct flow_cls_offload *cls, bool ingress)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -4514,8 +3798,8 @@ static int ksz_tc_setup_qdisc_ets(struct dsa_switch *ds, int port,
 	return -EOPNOTSUPP;
 }
 
-static int ksz_setup_tc(struct dsa_switch *ds, int port,
-			enum tc_setup_type type, void *type_data)
+int ksz_setup_tc(struct dsa_switch *ds, int port,
+		 enum tc_setup_type type, void *type_data)
 {
 	switch (type) {
 	case TC_SETUP_QDISC_CBS:
@@ -4574,8 +3858,8 @@ int ksz_handle_wake_reason(struct ksz_device *dev, int port)
  * If enabled and supported, it sets the supported and active WoL
  * flags.
  */
-static void ksz_get_wol(struct dsa_switch *ds, int port,
-			struct ethtool_wolinfo *wol)
+void ksz_get_wol(struct dsa_switch *ds, int port,
+		 struct ethtool_wolinfo *wol)
 {
 	struct ksz_device *dev = ds->priv;
 	const u16 *regs = dev->info->regs;
@@ -4622,8 +3906,8 @@ static void ksz_get_wol(struct dsa_switch *ds, int port,
  *
  * Return: 0 on success, or other error codes on failure.
  */
-static int ksz_set_wol(struct dsa_switch *ds, int port,
-		       struct ethtool_wolinfo *wol)
+int ksz_set_wol(struct dsa_switch *ds, int port,
+		struct ethtool_wolinfo *wol)
 {
 	u8 pme_ctrl = 0, pme_ctrl_old = 0;
 	struct ksz_device *dev = ds->priv;
@@ -4689,23 +3973,18 @@ static int ksz_set_wol(struct dsa_switch *ds, int port,
  * ksz_wol_pre_shutdown - Prepares the switch device for shutdown while
  *                        considering Wake-on-LAN (WoL) settings.
  * @dev: The switch device structure.
- * @wol_enabled: Pointer to a boolean which will be set to true if WoL is
- *               enabled on any port.
  *
  * This function prepares the switch device for a safe shutdown while taking
- * into account the Wake-on-LAN (WoL) settings on the user ports. It updates
- * the wol_enabled flag accordingly to reflect whether WoL is active on any
- * port.
+ * into account the Wake-on-LAN (WoL) settings on the user ports.
  */
-static void ksz_wol_pre_shutdown(struct ksz_device *dev, bool *wol_enabled)
+static void ksz_wol_pre_shutdown(struct ksz_device *dev)
 {
 	const struct ksz_dev_ops *ops = dev->dev_ops;
 	const u16 *regs = dev->info->regs;
 	u8 pme_pin_en = PME_ENABLE;
+	bool wol_enabled = false;
 	struct dsa_port *dp;
 	int ret;
-
-	*wol_enabled = false;
 
 	if (!is_ksz9477(dev) && !ksz_is_ksz87xx(dev))
 		return;
@@ -4719,7 +3998,7 @@ static void ksz_wol_pre_shutdown(struct ksz_device *dev, bool *wol_enabled)
 		ret = ops->pme_pread8(dev, dp->index,
 				      regs[REG_PORT_PME_CTRL], &pme_ctrl);
 		if (!ret && pme_ctrl)
-			*wol_enabled = true;
+			wol_enabled = true;
 
 		/* make sure there are no pending wake events which would
 		 * prevent the device from going to sleep/shutdown.
@@ -4728,7 +4007,7 @@ static void ksz_wol_pre_shutdown(struct ksz_device *dev, bool *wol_enabled)
 	}
 
 	/* Now we are save to enable PME pin. */
-	if (*wol_enabled) {
+	if (wol_enabled) {
 		if (dev->pme_active_high)
 			pme_pin_en |= PME_POLARITY;
 		ops->pme_write8(dev, regs[REG_SW_PME_CTRL], pme_pin_en);
@@ -4737,8 +4016,8 @@ static void ksz_wol_pre_shutdown(struct ksz_device *dev, bool *wol_enabled)
 	}
 }
 
-static int ksz_port_set_mac_address(struct dsa_switch *ds, int port,
-				    const unsigned char *addr)
+int ksz_port_set_mac_address(struct dsa_switch *ds, int port,
+			     const unsigned char *addr)
 {
 	struct dsa_port *dp = dsa_to_port(ds, port);
 	struct ethtool_wolinfo wol;
@@ -4890,8 +4169,8 @@ void ksz_switch_macaddr_put(struct dsa_switch *ds)
 	kfree(switch_macaddr);
 }
 
-static int ksz_hsr_join(struct dsa_switch *ds, int port, struct net_device *hsr,
-			struct netlink_ext_ack *extack)
+int ksz_hsr_join(struct dsa_switch *ds, int port, struct net_device *hsr,
+		 struct netlink_ext_ack *extack)
 {
 	struct ksz_device *dev = ds->priv;
 	enum hsr_version ver;
@@ -4939,8 +4218,8 @@ static int ksz_hsr_join(struct dsa_switch *ds, int port, struct net_device *hsr,
 	return 0;
 }
 
-static int ksz_hsr_leave(struct dsa_switch *ds, int port,
-			 struct net_device *hsr)
+int ksz_hsr_leave(struct dsa_switch *ds, int port,
+		  struct net_device *hsr)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -4956,7 +4235,7 @@ static int ksz_hsr_leave(struct dsa_switch *ds, int port,
 	return 0;
 }
 
-static int ksz_suspend(struct dsa_switch *ds)
+int ksz_suspend(struct dsa_switch *ds)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -4964,7 +4243,7 @@ static int ksz_suspend(struct dsa_switch *ds)
 	return 0;
 }
 
-static int ksz_resume(struct dsa_switch *ds)
+int ksz_resume(struct dsa_switch *ds)
 {
 	struct ksz_device *dev = ds->priv;
 
@@ -4973,68 +4252,9 @@ static int ksz_resume(struct dsa_switch *ds)
 	return 0;
 }
 
-static const struct dsa_switch_ops ksz_switch_ops = {
-	.get_tag_protocol	= ksz_get_tag_protocol,
-	.connect_tag_protocol   = ksz_connect_tag_protocol,
-	.get_phy_flags		= ksz_get_phy_flags,
-	.setup			= ksz_setup,
-	.teardown		= ksz_teardown,
-	.phy_read		= ksz_phy_read16,
-	.phy_write		= ksz_phy_write16,
-	.phylink_get_caps	= ksz_phylink_get_caps,
-	.port_setup		= ksz_port_setup,
-	.set_ageing_time	= ksz_set_ageing_time,
-	.get_strings		= ksz_get_strings,
-	.get_ethtool_stats	= ksz_get_ethtool_stats,
-	.get_sset_count		= ksz_sset_count,
-	.port_bridge_join	= ksz_port_bridge_join,
-	.port_bridge_leave	= ksz_port_bridge_leave,
-	.port_hsr_join		= ksz_hsr_join,
-	.port_hsr_leave		= ksz_hsr_leave,
-	.port_set_mac_address	= ksz_port_set_mac_address,
-	.port_stp_state_set	= ksz_port_stp_state_set,
-	.port_teardown		= ksz_port_teardown,
-	.port_pre_bridge_flags	= ksz_port_pre_bridge_flags,
-	.port_bridge_flags	= ksz_port_bridge_flags,
-	.port_fast_age		= ksz_port_fast_age,
-	.port_vlan_filtering	= ksz_port_vlan_filtering,
-	.port_vlan_add		= ksz_port_vlan_add,
-	.port_vlan_del		= ksz_port_vlan_del,
-	.port_fdb_dump		= ksz_port_fdb_dump,
-	.port_fdb_add		= ksz_port_fdb_add,
-	.port_fdb_del		= ksz_port_fdb_del,
-	.port_mdb_add           = ksz_port_mdb_add,
-	.port_mdb_del           = ksz_port_mdb_del,
-	.port_mirror_add	= ksz_port_mirror_add,
-	.port_mirror_del	= ksz_port_mirror_del,
-	.get_stats64		= ksz_get_stats64,
-	.get_pause_stats	= ksz_get_pause_stats,
-	.port_change_mtu	= ksz_change_mtu,
-	.port_max_mtu		= ksz_max_mtu,
-	.get_wol		= ksz_get_wol,
-	.set_wol		= ksz_set_wol,
-	.suspend		= ksz_suspend,
-	.resume			= ksz_resume,
-	.get_ts_info		= ksz_get_ts_info,
-	.port_hwtstamp_get	= ksz_hwtstamp_get,
-	.port_hwtstamp_set	= ksz_hwtstamp_set,
-	.port_txtstamp		= ksz_port_txtstamp,
-	.port_rxtstamp		= ksz_port_rxtstamp,
-	.cls_flower_add		= ksz_cls_flower_add,
-	.cls_flower_del		= ksz_cls_flower_del,
-	.port_setup_tc		= ksz_setup_tc,
-	.support_eee		= ksz_support_eee,
-	.set_mac_eee		= ksz_set_mac_eee,
-	.port_get_default_prio	= ksz_port_get_default_prio,
-	.port_set_default_prio	= ksz_port_set_default_prio,
-	.port_get_dscp_prio	= ksz_port_get_dscp_prio,
-	.port_add_dscp_prio	= ksz_port_add_dscp_prio,
-	.port_del_dscp_prio	= ksz_port_del_dscp_prio,
-	.port_get_apptrust	= ksz_port_get_apptrust,
-	.port_set_apptrust	= ksz_port_set_apptrust,
-};
-
-struct ksz_device *ksz_switch_alloc(struct device *base, void *priv)
+struct ksz_device *ksz_switch_alloc(struct device *base,
+				    const struct ksz_chip_data *chip,
+				    void *priv)
 {
 	struct dsa_switch *ds;
 	struct ksz_device *swdev;
@@ -5045,7 +4265,7 @@ struct ksz_device *ksz_switch_alloc(struct device *base, void *priv)
 
 	ds->dev = base;
 	ds->num_ports = DSA_MAX_PORTS;
-	ds->ops = &ksz_switch_ops;
+	ds->ops = chip->switch_ops;
 
 	swdev = devm_kzalloc(base, sizeof(*swdev), GFP_KERNEL);
 	if (!swdev)
@@ -5066,20 +4286,12 @@ EXPORT_SYMBOL(ksz_switch_alloc);
  * @dev: The switch device structure.
  *
  * This function is responsible for initiating a shutdown sequence for the
- * switch device. It invokes the reset operation defined in the device
- * operations, if available, to reset the switch. Subsequently, it calls the
- * DSA framework's shutdown function to ensure a proper shutdown of the DSA
- * switch.
+ * switch device. Subsequently, it calls the DSA framework's shutdown function
+ * to ensure a proper shutdown of the DSA switch.
  */
 void ksz_switch_shutdown(struct ksz_device *dev)
 {
-	bool wol_enabled = false;
-
-	ksz_wol_pre_shutdown(dev, &wol_enabled);
-
-	if (dev->dev_ops->reset && !wol_enabled)
-		dev->dev_ops->reset(dev);
-
+	ksz_wol_pre_shutdown(dev);
 	dsa_switch_shutdown(dev->ds);
 }
 EXPORT_SYMBOL(ksz_switch_shutdown);
@@ -5293,7 +4505,7 @@ static int ksz88x3_drive_strength_write(struct ksz_device *dev,
  *
  * Return: 0 on success, error code otherwise
  */
-static int ksz_parse_drive_strength(struct ksz_device *dev)
+int ksz_parse_drive_strength(struct ksz_device *dev)
 {
 	struct ksz_driver_strength_prop of_props[] = {
 		[KSZ_DRIVER_STRENGTH_HI] = {
@@ -5529,10 +4741,8 @@ int ksz_switch_register(struct ksz_device *dev)
 	}
 
 	ret = dsa_register_switch(dev->ds);
-	if (ret) {
-		dev->dev_ops->exit(dev);
+	if (ret)
 		return ret;
-	}
 
 	/* Read MIB counters every 30 seconds to avoid overflow. */
 	dev->mib_read_interval = msecs_to_jiffies(5000);
@@ -5552,12 +4762,7 @@ void ksz_switch_remove(struct ksz_device *dev)
 		cancel_delayed_work_sync(&dev->mib_read);
 	}
 
-	dev->dev_ops->exit(dev);
 	dsa_unregister_switch(dev->ds);
-
-	if (dev->reset_gpio)
-		gpiod_set_value_cansleep(dev->reset_gpio, 1);
-
 }
 EXPORT_SYMBOL(ksz_switch_remove);
 
