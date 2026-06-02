@@ -55,7 +55,7 @@
 
 /* Device and char device-related information */
 static DEFINE_IDA(gpio_ida);
-static dev_t gpio_devt;
+static dev_t gpio_devt __ro_after_init;
 #define GPIO_DEV_MAX 256 /* 256 GPIO chip devices supported */
 
 static int gpio_bus_match(struct device *dev, const struct device_driver *drv)
@@ -114,7 +114,7 @@ static int gpiochip_irqchip_init_hw(struct gpio_chip *gc);
 static int gpiochip_irqchip_init_valid_mask(struct gpio_chip *gc);
 static void gpiochip_irqchip_free_valid_mask(struct gpio_chip *gc);
 
-static bool gpiolib_initialized;
+static bool gpiolib_initialized __ro_after_init;
 
 const char *gpiod_get_label(struct gpio_desc *desc)
 {
@@ -490,6 +490,28 @@ int gpiod_get_direction(struct gpio_desc *desc)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(gpiod_get_direction);
+
+/**
+ * gpiod_is_single_ended - check if the GPIO is configured as single-ended
+ * @desc: the GPIO descriptor to check
+ *
+ * Returns true if the GPIO is configured as either Open Drain or Open Source.
+ * In these modes, the direction of the line cannot always be reliably
+ * determined by reading hardware registers, as the "off" state (High-Z)
+ * is physically indistinguishable from an input state.
+ */
+bool gpiod_is_single_ended(struct gpio_desc *desc)
+{
+	if (!desc)
+		return false;
+
+	if (test_bit(GPIOD_FLAG_OPEN_DRAIN, &desc->flags) ||
+		test_bit(GPIOD_FLAG_OPEN_SOURCE, &desc->flags))
+		return true;
+
+	return false;
+}
+EXPORT_SYMBOL_GPL(gpiod_is_single_ended);
 
 /*
  * Add a new chip to the global chips list, keeping the list of chips sorted
@@ -5340,7 +5362,7 @@ EXPORT_SYMBOL_GPL(gpiod_put_array);
  * gpio_device of the GPIO chip with the firmware node and then simply
  * bind it to this stub driver.
  */
-static struct device_driver gpio_stub_drv = {
+static struct device_driver gpio_stub_drv __ro_after_init = {
 	.name = "gpio_stub_drv",
 	.bus = &gpio_bus_type,
 };
@@ -5498,8 +5520,8 @@ static int gpiolib_seq_show(struct seq_file *s, void *v)
 	if (gc->label)
 		seq_printf(s, ", %s", gc->label);
 	if (gc->can_sleep)
-		seq_printf(s, ", can sleep");
-	seq_printf(s, ":\n");
+		seq_puts(s, ", can sleep");
+	seq_puts(s, ":\n");
 
 	if (gc->dbg_show)
 		gc->dbg_show(s, gc);
