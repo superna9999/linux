@@ -500,7 +500,7 @@ static void sio_read_complete(struct kiocb *iocb, long ret)
 
 	if (ret == sio->len) {
 		for (p = 0; p < sio->nr_bvecs; p++) {
-			struct folio *folio = page_folio(sio->bvecs[p].bv_page);
+			struct folio *folio = bvec_folio(&sio->bvecs[p]);
 
 			count_mthp_stat(folio_order(folio), MTHP_STAT_SWPIN);
 			count_memcg_folio_events(folio, PSWPIN, folio_nr_pages(folio));
@@ -510,7 +510,7 @@ static void sio_read_complete(struct kiocb *iocb, long ret)
 		count_vm_events(PSWPIN, sio->len >> PAGE_SHIFT);
 	} else {
 		for (p = 0; p < sio->nr_bvecs; p++) {
-			struct folio *folio = page_folio(sio->bvecs[p].bv_page);
+			struct folio *folio = bvec_folio(&sio->bvecs[p]);
 
 			folio_unlock(folio);
 		}
