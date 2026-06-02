@@ -99,6 +99,7 @@
 #include "i915_drv.h"
 #include "i915_dsb_buffer.h"
 #include "i915_edram.h"
+#include "i915_fb_pin.h"
 #include "i915_file_private.h"
 #include "i915_getparam.h"
 #include "i915_gmch.h"
@@ -122,7 +123,6 @@
 #include "intel_cpu_info.h"
 #include "intel_gvt.h"
 #include "intel_memory_region.h"
-#include "intel_pci_config.h"
 #include "intel_pcode.h"
 #include "intel_region_ttm.h"
 #include "vlv_iosf_sb.h"
@@ -311,6 +311,7 @@ static void i915_driver_late_release(struct drm_i915_private *dev_priv)
 	i915_params_free(&dev_priv->params);
 
 	intel_display_device_remove(display);
+	dev_priv->display = NULL;
 }
 
 /**
@@ -768,6 +769,7 @@ static const struct intel_display_parent_interface parent = {
 	.bo = &i915_display_bo_interface,
 	.dpt = &i915_display_dpt_interface,
 	.dsb = &i915_display_dsb_interface,
+	.fb_pin = &i915_display_fb_pin_interface,
 	.frontbuffer = &i915_display_frontbuffer_interface,
 	.hdcp = &i915_display_hdcp_interface,
 	.initial_plane = &i915_display_initial_plane_interface,
@@ -779,7 +781,7 @@ static const struct intel_display_parent_interface parent = {
 	.rpm = &i915_display_rpm_interface,
 	.rps = &i915_display_rps_interface,
 	.stolen = &i915_display_stolen_interface,
-	.vma = &i915_display_vma_interface,
+	.vlv_iosf = &i915_display_vlv_iosf_interface,
 
 	.fence_priority_display = fence_priority_display,
 	.has_auxccs = has_auxccs,
