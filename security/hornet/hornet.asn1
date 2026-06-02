@@ -1,0 +1,11 @@
+-- SPDX-License-Identifier: BSD-3-Clause
+--
+-- Copyright (C) 2026 Microsoft
+--
+-- https://www.rfc-editor.org/rfc/rfc5652#section-3
+
+HornetData ::= SET OF Map
+
+Map ::= SEQUENCE {
+	sha			OCTET STRING ({ hornet_map_hash })
+} ({ hornet_next_map })

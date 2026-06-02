@@ -22,6 +22,9 @@ struct ipe_bdev *ipe_bdev(struct block_device *b);
 #ifdef CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG
 struct ipe_inode *ipe_inode(const struct inode *inode);
 #endif /* CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG */
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+struct ipe_bpf_prog *ipe_bpf_prog(const struct bpf_prog *prog);
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
 
 int ipe_init_securityfs(void);
 

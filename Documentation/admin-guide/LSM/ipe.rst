@@ -559,7 +559,8 @@ policy. Two properties are built-into the policy parser: 'op' and 'action'.
 The other properties are used to restrict immutable security properties
 about the files being evaluated. Currently those properties are:
 '``boot_verified``', '``dmverity_signature``', '``dmverity_roothash``',
-'``fsverity_signature``', '``fsverity_digest``'. A description of all
+'``fsverity_signature``', '``fsverity_digest``', '``bpf_signature``',
+'``bpf_keyring``', '``bpf_kernel``'. A description of all
 properties supported by IPE are listed below:
 
 op
@@ -602,6 +603,14 @@ as the first token. IPE supports the following operations:
 
       Controls loading IMA certificates through the Kconfigs,
       ``CONFIG_IMA_X509_PATH`` and ``CONFIG_EVM_X509_PATH``.
+
+   ``BPF_PROG_LOAD``:
+
+      Pertains to BPF programs being loaded via the ``bpf()`` syscall.
+      This operation is used in conjunction with the ``bpf_signature``,
+      ``bpf_keyring``, and ``bpf_kernel`` properties to control BPF
+      program loading based on integrity verification provided by the
+      Hornet LSM.
 
 action
 ~~~~~~
@@ -713,6 +722,105 @@ fsverity_signature
 
       fsverity_signature=(TRUE|FALSE)
 
+bpf_signature
+~~~~~~~~~~~~~
+
+   This property can be utilized for authorization of BPF program loads based
+   on the integrity verdict provided by the Hornet LSM. When a BPF program is
+   loaded, Hornet performs cryptographic verification of the program's PKCS#7
+   signature (if present) and passes an integrity verdict to IPE via the
+   ``security_bpf_prog_load_post_integrity`` hook. IPE can then allow or deny
+   the load based on the verdict.
+
+   This property depends on ``SECURITY_HORNET`` and is controlled by the
+   ``IPE_PROP_BPF_SIGNATURE`` config option.
+   The format of this property is::
+
+      bpf_signature=(NONE|OK|UNSIGNED|PARTIALSIG|UNKNOWNKEY|UNEXPECTED|FAULT|BADSIG)
+
+   The possible values correspond to the integrity verdicts from Hornet:
+
+      ``NONE``
+
+         No integrity verdict was set (default/uninitialized).
+
+      ``OK``
+
+         The BPF program's signature and all map hashes were successfully
+         verified.
+
+      ``UNSIGNED``
+
+         No signature was provided with the BPF program.
+
+      ``PARTIALSIG``
+
+         The program signature was verified, but no authenticated map hash
+         data was present.
+
+      ``UNKNOWNKEY``
+
+         The keyring requested by the user is invalid.
+
+      ``UNEXPECTED``
+
+         An unexpected map hash value was encountered during verification.
+
+      ``FAULT``
+
+         A system error occurred during signature verification.
+
+      ``BADSIG``
+
+         The signature or hash verification failed.
+
+bpf_keyring
+~~~~~~~~~~~~
+
+   This property can be utilized for authorization of BPF program loads based
+   on the keyring specified in the ``bpf_attr`` during the ``BPF_PROG_LOAD``
+   syscall. This allows policies to restrict which keyring must be used for
+   signature verification of BPF programs.
+
+   This property shares the ``IPE_PROP_BPF_SIGNATURE`` config option with
+   ``bpf_signature``.
+   The format of this property is::
+
+      bpf_keyring=(BUILTIN|SECONDARY|PLATFORM)
+
+   The possible values correspond to the system keyrings:
+
+      ``BUILTIN``
+
+         The builtin trusted keyring (``.builtin_trusted_keys``), which
+         contains keys embedded at kernel compile time.
+
+      ``SECONDARY``
+
+         The secondary trusted keyring (``.secondary_trusted_keys``), which
+         includes both builtin trusted keys and keys added at runtime.
+
+      ``PLATFORM``
+
+         The platform keyring (``.platform``), which contains keys provided
+         by the platform firmware (e.g. UEFI db keys).
+
+bpf_kernel
+~~~~~~~~~~
+
+   This property can be utilized for authorization of BPF program loads based
+   on whether the load originated from kernel space or user space. The BPF
+   light skeleton infrastructure performs a secondary kernel-originated program
+   load that will not carry a signature. This property allows policies to
+   permit such kernel-originated loads while still requiring signatures for
+   user-space loads.
+
+   This property shares the ``IPE_PROP_BPF_SIGNATURE`` config option with
+   ``bpf_signature``.
+   The format of this property is::
+
+      bpf_kernel=(TRUE|FALSE)
+
 Policy Examples
 ---------------
 
@@ -787,6 +895,58 @@ Allow execution of a specific fs-verity file
    DEFAULT action=DENY
 
    op=EXECUTE fsverity_digest=sha256:fd88f2b8824e197f850bf4c5109bea5cf0ee38104f710843bb72da796ba5af9e action=ALLOW
+
+Allow only signed BPF programs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+   policy_name=Allow_Signed_BPF policy_version=0.0.0
+   DEFAULT action=ALLOW
+
+   DEFAULT op=BPF_PROG_LOAD action=DENY
+   op=BPF_PROG_LOAD bpf_kernel=TRUE action=ALLOW
+   op=BPF_PROG_LOAD bpf_signature=OK action=ALLOW
+
+This policy allows all other operations but restricts BPF program loading
+to only programs that either originate from kernel space (e.g. light skeleton
+reloads) or have a valid signature verified by the Hornet LSM. Unsigned or
+improperly signed BPF programs from user space will be denied.
+
+Allow signed BPF programs from a specific keyring
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+   policy_name=Allow_BPF_Builtin_Keyring policy_version=0.0.0
+   DEFAULT action=ALLOW
+
+   DEFAULT op=BPF_PROG_LOAD action=DENY
+   op=BPF_PROG_LOAD bpf_kernel=TRUE action=ALLOW
+   op=BPF_PROG_LOAD bpf_signature=OK bpf_keyring=BUILTIN action=ALLOW
+
+This policy further restricts BPF program loading to only accept programs
+whose signatures were verified using the builtin trusted keyring. Programs
+signed against the secondary or platform keyrings will be denied, providing
+tighter control over which signing keys are acceptable.
+
+Allow signed BPF programs with relaxed partial signatures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+   policy_name=Allow_BPF_Partial policy_version=0.0.0
+   DEFAULT action=ALLOW
+
+   DEFAULT op=BPF_PROG_LOAD action=DENY
+   op=BPF_PROG_LOAD bpf_kernel=TRUE action=ALLOW
+   op=BPF_PROG_LOAD bpf_signature=OK action=ALLOW
+   op=BPF_PROG_LOAD bpf_signature=PARTIALSIG action=ALLOW
+
+This policy allows BPF programs that have been fully verified (``OK``) as
+well as programs with a valid program signature but without authenticated
+map hash data (``PARTIALSIG``). This can be useful during development or
+for programs that do not use maps.
 
 Additional Information
 ----------------------

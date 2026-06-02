@@ -41,6 +41,7 @@ static const char *const audit_op_names[__IPE_OP_MAX + 1] = {
 	"KEXEC_INITRAMFS",
 	"POLICY",
 	"X509_CERT",
+	"BPF_PROG_LOAD",
 	"UNKNOWN",
 };
 
@@ -51,6 +52,7 @@ static const char *const audit_hook_names[__IPE_HOOK_MAX] = {
 	"MPROTECT",
 	"KERNEL_READ",
 	"KERNEL_LOAD",
+	"BPF_PROG_LOAD",
 };
 
 static const char *const audit_prop_names[__IPE_PROP_MAX] = {
@@ -62,6 +64,19 @@ static const char *const audit_prop_names[__IPE_PROP_MAX] = {
 	"fsverity_digest=",
 	"fsverity_signature=FALSE",
 	"fsverity_signature=TRUE",
+	"bpf_signature=NONE",
+	"bpf_signature=OK",
+	"bpf_signature=UNSIGNED",
+	"bpf_signature=PARTIALSIG",
+	"bpf_signature=UNKNOWNKEY",
+	"bpf_signature=UNEXPECTED",
+	"bpf_signature=FAULT",
+	"bpf_signature=BADSIG",
+	"bpf_keyring=BUILTIN",
+	"bpf_keyring=SECONDARY",
+	"bpf_keyring=PLATFORM",
+	"bpf_kernel=FALSE",
+	"bpf_kernel=TRUE",
 };
 
 /**

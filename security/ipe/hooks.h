@@ -10,6 +10,7 @@
 #include <linux/security.h>
 #include <linux/blk_types.h>
 #include <linux/fsverity.h>
+#include <linux/bpf.h>
 
 enum ipe_hook_type {
 	IPE_HOOK_BPRM_CHECK = 0,
@@ -18,6 +19,7 @@ enum ipe_hook_type {
 	IPE_HOOK_MPROTECT,
 	IPE_HOOK_KERNEL_READ,
 	IPE_HOOK_KERNEL_LOAD,
+	IPE_HOOK_BPF_PROG_LOAD,
 	__IPE_HOOK_MAX
 };
 
@@ -51,5 +53,18 @@ int ipe_bdev_setintegrity(struct block_device *bdev, enum lsm_integrity_type typ
 int ipe_inode_setintegrity(const struct inode *inode, enum lsm_integrity_type type,
 			   const void *value, size_t size);
 #endif /* CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG */
+
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+int ipe_bpf_prog_load_post_integrity(struct bpf_prog *prog,
+				     union bpf_attr *attr,
+				     struct bpf_token *token,
+				     bool kernel,
+				     const struct lsm_id *lsmid,
+				     enum lsm_integrity_verdict verdict);
+int ipe_bpf_prog_load(struct bpf_prog *prog,
+		      union bpf_attr *attr,
+		      struct bpf_token *token,
+		      bool kernel);
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
 
 #endif /* _IPE_HOOKS_H */

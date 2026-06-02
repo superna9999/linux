@@ -19,6 +19,9 @@ static struct lsm_blob_sizes ipe_blobs __ro_after_init = {
 #ifdef CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG
 	.lbs_inode = sizeof(struct ipe_inode),
 #endif /* CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG */
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+	.lbs_bpf_prog = sizeof(struct ipe_bpf_prog),
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
 };
 
 static const struct lsm_id ipe_lsmid = {
@@ -45,6 +48,13 @@ struct ipe_inode *ipe_inode(const struct inode *inode)
 }
 #endif /* CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG */
 
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+struct ipe_bpf_prog *ipe_bpf_prog(const struct bpf_prog *prog)
+{
+	return prog->aux->security + ipe_blobs.lbs_bpf_prog;
+}
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
+
 static struct security_hook_list ipe_hooks[] __ro_after_init = {
 	LSM_HOOK_INIT(bprm_check_security, ipe_bprm_check_security),
 	LSM_HOOK_INIT(bprm_creds_for_exec, ipe_bprm_creds_for_exec),
@@ -60,6 +70,10 @@ static struct security_hook_list ipe_hooks[] __ro_after_init = {
 #ifdef CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG
 	LSM_HOOK_INIT(inode_setintegrity, ipe_inode_setintegrity),
 #endif /* CONFIG_IPE_PROP_FS_VERITY_BUILTIN_SIG */
+#ifdef CONFIG_IPE_PROP_BPF_SIGNATURE
+	LSM_HOOK_INIT(bpf_prog_load_post_integrity, ipe_bpf_prog_load_post_integrity),
+	LSM_HOOK_INIT(bpf_prog_load, ipe_bpf_prog_load),
+#endif /* CONFIG_IPE_PROP_BPF_SIGNATURE */
 };
 
 /**
