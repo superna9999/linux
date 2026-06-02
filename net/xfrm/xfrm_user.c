@@ -937,8 +937,14 @@ static struct xfrm_state *xfrm_state_construct(struct net *net,
 				   attrs[XFRMA_ALG_COMP], extack)))
 		goto error;
 
-	if (attrs[XFRMA_TFCPAD])
+	if (attrs[XFRMA_TFCPAD]) {
 		x->tfcpad = nla_get_u32(attrs[XFRMA_TFCPAD]);
+		if (x->tfcpad > IP_MAX_MTU) {
+			NL_SET_ERR_MSG(extack, "Excessive TFC padding");
+			err = -EINVAL;
+			goto error;
+		}
+	}
 
 	xfrm_mark_get(attrs, &x->mark);
 
@@ -2267,9 +2273,8 @@ static int xfrm_add_policy(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	if (err) {
 		xfrm_dev_policy_delete(xp);
-		xfrm_dev_policy_free(xp);
-		security_xfrm_policy_free(xp->security);
-		kfree(xp);
+		xp->walk.dead = 1;
+		xfrm_policy_destroy(xp);
 		return err;
 	}
 
