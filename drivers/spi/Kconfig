@@ -321,7 +321,8 @@ config SPI_CADENCE_QUADSPI
 
 config SPI_CADENCE_XSPI
 	tristate "Cadence XSPI controller"
-	depends on OF && HAS_IOMEM && 64BIT
+	depends on HAS_IOMEM || COMPILE_TEST
+	depends on OF
 	depends on SPI_MEM
 	help
 	  Enable support for the Cadence XSPI Flash controller.
@@ -1084,6 +1085,15 @@ config SPI_SG2044_NOR
 	  which supports Dual/Quad read and write operations while
 	  also supporting 3Byte address devices and 4Byte address
 	  devices.
+
+config SPI_SPACEMIT_K1
+	tristate "K1 SPI Controller"
+	depends on ARCH_SPACEMIT || COMPILE_TEST
+	depends on OF
+	imply MMP_PDMA if ARCH_SPACEMIT
+	default m if ARCH_SPACEMIT
+	help
+	  Enable support for the SpacemiT K1 SPI controller.
 
 config SPI_SPRD
 	tristate "Spreadtrum SPI controller"
