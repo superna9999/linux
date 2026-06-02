@@ -21,6 +21,7 @@
 #include <linux/resctrl.h>
 
 #include <asm/cpu_device_id.h>
+#include <asm/cpuid/api.h>
 #include <asm/msr.h>
 
 #include "internal.h"
@@ -454,6 +455,7 @@ int __init rdt_get_l3_mon_config(struct rdt_resource *r)
 	    (rdt_cpu_has(X86_FEATURE_CQM_MBM_TOTAL) ||
 	     rdt_cpu_has(X86_FEATURE_CQM_MBM_LOCAL))) {
 		r->mon.mbm_cntr_assignable = true;
+		r->mon.mbm_cntr_configurable = true;
 		cpuid_count(0x80000020, 5, &eax, &ebx, &ecx, &edx);
 		r->mon.num_mbm_cntrs = (ebx & GENMASK(15, 0)) + 1;
 		hw_res->mbm_cntr_assign_enabled = true;

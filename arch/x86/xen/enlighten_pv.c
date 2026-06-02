@@ -728,7 +728,7 @@ static void __xen_pv_evtchn_do_upcall(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 
-	inc_irq_stat(irq_hv_callback_count);
+	inc_irq_stat(HYPERVISOR_CALLBACK);
 
 	xen_evtchn_do_upcall();
 
@@ -1429,6 +1429,7 @@ asmlinkage __visible void __init xen_start_kernel(struct start_info *si)
 	xen_build_dynamic_phys_to_machine();
 
 	/* Work out if we support NX */
+	cpuid_scan_cpu(&boot_cpu_data);
 	get_cpu_cap(&boot_cpu_data);
 	x86_configure_nx();
 

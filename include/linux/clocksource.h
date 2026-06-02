@@ -236,8 +236,9 @@ clocks_calc_mult_shift(u32 *mult, u32 *shift, u32 from, u32 to, u32 minsec);
  */
 extern int
 __clocksource_register_scale(struct clocksource *cs, u32 scale, u32 freq);
-extern void
-__clocksource_update_freq_scale(struct clocksource *cs, u32 scale, u32 freq);
+extern int
+__devm_clocksource_register_scale(struct device *dev, struct clocksource *cs,
+				  u32 scale, u32 freq);
 
 /*
  * Don't call this unless you are a default clocksource
@@ -258,14 +259,16 @@ static inline int clocksource_register_khz(struct clocksource *cs, u32 khz)
 	return __clocksource_register_scale(cs, 1000, khz);
 }
 
-static inline void __clocksource_update_freq_hz(struct clocksource *cs, u32 hz)
+static inline int devm_clocksource_register_hz(struct device *dev,
+					       struct clocksource *cs, u32 hz)
 {
-	__clocksource_update_freq_scale(cs, 1, hz);
+	return __devm_clocksource_register_scale(dev, cs, 1, hz);
 }
 
-static inline void __clocksource_update_freq_khz(struct clocksource *cs, u32 khz)
+static inline int devm_clocksource_register_khz(struct device *dev,
+						struct clocksource *cs, u32 khz)
 {
-	__clocksource_update_freq_scale(cs, 1000, khz);
+	return __devm_clocksource_register_scale(dev, cs, 1000, khz);
 }
 
 #ifdef CONFIG_ARCH_CLOCKSOURCE_INIT
