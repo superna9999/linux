@@ -16,6 +16,7 @@
  * Copyright (c) 2010 Erik Larsson
  */
 
+#include <linux/string_choices.h>
 #include <linux/writeback.h>
 #include <linux/iomap.h>
 
@@ -1855,7 +1856,7 @@ int ntfs_attr_make_non_resident(struct ntfs_inode *ni, const u32 data_size)
 		if (IS_ERR(rl)) {
 			err = PTR_ERR(rl);
 			ntfs_debug("Failed to allocate cluster%s, error code %i.",
-					ntfs_bytes_to_cluster(vol, new_size) > 1 ? "s" : "",
+					str_plural(ntfs_bytes_to_cluster(vol, new_size)),
 					err);
 			goto folio_err_out;
 		}
@@ -4536,10 +4537,12 @@ attr_resize_again:
 	while (!(err = ntfs_attr_lookup(AT_UNUSED, NULL, 0, 0, 0, NULL, 0, ctx))) {
 		struct inode *tvi;
 		struct attr_record *a;
+		u32 value_len;
 
 		a = ctx->attr;
 		if (a->non_resident || a->type == AT_ATTRIBUTE_LIST)
 			continue;
+		value_len = le32_to_cpu(a->data.resident.value_length);
 
 		if (ntfs_attr_can_be_non_resident(vol, a->type))
 			continue;
@@ -4550,6 +4553,8 @@ attr_resize_again:
 		 */
 		if (le32_to_cpu(a->length) <= (sizeof(struct attr_record) - sizeof(s64)) +
 				((a->name_length * sizeof(__le16) + 7) & ~7) + 8)
+			continue;
+		if (a->type == AT_DATA && !value_len)
 			continue;
 
 		if (a->type == AT_DATA)
@@ -4563,8 +4568,7 @@ attr_resize_again:
 			continue;
 		}
 
-		if (ntfs_attr_make_non_resident(NTFS_I(tvi),
-		    le32_to_cpu(ctx->attr->data.resident.value_length))) {
+		if (ntfs_attr_make_non_resident(NTFS_I(tvi), value_len)) {
 			iput(tvi);
 			continue;
 		}

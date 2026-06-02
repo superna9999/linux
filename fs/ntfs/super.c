@@ -17,7 +17,6 @@
 
 #include "sysctl.h"
 #include "logfile.h"
-#include "quota.h"
 #include "index.h"
 #include "ntfs.h"
 #include "ea.h"
@@ -240,8 +239,7 @@ static int ntfs_reconfigure(struct fs_context *fc)
 	 * flags are set.  Also, empty the logfile journal as it would become
 	 * stale as soon as something is written to the volume and mark the
 	 * volume dirty so that chkdsk is run if the volume is not umounted
-	 * cleanly.  Finally, mark the quotas out of date so Windows rescans
-	 * the volume on boot and updates them.
+	 * cleanly.
 	 *
 	 * When remounting read-only, mark the volume clean if no volume errors
 	 * have occurred.
@@ -270,12 +268,6 @@ static int ntfs_reconfigure(struct fs_context *fc)
 		}
 		if (vol->logfile_ino && !ntfs_empty_logfile(vol->logfile_ino)) {
 			ntfs_error(sb, "Failed to empty journal LogFile%s",
-					es);
-			NVolSetErrors(vol);
-			return -EROFS;
-		}
-		if (!ntfs_mark_quotas_out_of_date(vol)) {
-			ntfs_error(sb, "Failed to mark quotas out of date%s",
 					es);
 			NVolSetErrors(vol);
 			return -EROFS;
@@ -1176,73 +1168,6 @@ iput_out:
 }
 
 /*
- * load_and_init_quota - load and setup the quota file for a volume if present
- * @vol:	ntfs super block describing device whose quota file to load
- *
- * Return 'true' on success or 'false' on error.  If $Quota is not present, we
- * leave vol->quota_ino as NULL and return success.
- */
-static bool load_and_init_quota(struct ntfs_volume *vol)
-{
-	static const __le16 Quota[7] = { cpu_to_le16('$'),
-			cpu_to_le16('Q'), cpu_to_le16('u'),
-			cpu_to_le16('o'), cpu_to_le16('t'),
-			cpu_to_le16('a'), 0 };
-	static __le16 Q[3] = { cpu_to_le16('$'),
-			cpu_to_le16('Q'), 0 };
-	struct ntfs_name *name = NULL;
-	u64 mref;
-	struct inode *tmp_ino;
-
-	ntfs_debug("Entering.");
-	/*
-	 * Find the inode number for the quota file by looking up the filename
-	 * $Quota in the extended system files directory $Extend.
-	 */
-	inode_lock(vol->extend_ino);
-	mref = ntfs_lookup_inode_by_name(NTFS_I(vol->extend_ino), Quota, 6,
-			&name);
-	inode_unlock(vol->extend_ino);
-	kfree(name);
-	if (IS_ERR_MREF(mref)) {
-		/*
-		 * If the file does not exist, quotas are disabled and have
-		 * never been enabled on this volume, just return success.
-		 */
-		if (MREF_ERR(mref) == -ENOENT) {
-			ntfs_debug("$Quota not present.  Volume does not have quotas enabled.");
-			/*
-			 * No need to try to set quotas out of date if they are
-			 * not enabled.
-			 */
-			NVolSetQuotaOutOfDate(vol);
-			return true;
-		}
-		/* A real error occurred. */
-		ntfs_error(vol->sb, "Failed to find inode number for $Quota.");
-		return false;
-	}
-	/* Get the inode. */
-	tmp_ino = ntfs_iget(vol->sb, MREF(mref));
-	if (IS_ERR(tmp_ino)) {
-		if (!IS_ERR(tmp_ino))
-			iput(tmp_ino);
-		ntfs_error(vol->sb, "Failed to load $Quota.");
-		return false;
-	}
-	vol->quota_ino = tmp_ino;
-	/* Get the $Q index allocation attribute. */
-	tmp_ino = ntfs_index_iget(vol->quota_ino, Q, 2);
-	if (IS_ERR(tmp_ino)) {
-		ntfs_error(vol->sb, "Failed to load $Quota/$Q index.");
-		return false;
-	}
-	vol->quota_q_ino = tmp_ino;
-	ntfs_debug("Done.");
-	return true;
-}
-
-/*
  * load_and_init_attrdef - load the attribute definitions table for a volume
  * @vol:	ntfs super block describing device whose attrdef to load
  *
@@ -1323,7 +1248,6 @@ static bool load_and_init_upcase(struct ntfs_volume *vol)
 	u8 *addr;
 	pgoff_t index, max_index;
 	unsigned int size;
-	int i, max;
 
 	ntfs_debug("Entering.");
 	/* Read upcase table and setup vol->upcase and vol->upcase_len. */
@@ -1374,16 +1298,11 @@ read_partial_upcase_page:
 		mutex_unlock(&ntfs_lock);
 		return true;
 	}
-	max = default_upcase_len;
-	if (max > vol->upcase_len)
-		max = vol->upcase_len;
-	for (i = 0; i < max; i++)
-		if (vol->upcase[i] != default_upcase[i])
-			break;
-	if (i == max) {
+	if (default_upcase_len == vol->upcase_len &&
+	    !memcmp(vol->upcase, default_upcase,
+		    default_upcase_len * sizeof(*default_upcase))) {
 		kvfree(vol->upcase);
 		vol->upcase = default_upcase;
-		vol->upcase_len = max;
 		ntfs_nr_upcase_users++;
 		mutex_unlock(&ntfs_lock);
 		ntfs_debug("Volume specified $UpCase matches default. Using default.");
@@ -1659,18 +1578,6 @@ get_ctx_vol_failed:
 		ntfs_error(sb, "Failed to load $Extend.");
 		goto iput_sec_err_out;
 	}
-	/* Find the quota file, load it if present, and set it up. */
-	if (!load_and_init_quota(vol) &&
-	    vol->on_errors == ON_ERRORS_REMOUNT_RO) {
-		static const char *es1 = "Failed to load $Quota";
-		static const char *es2 = ".  Run chkdsk.";
-
-		sb->s_flags |= SB_RDONLY;
-		ntfs_error(sb, "%s.  Mounting read-only%s", es1, es2);
-		/* This will prevent a read-write remount. */
-		NVolSetErrors(vol);
-	}
-
 	return true;
 
 iput_sec_err_out:
@@ -1727,7 +1634,7 @@ static void ntfs_volume_free(struct ntfs_volume *vol)
 		vol->upcase = NULL;
 	}
 
-	if (!ntfs_nr_upcase_users && default_upcase) {
+	if (!ntfs_nr_upcase_users) {
 		kvfree(default_upcase);
 		default_upcase = NULL;
 	}
@@ -1742,8 +1649,7 @@ static void ntfs_volume_free(struct ntfs_volume *vol)
 
 	unload_nls(vol->nls_map);
 
-	if (vol->lcn_empty_bits_per_page)
-		kvfree(vol->lcn_empty_bits_per_page);
+	kvfree(vol->lcn_empty_bits_per_page);
 	kfree(vol->volume_label);
 	kfree(vol);
 }
@@ -1768,10 +1674,6 @@ static void ntfs_put_super(struct super_block *sb)
 
 	/* NTFS 3.0+ specific. */
 	if (vol->major_ver >= 3) {
-		if (vol->quota_q_ino)
-			ntfs_commit_inode(vol->quota_q_ino);
-		if (vol->quota_ino)
-			ntfs_commit_inode(vol->quota_ino);
 		if (vol->extend_ino)
 			ntfs_commit_inode(vol->extend_ino);
 		if (vol->secure_ino)
@@ -1820,14 +1722,6 @@ static void ntfs_put_super(struct super_block *sb)
 
 	/* NTFS 3.0+ specific clean up. */
 	if (vol->major_ver >= 3) {
-		if (vol->quota_q_ino) {
-			iput(vol->quota_q_ino);
-			vol->quota_q_ino = NULL;
-		}
-		if (vol->quota_ino) {
-			iput(vol->quota_ino);
-			vol->quota_ino = NULL;
-		}
 		if (vol->extend_ino) {
 			iput(vol->extend_ino);
 			vol->extend_ino = NULL;
@@ -1954,7 +1848,7 @@ s64 get_nr_free_clusters(struct ntfs_volume *vol)
 	struct address_space *mapping = vol->lcnbmp_ino->i_mapping;
 	struct folio *folio;
 	pgoff_t index, max_index;
-	struct file_ra_state *ra;
+	struct file_ra_state ra = { 0 };
 
 	ntfs_debug("Entering.");
 	/* Serialize accesses to the cluster bitmap. */
@@ -1962,11 +1856,7 @@ s64 get_nr_free_clusters(struct ntfs_volume *vol)
 	if (NVolFreeClusterKnown(vol))
 		return atomic64_read(&vol->free_clusters);
 
-	ra = kzalloc(sizeof(*ra), GFP_NOFS);
-	if (!ra)
-		return 0;
-
-	file_ra_state_init(ra, mapping);
+	file_ra_state_init(&ra, mapping);
 
 	/*
 	 * Convert the number of bits into bytes rounded up, then convert into
@@ -1985,7 +1875,7 @@ s64 get_nr_free_clusters(struct ntfs_volume *vol)
 		 * Get folio from page cache, getting it from backing store
 		 * if necessary, and increment the use count.
 		 */
-		folio = ntfs_get_locked_folio(mapping, index, max_index, ra);
+		folio = ntfs_get_locked_folio(mapping, index, max_index, &ra);
 
 		/* Ignore pages which errored synchronously. */
 		if (IS_ERR(folio)) {
@@ -2024,7 +1914,6 @@ s64 get_nr_free_clusters(struct ntfs_volume *vol)
 	else
 		atomic64_set(&vol->free_clusters, nr_free);
 
-	kfree(ra);
 	NVolSetFreeClusterKnown(vol);
 	wake_up_all(&vol->free_waitq);
 	ntfs_debug("Exiting.");
@@ -2079,15 +1968,11 @@ static unsigned long __get_nr_free_mft_records(struct ntfs_volume *vol,
 	struct address_space *mapping = vol->mftbmp_ino->i_mapping;
 	struct folio *folio;
 	pgoff_t index;
-	struct file_ra_state *ra;
+	struct file_ra_state ra = { 0 };
 
 	ntfs_debug("Entering.");
 
-	ra = kzalloc(sizeof(*ra), GFP_NOFS);
-	if (!ra)
-		return 0;
-
-	file_ra_state_init(ra, mapping);
+	file_ra_state_init(&ra, mapping);
 
 	/* Use multiples of 4 bytes, thus max_size is PAGE_SIZE / 4. */
 	ntfs_debug("Reading $MFT/$BITMAP, max_index = 0x%lx, max_size = 0x%lx.",
@@ -2099,7 +1984,7 @@ static unsigned long __get_nr_free_mft_records(struct ntfs_volume *vol,
 		 * Get folio from page cache, getting it from backing store
 		 * if necessary, and increment the use count.
 		 */
-		folio = ntfs_get_locked_folio(mapping, index, max_index, ra);
+		folio = ntfs_get_locked_folio(mapping, index, max_index, &ra);
 
 		/* Ignore pages which errored synchronously. */
 		if (IS_ERR(folio)) {
@@ -2131,7 +2016,6 @@ static unsigned long __get_nr_free_mft_records(struct ntfs_volume *vol,
 	else
 		atomic64_set(&vol->free_mft_records, nr_free);
 
-	kfree(ra);
 	ntfs_debug("Exiting.");
 	return nr_free;
 }
@@ -2476,14 +2360,6 @@ static int ntfs_fill_super(struct super_block *sb, struct fs_context *fc)
 	vol->vol_ino = NULL;
 	/* NTFS 3.0+ specific clean up. */
 	if (vol->major_ver >= 3) {
-		if (vol->quota_q_ino) {
-			iput(vol->quota_q_ino);
-			vol->quota_q_ino = NULL;
-		}
-		if (vol->quota_ino) {
-			iput(vol->quota_ino);
-			vol->quota_ino = NULL;
-		}
 		if (vol->extend_ino) {
 			iput(vol->extend_ino);
 			vol->extend_ino = NULL;
@@ -2530,8 +2406,6 @@ static int ntfs_fill_super(struct super_block *sb, struct fs_context *fc)
 	}
 	/* Error exit code path. */
 unl_upcase_iput_tmp_ino_err_out_now:
-	if (vol->lcn_empty_bits_per_page)
-		kvfree(vol->lcn_empty_bits_per_page);
 	/*
 	 * Decrease the number of upcase users and destroy the global default
 	 * upcase table if necessary.
@@ -2551,6 +2425,9 @@ iput_tmp_ino_err_out_now:
 	/* Errors at this stage are irrelevant. */
 err_out_now:
 	sb->s_fs_info = NULL;
+	kvfree(vol->lcn_empty_bits_per_page);
+	kfree(vol->volume_label);
+	unload_nls(vol->nls_map);
 	kfree(vol);
 	ntfs_debug("Failed, returning -EINVAL.");
 	lockdep_on();
