@@ -836,6 +836,7 @@ static int __iomap_write_begin(const struct iomap_iter *iter,
 				return -EIO;
 			folio_zero_segments(folio, poff, from, to, poff + plen);
 		} else {
+			const struct iomap *iomap = iomap_iter_srcmap(iter);
 			int status;
 
 			if (iter->flags & IOMAP_NOWAIT)
@@ -853,6 +854,9 @@ static int __iomap_write_begin(const struct iomap_iter *iter,
 						  len, status, GFP_NOFS);
 			if (status)
 				return status;
+
+			if (iomap->flags & IOMAP_F_ZERO_TAIL)
+				folio_zero_segment(folio, to, poff + plen);
 		}
 		iomap_set_range_uptodate(folio, poff, plen);
 	} while ((block_start += plen) < block_end);
@@ -1058,7 +1062,6 @@ static bool iomap_write_end_inline(const struct iomap_iter *iter,
 	void *addr;
 
 	WARN_ON_ONCE(!folio_test_uptodate(folio));
-	BUG_ON(!iomap_inline_data_valid(iomap));
 
 	if (WARN_ON_ONCE(!iomap->inline_data))
 		return false;
@@ -1542,6 +1545,8 @@ static int iomap_zero_iter(struct iomap_iter *iter, bool *did_zero,
 		struct folio *folio;
 		size_t offset;
 		bool ret;
+
+		balance_dirty_pages_ratelimited(iter->inode->i_mapping);
 
 		bytes = min_t(u64, SIZE_MAX, bytes);
 		status = iomap_write_begin(iter, write_ops, &folio, &offset,
