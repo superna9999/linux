@@ -559,4 +559,101 @@ TEST_F(fown, sigurg_socket)
 		_metadata->exit_code = KSFT_FAIL;
 }
 
+/*
+ * Checks that LANDLOCK_SCOPE_SIGNAL is enforced on the asynchronous SIGIO
+ * delivery path (fcntl(F_SETOWN)) when the file owner is a process group.
+ *
+ * A sandboxed task sitting at the head of its process group's PID hlist (the
+ * default position right after fork()) used to escape the
+ * fcntl(F_SETOWN, -pgrp) subject capture: pid_task(pgrp, PIDTYPE_PGID)
+ * resolved to the task itself, so the same-thread-group exemption skipped
+ * recording its Landlock domain.  At SIGIO time the cached subject was then
+ * empty and the signal fanned out to every group member, including
+ * non-sandboxed tasks outside the domain.
+ */
+TEST(sigio_to_pgid_members)
+{
+	int trigger[2], sync_child[2];
+	char buf;
+	pid_t child;
+	int status, i;
+
+	drop_caps(_metadata);
+
+	/*
+	 * Isolates the test in its own process group so the SIGIO fan-out
+	 * stays bounded to this parent and the child forked below.
+	 */
+	ASSERT_EQ(0, setpgid(0, 0));
+
+	/* The non-sandboxed parent is the protected (out-of-domain) target. */
+	ASSERT_EQ(0, setup_signal_handler(SIGURG));
+	signal_received = 0;
+
+	ASSERT_EQ(0, pipe2(trigger, O_CLOEXEC));
+	ASSERT_EQ(0, pipe2(sync_child, O_CLOEXEC));
+
+	child = fork();
+	ASSERT_LE(0, child);
+	if (child == 0) {
+		/*
+		 * The child inherits the parent's new process group and, just
+		 * attached with hlist_add_head_rcu(), is now the head of the
+		 * pgid hlist: this is the case that used to skip the capture.
+		 */
+		EXPECT_EQ(0, close(sync_child[0]));
+
+		/* In-domain positive control: the child must be signaled. */
+		ASSERT_EQ(0, setup_signal_handler(SIGURG));
+		signal_received = 0;
+
+		create_scoped_domain(_metadata, LANDLOCK_SCOPE_SIGNAL);
+
+		/* Owns the SIGIO source for the whole process group. */
+		ASSERT_EQ(0, fcntl(trigger[0], F_SETSIG, SIGURG));
+		ASSERT_EQ(0, fcntl(trigger[0], F_SETOWN, -getpgrp()));
+		ASSERT_EQ(0, fcntl(trigger[0], F_SETFL, O_ASYNC));
+
+		/* Fans SIGURG out to every member of the process group. */
+		ASSERT_EQ(1, write(trigger[1], ".", 1));
+
+		/*
+		 * The sandboxed child is in its own domain and must always be
+		 * signaled: this proves the SIGIO actually fired.
+		 */
+		for (i = 0; i < 1000 && !signal_received; i++)
+			usleep(1000);
+		EXPECT_EQ(1, signal_received);
+
+		ASSERT_EQ(1, write(sync_child[1], ".", 1));
+		EXPECT_EQ(0, close(sync_child[1]));
+
+		_exit(_metadata->exit_code);
+		return;
+	}
+	EXPECT_EQ(0, close(sync_child[1]));
+	EXPECT_EQ(0, close(trigger[0]));
+	EXPECT_EQ(0, close(trigger[1]));
+
+	/* Waits for the child to generate the SIGIO. */
+	ASSERT_EQ(1, read(sync_child[0], &buf, 1));
+	EXPECT_EQ(0, close(sync_child[0]));
+
+	/* Lets a delivered-but-pending signal run our handler, if any. */
+	for (i = 0; i < 100 && !signal_received; i++)
+		usleep(1000);
+
+	/*
+	 * SCOPE_SIGNAL must block the fan-out to this non-sandboxed parent,
+	 * which is outside the child's Landlock domain.  Before the fix the
+	 * parent was signaled here.
+	 */
+	EXPECT_EQ(0, signal_received);
+
+	ASSERT_EQ(child, waitpid(child, &status, 0));
+	if (WIFSIGNALED(status) || !WIFEXITED(status) ||
+	    WEXITSTATUS(status) != EXIT_SUCCESS)
+		_metadata->exit_code = KSFT_FAIL;
+}
+
 TEST_HARNESS_MAIN

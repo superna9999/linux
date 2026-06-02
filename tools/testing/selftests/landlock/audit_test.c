@@ -6,14 +6,17 @@
  */
 
 #define _GNU_SOURCE
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <linux/landlock.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -157,6 +160,190 @@ TEST_F(audit, layers)
 		}
 	}
 	EXPECT_EQ(0, munmap(domain_stack, sizeof(*domain_stack)));
+	EXPECT_EQ(0, close(ruleset_fd));
+}
+
+static int matches_log_net_bind(struct __test_metadata *const _metadata,
+				int audit_fd, __u16 port, __u64 *domain_id)
+{
+	/*
+	 * The socket is unbound at bind() time, so laddr/lport/faddr/fport from
+	 * the socket object are zero and not printed.  Only the sockaddr fields
+	 * (src) appear.
+	 */
+	static const char log_template[] = REGEX_LANDLOCK_PREFIX
+		" blockers=net\\.bind_tcp src=%u$";
+	char log_match[sizeof(log_template) + 10];
+
+	snprintf(log_match, sizeof(log_match), log_template, port);
+	return audit_match_record(audit_fd, AUDIT_LANDLOCK_ACCESS, log_match,
+				  domain_id);
+}
+
+/*
+ * Verifies that network denial audit records include enriched socket
+ * information (laddr/lport/faddr/fport) from the socket object.
+ */
+TEST_F(audit, net_bind)
+{
+	const struct landlock_ruleset_attr ruleset_attr = {
+		.handled_access_net = LANDLOCK_ACCESS_NET_BIND_TCP,
+	};
+	struct landlock_net_port_attr net_port = {
+		.allowed_access = LANDLOCK_ACCESS_NET_BIND_TCP,
+		.port = 1024,
+	};
+	int status, ruleset_fd;
+	pid_t child;
+	__u64 denial_dom = 1;
+
+	ruleset_fd =
+		landlock_create_ruleset(&ruleset_attr, sizeof(ruleset_attr), 0);
+	ASSERT_LE(0, ruleset_fd);
+
+	/* Allow port 1024 only. */
+	ASSERT_EQ(0, landlock_add_rule(ruleset_fd, LANDLOCK_RULE_NET_PORT,
+				       &net_port, 0));
+
+	EXPECT_EQ(0, prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0));
+
+	child = fork();
+	ASSERT_LE(0, child);
+	if (child == 0) {
+		struct sockaddr_in addr = {
+			.sin_family = AF_INET,
+			.sin_port = htons(1025),
+			.sin_addr.s_addr = htonl(INADDR_ANY),
+		};
+		int sock_fd;
+
+		EXPECT_EQ(0, landlock_restrict_self(ruleset_fd, 0));
+		close(ruleset_fd);
+
+		/* Bind to port 1025 (not allowed). */
+		sock_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+		ASSERT_LE(0, sock_fd);
+		EXPECT_EQ(-1, bind(sock_fd, (struct sockaddr *)&addr,
+				   sizeof(addr)));
+		EXPECT_EQ(EACCES, errno);
+		close(sock_fd);
+
+		/* Verify audit record with enriched socket info. */
+		EXPECT_EQ(0, matches_log_net_bind(_metadata, self->audit_fd,
+						  1025, &denial_dom));
+		EXPECT_NE(denial_dom, 1);
+		EXPECT_NE(denial_dom, 0);
+
+		_exit(_metadata->exit_code);
+		return;
+	}
+
+	ASSERT_EQ(child, waitpid(child, &status, 0));
+	if (WIFSIGNALED(status) || !WIFEXITED(status) ||
+	    WEXITSTATUS(status) != EXIT_SUCCESS)
+		_metadata->exit_code = KSFT_FAIL;
+
+	EXPECT_EQ(0, close(ruleset_fd));
+}
+
+static int matches_log_net_connect(struct __test_metadata *const _metadata,
+				   int audit_fd, __u16 denied_port,
+				   __u16 bound_port, __u64 *domain_id)
+{
+	/*
+	 * After bind(), the socket has local address state.  The audit record
+	 * should include laddr/lport from the socket (via audit_net.sk) and
+	 * daddr/dest from the connect sockaddr.
+	 */
+	static const char log_template[] = REGEX_LANDLOCK_PREFIX
+		" blockers=net\\.connect_tcp"
+		" laddr=127\\.0\\.0\\.1 lport=%u"
+		" daddr=127\\.0\\.0\\.1 dest=%u$";
+	char log_match[sizeof(log_template) + 20];
+
+	snprintf(log_match, sizeof(log_match), log_template, bound_port,
+		 denied_port);
+	return audit_match_record(audit_fd, AUDIT_LANDLOCK_ACCESS, log_match,
+				  domain_id);
+}
+
+/*
+ * Verifies that network denial audit records for connect include enriched
+ * socket information (laddr/lport) from the socket object after a prior bind.
+ * This complements net_bind which tests the unbound case.
+ */
+TEST_F(audit, net_connect)
+{
+	const struct landlock_ruleset_attr ruleset_attr = {
+		.handled_access_net = LANDLOCK_ACCESS_NET_BIND_TCP |
+				      LANDLOCK_ACCESS_NET_CONNECT_TCP,
+	};
+	struct landlock_net_port_attr net_port;
+	int status, ruleset_fd;
+	pid_t child;
+	__u64 denial_dom = 1;
+
+	ruleset_fd =
+		landlock_create_ruleset(&ruleset_attr, sizeof(ruleset_attr), 0);
+	ASSERT_LE(0, ruleset_fd);
+
+	/* Allow bind to port 1024 and connect to port 1024. */
+	net_port.allowed_access = LANDLOCK_ACCESS_NET_BIND_TCP |
+				  LANDLOCK_ACCESS_NET_CONNECT_TCP;
+	net_port.port = 1024;
+	ASSERT_EQ(0, landlock_add_rule(ruleset_fd, LANDLOCK_RULE_NET_PORT,
+				       &net_port, 0));
+
+	EXPECT_EQ(0, prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0));
+
+	child = fork();
+	ASSERT_LE(0, child);
+	if (child == 0) {
+		struct sockaddr_in bind_addr = {
+			.sin_family = AF_INET,
+			.sin_port = htons(1024),
+			.sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+		};
+		struct sockaddr_in conn_addr = {
+			.sin_family = AF_INET,
+			.sin_port = htons(1025),
+			.sin_addr.s_addr = htonl(INADDR_LOOPBACK),
+		};
+		int sock_fd, optval = 1;
+
+		EXPECT_EQ(0, landlock_restrict_self(ruleset_fd, 0));
+		close(ruleset_fd);
+
+		sock_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+		ASSERT_LE(0, sock_fd);
+		ASSERT_EQ(0, setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR,
+					&optval, sizeof(optval)));
+
+		/* Bind to allowed port 1024 (succeeds). */
+		ASSERT_EQ(0, bind(sock_fd, (struct sockaddr *)&bind_addr,
+				  sizeof(bind_addr)));
+
+		/* Connect to denied port 1025 (fails). */
+		EXPECT_EQ(-1, connect(sock_fd, (struct sockaddr *)&conn_addr,
+				      sizeof(conn_addr)));
+		EXPECT_EQ(EACCES, errno);
+		close(sock_fd);
+
+		/* Verify audit record with laddr/lport from bound socket. */
+		EXPECT_EQ(0, matches_log_net_connect(_metadata, self->audit_fd,
+						     1025, 1024, &denial_dom));
+		EXPECT_NE(denial_dom, 1);
+		EXPECT_NE(denial_dom, 0);
+
+		_exit(_metadata->exit_code);
+		return;
+	}
+
+	ASSERT_EQ(child, waitpid(child, &status, 0));
+	if (WIFSIGNALED(status) || !WIFEXITED(status) ||
+	    WEXITSTATUS(status) != EXIT_SUCCESS)
+		_metadata->exit_code = KSFT_FAIL;
+
 	EXPECT_EQ(0, close(ruleset_fd));
 }
 
@@ -730,6 +917,7 @@ TEST_F(audit_flags, signal)
 		} else {
 			EXPECT_EQ(1, records.access);
 		}
+		EXPECT_EQ(0, records.domain);
 
 		/* Updates filter rules to match the drop record. */
 		set_cap(_metadata, CAP_AUDIT_CONTROL);
@@ -917,6 +1105,7 @@ TEST_F(audit_exec, signal_and_open)
 	/* Tests that there was no denial until now. */
 	EXPECT_EQ(0, audit_count_records(self->audit_fd, &records));
 	EXPECT_EQ(0, records.access);
+	EXPECT_EQ(0, records.domain);
 
 	/*
 	 * Wait for the child to do a first denied action by layer1 and
