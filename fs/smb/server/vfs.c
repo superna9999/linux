@@ -21,6 +21,7 @@
 #include <linux/crc32c.h>
 #include <linux/namei.h>
 #include <linux/splice.h>
+#include <linux/fileattr.h>
 
 #include "glob.h"
 #include "oplock.h"
@@ -1889,4 +1890,21 @@ int ksmbd_vfs_inherit_posix_acl(struct mnt_idmap *idmap,
 
 	posix_acl_release(acls);
 	return rc;
+}
+
+void ksmbd_vfs_update_compressed_fattr(struct dentry *dentry, __le32 *fattr)
+{
+	int rc;
+	struct file_kattr fa = { .flags_valid = true };
+
+	rc = vfs_fileattr_get(dentry, &fa);
+	if (rc == -ENOIOCTLCMD)
+		*fattr &= ~FILE_ATTRIBUTE_COMPRESSED_LE;
+	if (rc)
+		return;
+
+	if (fa.flags & FS_COMPR_FL)
+		*fattr |= FILE_ATTRIBUTE_COMPRESSED_LE;
+	else
+		*fattr &= ~FILE_ATTRIBUTE_COMPRESSED_LE;
 }
