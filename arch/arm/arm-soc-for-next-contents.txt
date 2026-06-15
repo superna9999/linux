@@ -1,0 +1,197 @@
+soc/arm
+	patch
+		ARM: select legacy gpiolib interfaces where used
+		arm64: Kconfig: drop unneeded dependency on OF_GPIO for ARCH_MVEBU
+	pxa/gpio
+		git://git.kernel.org/pub/scm/linux/kernel/git/brgl/linux tags/soc-pxa-gpio-for-v7.2
+	zx/soc
+		https://gitlab.com/stefandoesinger/zx297520-kernel tags/zx29-plat-for-7.2
+	xz29/docfix
+		https://gitlab.com/stefandoesinger/zx297520-kernel tags/zx29-docfix-for-7.2
+	ep93xx/arm
+		https://git.kernel.org/pub/scm/linux/kernel/git/asv/linux tags/ep93xx-20260529
+	tags/samsung-soc-7.2
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-7.2
+	imx/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/frank.li/linux tags/imx-soc-updates-for-v7.2
+	omap/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-omap tags/omap-for-v7.2/soc-signed
+	mvebu/arm
+		git://git.kernel.org/pub/scm/linux/kernel/git/gclement/mvebu tags/mvebu-arm-7.2-1
+	patch
+		ARM: remove the last few uses of do_bad_IRQ()
+		MAINTAINERS: Add Axiado reviewer and Maintainers
+
+soc/dt
+	patch
+		arm64: dts: realtek: Add pinctrl support for RTD1625
+		ARM: dts: ixp4xx: use phandle-based GPIOs in mi424wr
+	pxa1908/dt
+		https://codeberg.org/pxa1908-mainline/linux tags/pxa1908-dt-for-7.2
+	renesas/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-dts-for-v7.2-tag1
+		contains renesas/fixes-1
+	xz/dt
+		https://gitlab.com/stefandoesinger/zx297520-kernel tags/zx29-dts-for-7.2
+	cix/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/peter.chen/cix tags/cix-dt-v7.2-rc1
+	qcom/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/qcom/linux tags/qcom-arm64-for-7.2
+	rockchip/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v7.2-rockchip-dts32
+	qcom/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v7.2-rockchip-dts64-1
+	gemini/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-integrator tags/gemini-for-v7.2
+	tegra/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-7.2-dt-bindings
+	tegra/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-7.2-arm-dt
+	exynos/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-7.2
+	stm32/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-7.2-1
+	socfpga/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_dts_updates_for_v7.2
+	mediatek/dt32
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/mediatek/linux tags/mtk-dts32-for-v7.2
+	mediatek/dt64
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/mediatek/linux tags/mtk-dts64-for-v7.2
+	renesas/dt-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-dts-for-v7.2-tag2
+	tenstorrent/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/tenstorrent/linux tags/tenstorrent-dt-for-v7.2
+	thead/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/fustini/linux tags/thead-dt-for-v7.2
+	spacemit/dt
+		https://github.com/spacemit-com/linux tags/spacemit-dt-for-7.2-1
+	amlogic/dt64
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/amlogic/linux tags/amlogic-arm64-dt-for-v7.2-v2
+	nuvoton/dt64
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/bmc/linux tags/nuvoton-7.2-devicetree-0
+	sophgo/dt
+		https://github.com/sophgo/linux tags/riscv-sophgo-dt-for-v7.2
+	aspeed/dt32
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/bmc/linux tags/aspeed-7.2-devicetree-0
+	tegra/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-7.2-arm64-dt
+	broadcom/dt
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-7.2/devicetree
+	ti/k3-dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/ti/linux tags/ti-k3-dt-for-v7.2
+	apple/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/sven/linux tags/apple-soc-dt-7.2
+	imx/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/frank.li/linux tags/imx-dt-7.2
+	hisi/dt
+		https://github.com/hisilicon/linux-hisi tags/hisi-arm64-dt-for-7.2
+	rockchip/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v7.2-rockchip-dts64-2
+	microchip/riscv-dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/conor/linux tags/riscv-dt-for-v7.2
+	patch
+		dt-bindings: arm: aspeed: Add AST2700 board compatible
+		arm64: Kconfig: Add ASPEED SoC family Kconfig support
+		arm64: dts: aspeed: Add initial AST27xx SoC device tree
+	ti/omap-dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-omap tags/omap-for-v7.2/dt-signed
+	at91/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-dt-7.2
+	microchip/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/microchip-dt64-7.2
+	imx/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/frank.li/linux tags/imx-dt64-7.2
+	imx/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/frank.li/linux tags/imx-dt64-7.2-part2
+	imx/dt-binding
+		git://git.kernel.org/pub/scm/linux/kernel/git/frank.li/linux tags/imx-binding-7.2
+	sunxi/dt-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-7.2-2
+	bst/dt
+		https://github.com/BlackSesame-SoC/linux tags/bst-arm64-emmc-driver-dts-for-v7.2
+
+soc/drivers
+	fsl/soc-driver
+		https://git.kernel.org/pub/scm/linux/kernel/git/chleroy/linux tags/soc_fsl-7.1-2
+	renesas/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-drivers-for-v7.2-tag1
+	qcom/drivers
+		https://git.kernel.org/pub/scm/linux/kernel/git/qcom/linux tags/qcom-drivers-for-7.2
+	firmware/scmi
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/scmi-updates-7.2
+	firmware/ffa
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/ffa-updates-7.2
+		contains ffa/fixes-2
+	firmware/amdtee
+		git://git.kernel.org/pub/scm/linux/kernel/git/jenswi/linux-tee tags/amdtee-for-v7.2
+	firmware/optee
+		git://git.kernel.org/pub/scm/linux/kernel/git/jenswi/linux-tee tags/optee-for-v7.2
+	firmware/xilinx
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-for-7.2
+	mediatek/drivers
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/mediatek/linux tags/mtk-soc-for-v7.2
+	renesas/drivers-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-drivers-for-v7.2-tag2
+	sunxi/drivers
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-drivers-for-7.2
+	aspeed/drivers
+		ssh://gitolite.kernel.org/pub/scm/linux/kernel/git/bmc/linux tags/aspeed-7.2-drivers-0
+	tegra/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-7.2-soc
+	tegra/pmc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-7.2-pmc
+	tegra/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-7.2-firmware
+	samsung/drivers
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-drivers-7.2
+		contains samsung/fixes
+	drivers/memory
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux-mem-ctrl tags/memory-controller-drv-7.2
+		contains memory/fixes
+	broadcom/drivers
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-7.2/drivers
+	ti/k3-drivers
+		https://git.kernel.org/pub/scm/linux/kernel/git/ti/linux tags/ti-driver-soc-for-v7.2
+	drivers/cache
+		https://git.kernel.org/pub/scm/linux/kernel/git/conor/linux tags/cache-for-v7.2
+	microchip/dt-bindings
+		https://git.kernel.org/pub/scm/linux/kernel/git/conor/linux tags/riscv-soc-drivers-for-v7.2
+
+soc/defconfig
+	patch
+		arm64: defconfig: Move entries to match savedefconfig
+		arm64: defconfig: Drop unused legacy netfilter options
+		arm64: defconfig: Drop default or selected drivers
+		arm64: defconfig: Drop unused Ethernet vendors
+		arm64: defconfig: Switch Ethernet drivers to modules
+	defconfig/pinctrl
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-pinctrl tags/v7.2-qcom-pinctrl-defconfigs
+	patch
+		ARM: multi_v7_defconfig: Move entries to match savedefconfig
+		ARM: configs: Drop redundant I2C_DESIGNWARE_PLATFORM
+		ARM: configs: Drop redundant SND_ATMEL_SOC
+		ARM: multi_v7_defconfig: Cleanup redundant options
+		ARM: multi_v7_defconfig: Correct QCOM_RPMH and QCOM_RPMHPD
+		arm64: defconfig: Enable PCI M.2 power sequencing driver
+	cix/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/peter.chen/cix tags/cix-defconfig-v7.2-rc1
+	patch
+		ARM: configs: Drop duplicated CONFIG_EXT4_FS
+		ARM: multi_v7_defconfig: Enable dma-buf heaps
+	at91/defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-defconfig-7.2
+	imx/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/frank.li/linux tags/imx-defconfig-7.2
+	patch
+		arm64: configs: Update defconfig for AST2700 platform support
+	bst/defconfig
+		https://github.com/BlackSesame-SoC/linux tags/bst-arm64-emmc-driver-defconfig-for-v7.2
+
+soc/late
+
+arm/fixes
+	<no branch> (75ef233975589d9a8c88bc8822a7c725c71ff650)
+		https://git.kernel.org/pub/scm/linux/kernel/git/conor/linux tags/riscv-soc-fixes-for-v7.1-rc7
+	<no branch> (6fc5666aa576c6c3bec256fa31d72653210319d5)
+		https://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v7.1-rockchip-arm32fixe
+
