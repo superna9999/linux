@@ -289,8 +289,8 @@
 			};
 		};
 
-		wsa-dai-link {
-			link-name = "WSA Playback";
+		wsa2-dai-link {
+			link-name = "WSA2 Playback";
 
 			codec {
 				sound-dai = <&right_spkr>,
@@ -300,7 +300,7 @@
 			};
 
 			cpu {
-				sound-dai = <&q6apmbedai WSA_CODEC_DMA_RX_0>;
+				sound-dai = <&q6apmbedai WSA2_CODEC_DMA_RX_0>;
 			};
 
 			platform {
