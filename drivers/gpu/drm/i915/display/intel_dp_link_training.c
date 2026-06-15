@@ -27,17 +27,342 @@
 #include <drm/display/drm_dp_helper.h>
 #include <drm/drm_print.h>
 
+#include "intel_display.h"
 #include "intel_display_core.h"
 #include "intel_display_jiffies.h"
 #include "intel_display_types.h"
 #include "intel_display_utils.h"
 #include "intel_dp.h"
 #include "intel_dp_link_training.h"
+#include "intel_dp_mst.h"
 #include "intel_encoder.h"
 #include "intel_hdmi.h"
 #include "intel_hotplug.h"
+#include "intel_modeset_lock.h"
 #include "intel_panel.h"
 #include "intel_psr.h"
+
+/**
+ * DOC: DisplayPort link training
+ *
+ * This documents the Intel DisplayPort link training implementation and
+ * its internal interfaces, with a current focus on link recovery.
+ *
+ * Documentation of the full link training procedure is not yet included.
+ *
+ * The Intel DP link recovery logic governs how the driver reacts to
+ * link training failures and to links that degrade asynchronously
+ * after a previously successful training. Recovery is first attempted
+ * via automatic retraining (``autoretrain``) and, when that is no
+ * longer possible, by selecting fallback link configurations and
+ * notifying userspace to recover the link via a modeset.
+ *
+ * Recovery sequence and userspace notification
+ * --------------------------------------------
+ *
+ * After the first link training failure following initialization or a
+ * previously successful training, recovery is first attempted by the
+ * driver via automatic retraining, without userspace involvement.
+ * During this phase, a given link configuration is attempted twice
+ * before being abandoned: after the initial link training failure, an
+ * automatic retraining modeset is performed with the same link
+ * parameters, constituting the second attempt.
+ *
+ * Once automatic retraining is no longer possible, recovery is delegated
+ * to userspace, which must select a new modeset configuration, as the
+ * kernel must not do so. From this point onwards, each link configuration
+ * may be attempted only once as userspace iterates through alternative
+ * configurations. A successful link training restores the automatic
+ * retraining model for subsequent failures.
+ *
+ * The failure of the last automatic retraining attempt is reported to
+ * userspace, and from that point onward the driver notifies userspace of
+ * each subsequent failure. This allows userspace to both initiate
+ * recovery via modesets and observe the outcome of those recovery
+ * attempts, even when no further fallback configurations remain.
+ *
+ * Link training failures are always reported to userspace, even when they
+ * result from a kernel-internal modeset. Such modesets only re-apply the
+ * existing userspace-provided state and must not modify it. A failure
+ * triggered by such a modeset is therefore treated the same as a link
+ * degradation after a previously successful training, and recovery is
+ * handled by userspace in place of the kernel caller.
+ *
+ * Contexts
+ * --------
+ *
+ * The following execution contexts (A/B/C) describe how the different
+ * recovery states are reached but are not themselves implementation
+ * states. The actual state machine is defined by &enum
+ * intel_dp_link_training_recovery_state.
+ *
+ * A. Modeset context:
+ *
+ *   Triggered by:
+ *     - link training during a modeset, or
+ *     - via the "i915_dp_force_link_training_failure" debugfs entry,
+ *       forcing this path by emulating a link training failure.
+ *
+ *   Transitions:
+ *     - A1 Link training succeeds.
+ *
+ *       A link check work to recover any degraded link is scheduled
+ *       (and handled if needed in context B).
+ *
+ *       State -> %INTEL_DP_LINK_RECOVERY_IDLE.
+ *
+ *     - A2 First link training fails after initialization or a previously
+ *       successful link training.
+ *
+ *       An automatic retraining work is scheduled (and handled in
+ *       context B) with the same link parameters with which the link
+ *       training failed.
+ *
+ *       State -> %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING.
+ *
+ *     - A3 Link training fails again after A2 or A3.
+ *
+ *       Through fallback selection, the driver attempts to restrict the
+ *       allowed link configurations for subsequent modesets. This may
+ *       be done either by lowering global limits (rate/lane caps), or by
+ *       disabling only the currently failing configuration while leaving
+ *       all other configurations allowed, even if they use higher rate or
+ *       lane count.
+ *
+ *       (The current implementation may still apply parameter capping as
+ *       a coarse fallback selection mechanism. This is transitional and is
+ *       expected to be replaced by a scheme that disables only the failing
+ *       configuration, rather than removing configurations that have not
+ *       been observed to fail and may still train successfully.)
+ *
+ *       This case may repeat in a loop:
+ *           %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED ->
+ *           %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED
+ *
+ *       via repeated A3a -> A3a transitions until the configuration fallback
+ *       space is exhausted, reaching the A3b terminal case.
+ *
+ *       - A3a Fallback selection succeeds.
+ *
+ *         Userspace is notified to retry the modeset.
+ *
+ *         State -> %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED.
+ *
+ *       - A3b Fallback selection fails.
+ *
+ *         Userspace is notified of the failure and may continue recovery
+ *         by retrying the modeset with the remaining allowed link
+ *         configuration.
+ *
+ *         State -> %INTEL_DP_LINK_RECOVERY_NO_FALLBACK.
+ *
+ * B. Automatic retraining context:
+ *
+ *   Triggered by:
+ *     - after a successful link training in context A1 followed by
+ *       asynchronous link degradation, or
+ *     - after the first failed link training attempt in context A2, or
+ *     - via the "i915_dp_force_link_retrain" debugfs entry, which may
+ *       bypass normal gating and force this path.
+ *
+ *   Transitions:
+ *     - B1 ``Autoretrain`` modeset check and link training succeeds.
+ *
+ *       The case is handled as in A1, scheduling a link check work to
+ *       recover any degraded link.
+ *
+ *       State -> %INTEL_DP_LINK_RECOVERY_IDLE.
+ *
+ *     - B2 ``Autoretrain`` modeset check succeeds but link training fails.
+ *
+ *       - B2a Previously the link degraded asynchronously (current state
+ *         is %INTEL_DP_LINK_RECOVERY_IDLE).
+ *
+ *         This corresponds to a first failure in a new failure
+ *         sequence and is handled as in A2: an automatic retraining
+ *         attempt is scheduled with the same link parameters.
+ *
+ *         State -> %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING.
+ *
+ *       - B2b Previously a link training failed (current state is
+ *         %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING).
+ *
+ *         In non-regular (debug-forced) scenarios this may also be
+ *         reached from
+ *         %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED or
+ *         %INTEL_DP_LINK_RECOVERY_NO_FALLBACK, effectively behaving
+ *         like a userspace-driven recovery attempt.
+ *
+ *         The failure is handled as in A3, performing a fallback selection:
+ *
+ *         State -> %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED (via A3a).
+ *
+ *         or
+ *
+ *         State -> %INTEL_DP_LINK_RECOVERY_NO_FALLBACK (via A3b).
+ *
+ *     - B3 ``Autoretrain`` modeset check fails (and hence the link training
+ *       cannot be started).
+ *
+ *       The modeset check may fail, for example, due to external conditions
+ *       such as changed shared link bandwidth, which can make previously
+ *       valid modeset parameters no longer acceptable.
+ *
+ *       In this case, automatic retraining is disabled without selecting
+ *       a fallback configuration. The driver hands recovery over to
+ *       userspace without modifying the allowed configuration set, so a
+ *       subsequent userspace modeset will retry with the current link
+ *       configuration. Userspace is in a better position to select new
+ *       modeset parameters (e.g. video mode or enabled outputs) that
+ *       satisfy the updated constraints, as the driver is only allowed
+ *       to retry the modeset with the existing userspace-provided modeset
+ *       configuration.
+ *
+ *       This policy preserves the normal retry model, where a given link
+ *       configuration is attempted twice in the automatic retraining
+ *       flow before being abandoned: after a first link training failure,
+ *       an automatic retraining modeset is performed with the same link
+ *       parameters, and if its atomic check passes, the link training
+ *       itself may either succeed or fail, constituting the second
+ *       attempt. In this case, however, the retry modeset's atomic check
+ *       failed, so no second link training attempt with those parameters
+ *       was performed, and selecting a fallback would cause that
+ *       configuration to be tried only once rather than twice.
+ *
+ *       The userspace-driven link recovery continues with subsequent
+ *       userspace modesets handled in A3.
+ *
+ *       State -> %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED.
+ *
+ * C. State reset context:
+ *
+ *   Triggered by:
+ *     - sink capability changes, or
+ *     - sink disconnect/reconnect, or
+ *     - system suspend/resume or power transitions where HPD
+ *       handling may have been suppressed, or
+ *     - successful link training.
+ *
+ *   Transitions:
+ *     - The recovery state is reset from any of the recovery states
+ *
+ *       State -> %INTEL_DP_LINK_RECOVERY_IDLE.
+ *
+ *       After reset, the driver may re-check link status and schedule
+ *       retraining if the link is found to remain degraded.
+ *
+ * State transition summary
+ * ------------------------
+ *
+ * - From %INTEL_DP_LINK_RECOVERY_IDLE
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_IDLE
+ *
+ *     - | In context: B1
+ *       | Action: no action
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING
+ *
+ *     - | In contexts: A2, B2a
+ *       | Action: queue ``autoretrain`` work
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED
+ *
+ *     - | In context: B3
+ *       | Action: notify userspace
+ *
+ * - From %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED
+ *
+ *     - | In contexts: A3a, B2b
+ *       | Action: select fallback configurations, notify userspace
+ *
+ *     - | In context: B3
+ *       | Action: notify userspace
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_NO_FALLBACK
+ *
+ *     - | In contexts: A3b, B2b
+ *       | Action: notify userspace
+ *
+ * - From %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED
+ *
+ *     - | In contexts: A3a, B2b
+ *       | Action: select fallback configurations, notify userspace
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_NO_FALLBACK
+ *
+ *     - | In contexts: A3b, B2b
+ *       | Action: notify userspace
+ *
+ * - From %INTEL_DP_LINK_RECOVERY_NO_FALLBACK
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_NO_FALLBACK
+ *
+ *     - | In contexts: A3b
+ *       | Action: notify userspace
+ *
+ * - From any state
+ *
+ *   - To %INTEL_DP_LINK_RECOVERY_IDLE
+ *
+ *     - | In contexts: C
+ *       | Action: no action
+ *
+ * Recovery flows
+ * --------------
+ *
+ * Userspace modeset link recovery::
+ *
+ *                       [IDLE]
+ *                          |
+ *                          | userspace modeset link training fails
+ *                          | (autoretrain link recovery work scheduled)
+ *                          v
+ *               [AUTORETRAIN_PENDING]-- autoretrain link recovery succeeds -> [IDLE]
+ *                          |
+ *                          | autoretrain link recovery modeset check or link training fails
+ *                          |
+ *                       +--o--+
+ *  modeset check fails  |     | link training fails
+ *  (userspace notified) |     |
+ *                       |     o-------- no fallback (userspace notified) ---> [NO_FALLBACK]
+ *                       |     |
+ *   +-------------+     |     | fallback selected (userspace notified)
+ *   |             |     |     |
+ *   |             v     v     v
+ *   |        [AUTORETRAIN_DISABLED]--- userspace link recovery succeeds ----> [IDLE]
+ *   |                   |
+ *   |                   | userspace link recovery fails
+ *   |                   |
+ *   +-------------------o------------- no fallback (userspace notified) ----> [NO_FALLBACK]
+ *   fallback selected
+ *   (userspace notified)
+ *
+ * Asynchronous link degradation recovery::
+ *
+ *                       [IDLE]
+ *                          |
+ *                          | link degrades
+ *                          | (autoretrain link recovery performed)
+ *                          |
+ *                          o--- autoretrain link recovery succeeds ---> [IDLE]
+ *                          |
+ *                          | autoretrain link recovery modeset check or link training fails
+ *                          |
+ *                       +--o--+
+ *  modeset check fails  |     | link training fails
+ *  (userspace notified) |     | (autoretrain work scheduled)
+ *                       v     v
+ *  [AUTORETRAIN_DISABLED*]   [AUTORETRAIN_PENDING*]
+ *
+ * ``*`` marks states where the sequence continues from the corresponding state
+ * in the Userspace modeset link recovery flow above.
+ *
+ */
 
 #define LT_MSG_PREFIX			"[CONNECTOR:%d:%s][ENCODER:%d:%s][%s] "
 #define LT_MSG_ARGS(_intel_dp, _dp_phy)	(_intel_dp)->attached_connector->base.base.id, \
@@ -60,7 +385,72 @@
 		lt_dbg(_intel_dp, _dp_phy, "Sink disconnected: " _format, ## __VA_ARGS__); \
 } while (0)
 
-#define MAX_SEQ_TRAIN_FAILURES 2
+/*
+ * enum intel_dp_link_recovery_state - LT recovery state
+ * @INTEL_DP_LINK_RECOVERY_IDLE:
+ *   No link training failure is currently tracked and no recovery is
+ *   in progress. This is the initial state after driver initialization,
+ *   power state transitions, sink (re-)connection, or after a successful
+ *   link training.
+ *
+ * @INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING:
+ *   A first link training failure has been observed and an automatic
+ *   retraining attempt with the same link parameters is pending. Exactly
+ *   one such attempt is allowed before switching to userspace-driven
+ *   recovery.
+ *
+ * @INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED:
+ *   Automatic retraining is no longer possible. At this point, a
+ *   fallback selection is made and userspace is notified to take over
+ *   recovery, performing modesets with parameters it determines are
+ *   required. The driver then selects a link configuration from the
+ *   remaining fallback configuration set. Subsequent link training
+ *   failures trigger further fallback selections and userspace
+ *   notifications.
+ *
+ * @INTEL_DP_LINK_RECOVERY_NO_FALLBACK:
+ *   Fallback selection is no longer possible, as no usable fallback link
+ *   configurations remain. Recovery must proceed via userspace modesets
+ *   using the remaining allowed link configuration. Userspace continues
+ *   to be notified of subsequent link training failures.
+ *
+ * Describes the link recovery state used by the Intel DP link recovery
+ * logic.
+ *
+ * See also:
+ *   - DOC: DisplayPort link training
+ *   - link_recovery_autoretrain_pending()
+ *   - link_recovery_autoretrain_allowed()
+ *   - link_recovery_has_no_fallback()
+ *   - link_recovery_mark_train_failure()
+ *   - link_recovery_mark_autoretrain_modeset_failure()
+ *   - link_recovery_mark_no_fallback()
+ *   - link_recovery_reset()
+ */
+enum intel_dp_link_recovery_state {
+	/*
+	 * Keep the enum values ordered from least to most severe
+	 * recovery state; helper logic relies on that ordering.
+	 */
+	INTEL_DP_LINK_RECOVERY_IDLE,
+	INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING,
+	INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED,
+	INTEL_DP_LINK_RECOVERY_NO_FALLBACK,
+};
+
+struct intel_dp_link_training {
+	struct intel_dp *dp;
+
+	enum intel_dp_link_recovery_state recovery_state;
+
+	int force_train_failure;
+	bool force_retrain;
+};
+
+static struct intel_dp_link_training *connector_to_link_training(struct intel_connector *connector)
+{
+	return intel_attached_dp(connector)->link.training;
+}
 
 static void intel_dp_reset_lttpr_common_caps(struct intel_dp *intel_dp)
 {
@@ -245,12 +635,12 @@ int intel_dp_read_dprx_caps(struct intel_dp *intel_dp, u8 dpcd[DP_RECEIVER_CAP_S
  * transparent mode link training mode.
  *
  * Returns:
- *   >0  if LTTPRs were detected and the non-transparent LT mode was set. The
+ * - >0  if LTTPRs were detected and the non-transparent LT mode was
+ *       set. The DPRX capabilities are read out.
+ * -  0  if no LTTPRs or more than 8 LTTPRs were detected or in case of
+ *       a detection failure and the transparent LT mode was set. The
  *       DPRX capabilities are read out.
- *    0  if no LTTPRs or more than 8 LTTPRs were detected or in case of a
- *       detection failure and the transparent LT mode was set. The DPRX
- *       capabilities are read out.
- *   <0  Reading out the DPRX capabilities failed.
+ * - <0  Reading out the DPRX capabilities failed.
  */
 int intel_dp_init_lttpr_and_dprx_caps(struct intel_dp *intel_dp)
 {
@@ -1247,6 +1637,124 @@ intel_dp_128b132b_intra_hop(struct intel_dp *intel_dp,
 	return sink_status & DP_INTRA_HOP_AUX_REPLY_INDICATION ? 1 : 0;
 }
 
+static bool
+link_recovery_autoretrain_pending(struct intel_dp_link_training *link_training)
+{
+	return link_training->recovery_state == INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING;
+}
+
+/*
+ * Automatic retraining is a driver-driven link recovery mechanism that
+ * retrains the link with the current userspace provided modeset
+ * configuration and link parameters.
+ *
+ * Autoretrain is allowed while the link configurations available for
+ * retraining, i.e. those not disabled yet via fallback selection, still
+ * make it possible to retrain the link for the current userspace provided
+ * modeset configuration.
+ *
+ * Once automatic retraining is no longer allowed, userspace driven link
+ * recovery via userspace notifications and userspace modesets takes over.
+ *
+ * See also:
+ *   - DOC: DisplayPort link training
+ */
+static bool
+link_recovery_autoretrain_allowed(struct intel_dp_link_training *link_training)
+{
+	switch (link_training->recovery_state) {
+	case INTEL_DP_LINK_RECOVERY_IDLE:
+	case INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static bool
+link_recovery_has_no_fallback(struct intel_dp_link_training *link_training)
+{
+	return link_training->recovery_state == INTEL_DP_LINK_RECOVERY_NO_FALLBACK;
+}
+
+/*
+ * Record a link training failure and advance the recovery state to
+ * indicate the next required recovery step.
+ *
+ * The caller must proceed with recovery as instructed by the return
+ * value, either via automatic retraining or, once automatic retraining
+ * is no longer possible, via userspace modesets after fallback
+ * selection.
+ *
+ * Note that the error reported via this function is the error seen by
+ * the link training failure handler proper after an actual link
+ * training failure indicated by the sink device, and so the error and
+ * corresponding actions required are distinct from an autoretrain
+ * modeset failure. See link_recovery_mark_autoretrain_modeset_failure() to
+ * report a modeset failure.
+ *
+ * See also:
+ *   - DOC: DisplayPort link training
+ */
+static bool
+link_recovery_mark_train_failure(struct intel_dp_link_training *link_training)
+{
+	switch (link_training->recovery_state) {
+	case INTEL_DP_LINK_RECOVERY_IDLE:
+		link_training->recovery_state = INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING;
+		break;
+	case INTEL_DP_LINK_RECOVERY_AUTORETRAIN_PENDING:
+		link_training->recovery_state = INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED;
+		break;
+	default:
+		break;
+	}
+
+	return link_recovery_autoretrain_allowed(link_training);
+}
+
+/*
+ * Record a failure of the autoretrain modeset before link training
+ * itself could run.
+ *
+ * Note that the error reported via this function and the corresponding
+ * expected actions are distinct from an actual link training failure:
+ * the modeset failed before a link training attempt could be performed.
+ * See link_recovery_mark_train_failure() to report an actual link
+ * training failure.
+ *
+ * Update the state to indicate that further recovery is to be delegated to
+ * userspace via a regular modeset.
+ *
+ * See also:
+ *   - DOC: DisplayPort link training
+ */
+static void
+link_recovery_mark_autoretrain_modeset_failure(struct intel_dp_link_training *link_training)
+{
+	if (link_recovery_autoretrain_allowed(link_training))
+		link_training->recovery_state = INTEL_DP_LINK_RECOVERY_AUTORETRAIN_DISABLED;
+}
+
+/* Record that no more link fallback configuration is available. */
+static void
+link_recovery_mark_no_fallback(struct intel_dp_link_training *link_training)
+{
+	link_training->recovery_state = INTEL_DP_LINK_RECOVERY_NO_FALLBACK;
+}
+
+/**
+ * link_recovery_reset - reset the link recovery state
+ * @link_training: link training state
+ *
+ * Reset the link recovery state to indicate that no link recovery is
+ * required.
+ */
+static void link_recovery_reset(struct intel_dp_link_training *link_training)
+{
+	link_training->recovery_state = INTEL_DP_LINK_RECOVERY_IDLE;
+}
+
 /**
  * intel_dp_stop_link_train - stop link training
  * @intel_dp: DP struct
@@ -1266,6 +1774,7 @@ intel_dp_128b132b_intra_hop(struct intel_dp *intel_dp,
 void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 			      const struct intel_crtc_state *crtc_state)
 {
+	struct intel_dp_link_training *link_training = intel_dp->link.training;
 	struct intel_display *display = to_intel_display(intel_dp);
 	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
 	int ret;
@@ -1286,8 +1795,8 @@ void intel_dp_stop_link_train(struct intel_dp *intel_dp,
 	intel_hpd_unblock(encoder);
 
 	if (!display->hotplug.ignore_long_hpd &&
-	    intel_dp->link.seq_train_failures < MAX_SEQ_TRAIN_FAILURES) {
-		int delay_ms = intel_dp->link.seq_train_failures ? 0 : 2000;
+	    link_recovery_autoretrain_allowed(link_training)) {
+		int delay_ms = link_recovery_autoretrain_pending(link_training) ? 0 : 2000;
 
 		intel_encoder_link_check_queue_work(encoder, delay_ms);
 	}
@@ -1780,6 +2289,9 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 	struct intel_display *display = to_intel_display(state);
 	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
 	struct intel_encoder *encoder = &dig_port->base;
+	struct intel_dp_link_training *link_training =
+		intel_dp->link.training;
+	bool autoretrain_allowed;
 	bool passed;
 	/*
 	 * Reinit the LTTPRs here to ensure that they are switched to
@@ -1803,15 +2315,15 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 	else
 		passed = intel_dp_link_train_all_phys(intel_dp, crtc_state, lttpr_count);
 
-	if (intel_dp->link.force_train_failure) {
-		intel_dp->link.force_train_failure--;
+	if (link_training->force_train_failure) {
+		link_training->force_train_failure--;
 		lt_dbg(intel_dp, DP_PHY_DPRX, "Forcing link training failure\n");
 	} else if (passed) {
-		intel_dp->link.seq_train_failures = 0;
+		link_recovery_reset(link_training);
 		return;
 	}
 
-	intel_dp->link.seq_train_failures++;
+	autoretrain_allowed = link_recovery_mark_train_failure(link_training);
 
 	/*
 	 * Ignore the link failure in CI
@@ -1830,13 +2342,13 @@ void intel_dp_start_link_train(struct intel_atomic_state *state,
 		return;
 	}
 
-	if (intel_dp->link.seq_train_failures < MAX_SEQ_TRAIN_FAILURES)
+	if (autoretrain_allowed)
 		return;
 
 	if (intel_dp_schedule_fallback_link_training(state, intel_dp, crtc_state))
 		return;
 
-	intel_dp->link.retrain_disabled = true;
+	link_recovery_mark_no_fallback(link_training);
 
 	if (!passed)
 		lt_err(intel_dp, DP_PHY_DPRX, "Can't reduce link training parameters after failure\n");
@@ -1864,6 +2376,289 @@ void intel_dp_128b132b_sdp_crc16(struct intel_dp *intel_dp,
 	lt_dbg(intel_dp, DP_PHY_DPRX, "DP2.0 SDP CRC16 for 128b/132b enabled\n");
 }
 
+bool intel_dp_link_params_valid(struct intel_dp *intel_dp, int link_rate,
+				u8 lane_count)
+{
+	/*
+	 * FIXME: we need to synchronize the current link parameters with
+	 * hardware readout. Currently fast link training doesn't work on
+	 * boot-up.
+	 *
+	 * NOTE:
+	 * This may be called from both serialized (locked and synced against
+	 * async commit tails) and unserialized (e.g. HPD IRQ) contexts. It
+	 * uses the current max link limits as upper bounds to reject
+	 * obviously bogus values, even if those bounds may be observed in a
+	 * transient or slightly stale state.
+	 *
+	 * This is not a full validation of the link configuration. Even in
+	 * serialized contexts, additional constraints (e.g. source limitations,
+	 * bandwidth checks, and other atomic state dependencies) are only
+	 * verified during the atomic check of the subsequent commit.
+	 *
+	 * max_link_limits only provides independent upper bounds for rate and
+	 * lane count. Callers must not assume it is itself an allowed link
+	 * configuration. Although that happens to be true for now, it will
+	 * stop being guaranteed once fallback depends only on disabled configs.
+	 */
+	if (link_rate == 0 ||
+	    link_rate > intel_dp->link.max_rate)
+		return false;
+
+	if (lane_count == 0 ||
+	    lane_count > intel_dp_max_lane_count(intel_dp))
+		return false;
+
+	return true;
+}
+
+static bool intel_dp_link_ok(struct intel_dp *intel_dp,
+			     u8 link_status[DP_LINK_STATUS_SIZE])
+{
+	struct intel_display *display = to_intel_display(intel_dp);
+	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+	bool uhbr = intel_dp->link_rate >= 1000000;
+	bool ok;
+
+	if (uhbr)
+		ok = drm_dp_128b132b_lane_channel_eq_done(link_status,
+							  intel_dp->lane_count);
+	else
+		ok = drm_dp_channel_eq_ok(link_status, intel_dp->lane_count);
+
+	if (ok)
+		return true;
+
+	intel_dp_dump_link_status(intel_dp, DP_PHY_DPRX, link_status);
+	drm_dbg_kms(display->drm,
+		    "[ENCODER:%d:%s] %s link not ok, retraining\n",
+		    encoder->base.base.id, encoder->base.name,
+		    uhbr ? "128b/132b" : "8b/10b");
+
+	return false;
+}
+
+static int
+intel_dp_read_link_status(struct intel_dp *intel_dp, u8 link_status[DP_LINK_STATUS_SIZE])
+{
+	int err;
+
+	memset(link_status, 0, DP_LINK_STATUS_SIZE);
+
+	if (intel_dp_mst_active_streams(intel_dp) > 0)
+		err = drm_dp_dpcd_read_data(&intel_dp->aux, DP_LANE0_1_STATUS_ESI,
+					    link_status, DP_LINK_STATUS_SIZE - 2);
+	else
+		err = drm_dp_dpcd_read_phy_link_status(&intel_dp->aux, DP_PHY_DPRX,
+						       link_status);
+
+	if (err)
+		return err;
+
+	if (link_status[DP_LANE_ALIGN_STATUS_UPDATED - DP_LANE0_1_STATUS] &
+	    DP_DOWNSTREAM_PORT_STATUS_CHANGED)
+		WRITE_ONCE(intel_dp->downstream_port_changed, true);
+
+	return 0;
+}
+
+bool intel_dp_link_training_get_force_retrain(struct intel_dp_link_training *link_training)
+{
+	return link_training->force_retrain;
+}
+
+static void intel_dp_link_training_set_force_retrain(struct intel_dp_link_training *link_training,
+						     bool forced)
+{
+	link_training->force_retrain = forced;
+}
+
+static bool
+intel_dp_needs_link_retrain(struct intel_dp *intel_dp)
+{
+	struct intel_dp_link_training *link_training = intel_dp->link.training;
+	u8 link_status[DP_LINK_STATUS_SIZE];
+
+	if (!intel_dp->link.active)
+		return false;
+
+	/*
+	 * While PSR source HW is enabled, it will control main-link sending
+	 * frames, enabling and disabling it so trying to do a retrain will fail
+	 * as the link would or not be on or it could mix training patterns
+	 * and frame data at the same time causing retrain to fail.
+	 * Also when exiting PSR, HW will retrain the link anyways fixing
+	 * any link status error.
+	 */
+	if (intel_psr_enabled(intel_dp))
+		return false;
+
+	if (intel_dp_link_training_get_force_retrain(link_training))
+		return true;
+
+	if (intel_dp_read_link_status(intel_dp, link_status) < 0)
+		return false;
+
+	/*
+	 * Validate the cached values of intel_dp->link_rate and
+	 * intel_dp->lane_count before attempting to retrain.
+	 *
+	 * FIXME would be nice to user the crtc state here, but since
+	 * we need to call this from the short HPD handler that seems
+	 * a bit hard.
+	 */
+	if (!intel_dp_link_params_valid(intel_dp, intel_dp->link_rate,
+					intel_dp->lane_count))
+		return false;
+
+	if (!link_recovery_autoretrain_allowed(link_training))
+		return false;
+
+	if (link_recovery_autoretrain_pending(link_training))
+		return true;
+
+	/* Retrain if link not ok */
+	return !intel_dp_link_ok(intel_dp, link_status) &&
+		!intel_psr_link_ok(intel_dp);
+}
+
+static bool intel_dp_is_connected(struct intel_dp *intel_dp)
+{
+	struct intel_connector *connector = intel_dp->attached_connector;
+
+	return connector->base.status == connector_status_connected ||
+		intel_dp->is_mst;
+}
+
+static void queue_modeset_retry_for_links_in_state(struct intel_atomic_state *state,
+						   struct intel_encoder *encoder,
+						   u8 pipe_mask)
+{
+	const struct intel_crtc_state *crtc_state;
+	struct intel_crtc *crtc;
+
+	for_each_new_intel_crtc_in_state(state, crtc, crtc_state) {
+		if (!(BIT(crtc->pipe) & pipe_mask))
+			continue;
+
+		intel_dp_queue_modeset_retry_for_link(state, encoder, crtc_state);
+	}
+}
+
+static int intel_dp_retrain_link(struct intel_encoder *encoder,
+				 struct drm_modeset_acquire_ctx *ctx)
+{
+	struct intel_display *display = to_intel_display(encoder);
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+	struct intel_dp_link_training *link_training =
+		intel_dp->link.training;
+	struct intel_atomic_state *state;
+	struct drm_atomic_commit *_state;
+	u8 pipe_mask;
+	int ret;
+
+	if (!intel_dp_is_connected(intel_dp))
+		return 0;
+
+	ret = drm_modeset_lock(&display->drm->mode_config.connection_mutex,
+			       ctx);
+	if (ret)
+		return ret;
+
+	if (!intel_dp_needs_link_retrain(intel_dp))
+		return 0;
+
+	ret = intel_dp_get_active_pipes(intel_dp, ctx, &pipe_mask);
+	if (ret)
+		return ret;
+
+	if (pipe_mask == 0)
+		return 0;
+
+	if (!intel_dp_needs_link_retrain(intel_dp))
+		return 0;
+
+	drm_dbg_kms(display->drm,
+		    "[ENCODER:%d:%s] retraining link (forced %s)\n",
+		    encoder->base.base.id, encoder->base.name,
+		    str_yes_no(intel_dp_link_training_get_force_retrain(link_training)));
+
+	_state = drm_atomic_commit_alloc(display->drm);
+	if (!_state)
+		return -ENOMEM;
+
+	state = to_intel_atomic_state(_state);
+
+	ret = intel_modeset_commit_pipes_for_atomic_state(state, pipe_mask, ctx);
+	if (ret == -EDEADLK)
+		goto out;
+
+	intel_dp_link_training_set_force_retrain(link_training, false);
+
+	if (ret) {
+		drm_dbg_kms(display->drm,
+			    "[ENCODER:%d:%s] link retraining failed: %pe\n",
+			    encoder->base.base.id, encoder->base.name,
+			    ERR_PTR(ret));
+		/*
+		 * intel_dp_needs_link_retrain() only performs a coarse check of
+		 * retrainability, so the modeset commit may still fail. Disable
+		 * further auto-retrain attempts in that case.
+		 *
+		 * A sink capability change may restore the retrainable state (see
+		 * intel_dp_update_sink_caps(), intel_dp_reset_link_params()),
+		 * allowing retraining to be attempted again.
+		 */
+		link_recovery_mark_autoretrain_modeset_failure(link_training);
+		queue_modeset_retry_for_links_in_state(state, encoder, pipe_mask);
+	}
+out:
+	drm_atomic_commit_put(&state->base);
+
+	return ret;
+}
+
+void intel_dp_link_check(struct intel_encoder *encoder)
+{
+	struct drm_modeset_acquire_ctx ctx;
+	int ret;
+
+	intel_modeset_lock_ctx_retry(&ctx, NULL, 0, ret)
+		ret = intel_dp_retrain_link(encoder, &ctx);
+}
+
+void intel_dp_check_link_state(struct intel_dp *intel_dp)
+{
+	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
+	struct intel_encoder *encoder = &dig_port->base;
+
+	if (!intel_dp_is_connected(intel_dp))
+		return;
+
+	/*
+	 * NOTE:
+	 * This may race with an ongoing modeset updating the max link limits
+	 * and, with that, the link's retrainability, so
+	 * intel_dp_needs_link_retrain() may observe stale state.
+	 *
+	 * This is harmless: stale params captured as valid may spuriously
+	 * allow retraining here, but the decision is rechecked later in a
+	 * properly serialized context.
+	 *
+	 * Conversely, stale params captured as invalid may skip retraining,
+	 * but that can only happen before the modeset has completed its own
+	 * link training for the new, valid configuration, after which the
+	 * link state is rechecked.
+	 *
+	 * See intel_dp_link_params_valid() for capturing and validating the
+	 * params.
+	 */
+	if (!intel_dp_needs_link_retrain(intel_dp))
+		return;
+
+	intel_encoder_link_check_queue_work(encoder, 0);
+}
+
 static int i915_dp_force_link_rate_show(struct seq_file *m, void *data)
 {
 	struct intel_connector *connector = to_intel_connector(m->private);
@@ -1878,8 +2673,11 @@ static int i915_dp_force_link_rate_show(struct seq_file *m, void *data)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	if (intel_dp->link.active)
 		current_rate = intel_dp->link_rate;
+
 	force_rate = intel_dp->link.force_rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -1951,6 +2749,8 @@ static ssize_t i915_dp_force_link_rate_write(struct file *file,
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	intel_dp_reset_link_params(intel_dp);
 	intel_dp->link.force_rate = rate;
 
@@ -1975,6 +2775,8 @@ static int i915_dp_force_lane_count_show(struct seq_file *m, void *data)
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
+
+	intel_dp_flush_connector_commits(connector);
 
 	if (intel_dp->link.active)
 		current_lane_count = intel_dp->lane_count;
@@ -2053,6 +2855,8 @@ static ssize_t i915_dp_force_lane_count_write(struct file *file,
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	intel_dp_reset_link_params(intel_dp);
 	intel_dp->link.force_lane_count = lane_count;
 
@@ -2075,6 +2879,8 @@ static int i915_dp_max_link_rate_show(void *data, u64 *val)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	*val = intel_dp->link.max_rate;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -2094,6 +2900,8 @@ static int i915_dp_max_lane_count_show(void *data, u64 *val)
 	if (err)
 		return err;
 
+	intel_dp_flush_connector_commits(connector);
+
 	*val = intel_dp->link.max_lane_count;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
@@ -2106,14 +2914,16 @@ static int i915_dp_force_link_training_failure_show(void *data, u64 *val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_training *link_training = connector_to_link_training(connector);
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	*val = intel_dp->link.force_train_failure;
+	intel_dp_flush_connector_commits(connector);
+
+	*val = link_training->force_train_failure;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -2124,7 +2934,7 @@ static int i915_dp_force_link_training_failure_write(void *data, u64 val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_training *link_training = connector_to_link_training(connector);
 	int err;
 
 	if (val > 2)
@@ -2134,7 +2944,9 @@ static int i915_dp_force_link_training_failure_write(void *data, u64 val)
 	if (err)
 		return err;
 
-	intel_dp->link.force_train_failure = val;
+	intel_dp_flush_connector_commits(connector);
+
+	link_training->force_train_failure = val;
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -2148,14 +2960,16 @@ static int i915_dp_force_link_retrain_show(void *data, u64 *val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_training *link_training = connector_to_link_training(connector);
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	*val = intel_dp->link.force_retrain;
+	intel_dp_flush_connector_commits(connector);
+
+	*val = intel_dp_link_training_get_force_retrain(link_training);
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -2166,14 +2980,17 @@ static int i915_dp_force_link_retrain_write(void *data, u64 val)
 {
 	struct intel_connector *connector = to_intel_connector(data);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_training *link_training = connector_to_link_training(connector);
+	struct intel_dp *intel_dp = link_training->dp;
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	intel_dp->link.force_retrain = val;
+	intel_dp_flush_connector_commits(connector);
+
+	intel_dp_link_training_set_force_retrain(link_training, val);
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -2189,14 +3006,17 @@ static int i915_dp_link_retrain_disabled_show(struct seq_file *m, void *data)
 {
 	struct intel_connector *connector = to_intel_connector(m->private);
 	struct intel_display *display = to_intel_display(connector);
-	struct intel_dp *intel_dp = intel_attached_dp(connector);
+	struct intel_dp_link_training *link_training = connector_to_link_training(connector);
 	int err;
 
 	err = drm_modeset_lock_single_interruptible(&display->drm->mode_config.connection_mutex);
 	if (err)
 		return err;
 
-	seq_printf(m, "%s\n", str_yes_no(intel_dp->link.retrain_disabled));
+	intel_dp_flush_connector_commits(connector);
+
+	/* TODO: Expose this via a debugfs entry reflecting what the state represents. */
+	seq_printf(m, "%s\n", str_yes_no(link_recovery_has_no_fallback(link_training)));
 
 	drm_modeset_unlock(&display->drm->mode_config.connection_mutex);
 
@@ -2232,4 +3052,27 @@ void intel_dp_link_training_debugfs_add(struct intel_connector *connector)
 
 	debugfs_create_file("i915_dp_link_retrain_disabled", 0444, root,
 			    connector, &i915_dp_link_retrain_disabled_fops);
+}
+
+void intel_dp_link_training_reset(struct intel_dp_link_training *link_training)
+{
+	link_recovery_reset(link_training);
+}
+
+struct intel_dp_link_training *intel_dp_link_training_init(struct intel_dp *intel_dp)
+{
+	struct intel_dp_link_training *link_training;
+
+	link_training = kzalloc_obj(*link_training);
+	if (!link_training)
+		return NULL;
+
+	link_training->dp = intel_dp;
+
+	return link_training;
+}
+
+void intel_dp_link_training_cleanup(struct intel_dp_link_training *link_training)
+{
+	kfree(link_training);
 }

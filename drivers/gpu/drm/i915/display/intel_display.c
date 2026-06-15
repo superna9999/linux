@@ -2816,6 +2816,16 @@ static void intel_set_transcoder_timings_lrr(const struct intel_crtc_state *crtc
 	intel_de_write(display, TRANS_VBLANK(display, cpu_transcoder),
 		       VBLANK_START(crtc_vblank_start - 1) |
 		       VBLANK_END(crtc_vblank_end - 1));
+
+	/*
+	 * DP doesn't have vertical sync, so TRANS_VSYNC only affects
+	 * the position of the vsync interrupt (and does so even when
+	 * using the VRR timing generator!). Thus updating TRANS_VSYNC
+	 * here seems fine even if it isn't double buffered.
+	 */
+	intel_de_write(display, TRANS_VSYNC(display, cpu_transcoder),
+		       VSYNC_START(adjusted_mode->crtc_vsync_start - 1) |
+		       VSYNC_END(adjusted_mode->crtc_vsync_end - 1));
 	/*
 	 * For platforms that always use VRR Timing Generator, the VTOTAL.Vtotal
 	 * bits are not required. Since the support for these bits is going to
@@ -5189,9 +5199,9 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	PIPE_CONF_CHECK_I(name.crtc_vdisplay); \
 	if (!fastset || !allow_vblank_delay_fastset(current_config)) \
 		PIPE_CONF_CHECK_I(name.crtc_vblank_start); \
-	PIPE_CONF_CHECK_I(name.crtc_vsync_start); \
-	PIPE_CONF_CHECK_I(name.crtc_vsync_end); \
 	if (!fastset || !pipe_config->update_lrr) { \
+		PIPE_CONF_CHECK_I(name.crtc_vsync_start); \
+		PIPE_CONF_CHECK_I(name.crtc_vsync_end); \
 		PIPE_CONF_CHECK_I(name.crtc_vtotal); \
 		PIPE_CONF_CHECK_I(name.crtc_vblank_end); \
 	} \
@@ -5658,35 +5668,43 @@ int intel_modeset_all_pipes_late(struct intel_atomic_state *state,
 	return 0;
 }
 
+int intel_modeset_commit_pipes_for_atomic_state(struct intel_atomic_state *state,
+						u8 pipe_mask,
+						struct drm_modeset_acquire_ctx *ctx)
+{
+	struct intel_display *display = to_intel_display(state);
+	struct intel_crtc *crtc;
+
+	state->base.acquire_ctx = ctx;
+	state->internal = true;
+
+	for_each_intel_crtc_in_pipe_mask(display, crtc, pipe_mask) {
+		struct intel_crtc_state *crtc_state =
+			intel_atomic_get_crtc_state(&state->base, crtc);
+
+		if (IS_ERR(crtc_state))
+			return PTR_ERR(crtc_state);
+
+		crtc_state->uapi.connectors_changed = true;
+	}
+
+	return drm_atomic_commit(&state->base);
+}
+
 int intel_modeset_commit_pipes(struct intel_display *display,
 			       u8 pipe_mask,
 			       struct drm_modeset_acquire_ctx *ctx)
 {
 	struct drm_atomic_commit *state;
-	struct intel_crtc *crtc;
 	int ret;
 
 	state = drm_atomic_commit_alloc(display->drm);
 	if (!state)
 		return -ENOMEM;
 
-	state->acquire_ctx = ctx;
-	to_intel_atomic_state(state)->internal = true;
+	ret = intel_modeset_commit_pipes_for_atomic_state(to_intel_atomic_state(state),
+							  pipe_mask, ctx);
 
-	for_each_intel_crtc_in_pipe_mask(display, crtc, pipe_mask) {
-		struct intel_crtc_state *crtc_state =
-			intel_atomic_get_crtc_state(state, crtc);
-
-		if (IS_ERR(crtc_state)) {
-			ret = PTR_ERR(crtc_state);
-			goto out;
-		}
-
-		crtc_state->uapi.connectors_changed = true;
-	}
-
-	ret = drm_atomic_commit(state);
-out:
 	drm_atomic_commit_put(state);
 
 	return ret;
@@ -5805,6 +5823,8 @@ static bool lrr_params_changed(const struct intel_crtc_state *old_crtc_state,
 
 	return old_adjusted_mode->crtc_vblank_start != new_adjusted_mode->crtc_vblank_start ||
 		old_adjusted_mode->crtc_vblank_end != new_adjusted_mode->crtc_vblank_end ||
+		old_adjusted_mode->crtc_vsync_start != new_adjusted_mode->crtc_vsync_start ||
+		old_adjusted_mode->crtc_vsync_end != new_adjusted_mode->crtc_vsync_end ||
 		old_adjusted_mode->crtc_vtotal != new_adjusted_mode->crtc_vtotal ||
 		old_crtc_state->set_context_latency != new_crtc_state->set_context_latency;
 }

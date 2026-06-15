@@ -325,14 +325,14 @@ struct intel_display {
 		struct intel_bw_info {
 			/* for each QGV point */
 			unsigned int deratedbw[I915_NUM_QGV_POINTS];
-			/* for each PSF GV point */
-			unsigned int psf_bw[I915_NUM_PSF_GV_POINTS];
-			/* Peak BW for each QGV point */
-			unsigned int peakbw[I915_NUM_QGV_POINTS];
-			u8 num_qgv_points;
-			u8 num_psf_gv_points;
 			u8 num_planes;
 		} max[6];
+		/* for each PSF GV point */
+		unsigned int psf_bw[I915_NUM_PSF_GV_POINTS];
+		/* Peak BW for each QGV point */
+		unsigned int peakbw[I915_NUM_QGV_POINTS];
+		u8 num_qgv_points;
+		u8 num_psf_gv_points;
 	} bw;
 
 	struct {

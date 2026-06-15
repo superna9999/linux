@@ -58,6 +58,7 @@ struct cec_notifier;
 struct drm_printer;
 struct intel_connector;
 struct intel_ddi_buf_trans;
+struct intel_dp_link_training;
 struct intel_fbc;
 struct intel_global_objs_state;
 struct intel_hdcp_shim;
@@ -1853,11 +1854,7 @@ struct intel_dp {
 		int mst_probed_rate;
 		int force_lane_count;
 		int force_rate;
-		bool retrain_disabled;
-		/* Sequential link training failures after a passing LT */
-		int seq_train_failures;
-		int force_train_failure;
-		bool force_retrain;
+		struct intel_dp_link_training *training;
 	} link;
 	bool reset_link_params;
 	int mso_link_count;
