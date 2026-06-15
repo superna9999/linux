@@ -1213,6 +1213,29 @@ SYSCALL_DEFINE6(pwritev2, unsigned long, fd, const struct iovec __user *, vec,
 }
 
 /*
+ * Legacy preadv2/pwritev2 wrapper.
+ */
+SYSCALL_DEFINE4(vmsplice, unsigned long, fd, const struct iovec __user *, vec,
+		unsigned long, vlen, unsigned int, flags)
+{
+	if (unlikely(flags & ~SPLICE_F_ALL))
+		return -EINVAL;
+
+	CLASS(fd, f)(fd);
+	if (fd_empty(f))
+		return -EBADF;
+
+	/* We do do_writev/do_readv, so it is okay to pass "false" here */
+	if (!get_pipe_info(fd_file(f), /* for_splice = */ false))
+		return -EBADF;
+
+	if (fd_file(f)->f_mode & FMODE_WRITE)
+		return do_writev(fd, vec, vlen, (flags & SPLICE_F_NONBLOCK) ? RWF_NOWAIT : 0);
+	else
+		return do_readv(fd, vec, vlen, (flags & SPLICE_F_NONBLOCK) ? RWF_NOWAIT : 0);
+}
+
+/*
  * Various compat syscalls.  Note that they all pretend to take a native
  * iovec - import_iovec will properly treat those as compat_iovecs based on
  * in_compat_syscall().
