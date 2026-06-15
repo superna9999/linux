@@ -1493,7 +1493,7 @@ guc_exec_queue_timedout_job(struct drm_sched_job *drm_job)
 	struct xe_device *xe = guc_to_xe(guc);
 	int err = -ETIME;
 	pid_t pid = -1;
-	bool wedged = false, skip_timeout_check;
+	bool wedged = false, wedge_device = false, skip_timeout_check;
 
 	xe_gt_assert(guc_to_gt(guc), !exec_queue_destroyed(q));
 
@@ -1638,7 +1638,7 @@ trigger_reset:
 			}
 			if (q->flags & EXEC_QUEUE_FLAG_KERNEL) {
 				xe_gt_WARN(q->gt, true, "Kernel-submitted job timed out\n");
-				xe_device_declare_wedged(gt_to_xe(q->gt));
+				wedge_device = true;
 			}
 		} else if (q->flags & EXEC_QUEUE_FLAG_VM && !exec_queue_killed(q)) {
 			xe_gt_WARN(q->gt, true, "VM job timed out on non-killed execqueue\n");
@@ -1657,6 +1657,9 @@ trigger_reset:
 		xe_sched_submission_start(sched);
 		xe_guc_exec_queue_trigger_cleanup(q);
 	}
+
+	if (wedge_device)
+		xe_device_declare_wedged(gt_to_xe(q->gt));
 
 	/*
 	 * We want the job added back to the pending list so it gets freed; this
@@ -2241,14 +2244,6 @@ static bool guc_exec_queue_reset_status(struct xe_exec_queue *q)
 	return exec_queue_reset(q) || exec_queue_killed_or_banned_or_wedged(q);
 }
 
-static bool guc_exec_queue_active(struct xe_exec_queue *q)
-{
-	struct xe_exec_queue *primary = xe_exec_queue_multi_queue_primary(q);
-
-	return exec_queue_enabled(primary) &&
-		!exec_queue_pending_disable(primary);
-}
-
 /*
  * All of these functions are an abstraction layer which other parts of Xe can
  * use to trap into the GuC backend. All of these functions, aside from init,
@@ -2268,7 +2263,6 @@ static const struct xe_exec_queue_ops guc_exec_queue_ops = {
 	.suspend_wait = guc_exec_queue_suspend_wait,
 	.resume = guc_exec_queue_resume,
 	.reset_status = guc_exec_queue_reset_status,
-	.active = guc_exec_queue_active,
 };
 
 static void guc_exec_queue_stop(struct xe_guc *guc, struct xe_exec_queue *q)

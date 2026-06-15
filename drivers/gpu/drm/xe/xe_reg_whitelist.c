@@ -41,7 +41,7 @@ static bool match_multi_queue_class(const struct xe_device *xe,
 	return xe_gt_supports_multi_queue(gt, hwe->class);
 }
 
-static const struct xe_rtp_entry_sr register_whitelist[] = {
+static const struct xe_rtp_table_sr register_whitelist = XE_RTP_TABLE_SR(
 	{ XE_RTP_NAME("WaAllowPMDepthAndInvocationCountAccessFromUMD, 1408556865"),
 	  XE_RTP_RULES(GRAPHICS_VERSION_RANGE(1200, 1210), ENGINE_CLASS(RENDER)),
 	  XE_RTP_ACTIONS(WHITELIST(PS_INVOCATION_COUNT,
@@ -154,7 +154,7 @@ static const struct xe_rtp_entry_sr register_whitelist[] = {
 	  XE_RTP_RULES(FUNC(match_has_mert), ENGINE_CLASS(COPY)),
 	  XE_RTP_ACTIONS(WHITELIST_OA_MERT_MMIO_TRG)
 	},
-};
+);
 
 static void whitelist_apply_to_hwe(struct xe_hw_engine *hwe)
 {
@@ -202,8 +202,7 @@ void xe_reg_whitelist_process_engine(struct xe_hw_engine *hwe)
 {
 	struct xe_rtp_process_ctx ctx = XE_RTP_PROCESS_CTX_INITIALIZER(hwe);
 
-	xe_rtp_process_to_sr(&ctx, register_whitelist, ARRAY_SIZE(register_whitelist),
-			     &hwe->reg_whitelist, false);
+	xe_rtp_process_to_sr(&ctx, &register_whitelist, &hwe->reg_whitelist, false);
 	whitelist_apply_to_hwe(hwe);
 }
 
