@@ -56,14 +56,30 @@ cleanup:
 	return -1;
 }
 
-int alloc_anon(const char *cgroup, void *arg)
+static char *alloc_and_populate_anon(size_t size)
 {
-	size_t size = (unsigned long)arg;
 	char *buf, *ptr;
 
 	buf = malloc(size);
+	if (buf == NULL) {
+		fprintf(stderr, "malloc() failed\n");
+		return NULL;
+	}
+
 	for (ptr = buf; ptr < buf + size; ptr += page_size)
 		*ptr = 0;
+
+	return buf;
+}
+
+int alloc_anon(const char *cgroup, void *arg)
+{
+	size_t size = (unsigned long)arg;
+	char *buf;
+
+	buf = alloc_and_populate_anon(size);
+	if (!buf)
+		return -1;
 
 	free(buf);
 	return 0;
@@ -175,18 +191,13 @@ cleanup_free:
 static int alloc_anon_50M_check(const char *cgroup, void *arg)
 {
 	size_t size = MB(50);
-	char *buf, *ptr;
+	char *buf;
 	long anon, current;
 	int ret = -1;
 
-	buf = malloc(size);
-	if (buf == NULL) {
-		fprintf(stderr, "malloc() failed\n");
+	buf = alloc_and_populate_anon(size);
+	if (!buf)
 		return -1;
-	}
-
-	for (ptr = buf; ptr < buf + size; ptr += page_size)
-		*ptr = 0;
 
 	current = cg_read_long(cgroup, "memory.current");
 	if (current < size)
@@ -407,16 +418,11 @@ static int alloc_anon_noexit(const char *cgroup, void *arg)
 {
 	int ppid = getppid();
 	size_t size = (unsigned long)arg;
-	char *buf, *ptr;
+	char *buf;
 
-	buf = malloc(size);
-	if (buf == NULL) {
-		fprintf(stderr, "malloc() failed\n");
+	buf = alloc_and_populate_anon(size);
+	if (!buf)
 		return -1;
-	}
-
-	for (ptr = buf; ptr < buf + size; ptr += page_size)
-		*ptr = 0;
 
 	while (getppid() == ppid)
 		sleep(1);
@@ -991,18 +997,13 @@ static int alloc_anon_50M_check_swap(const char *cgroup, void *arg)
 {
 	long mem_max = (long)arg;
 	size_t size = MB(50);
-	char *buf, *ptr;
+	char *buf;
 	long mem_current, swap_current;
 	int ret = -1;
 
-	buf = malloc(size);
-	if (buf == NULL) {
-		fprintf(stderr, "malloc() failed\n");
+	buf = alloc_and_populate_anon(size);
+	if (!buf)
 		return -1;
-	}
-
-	for (ptr = buf; ptr < buf + size; ptr += page_size)
-		*ptr = 0;
 
 	mem_current = cg_read_long(cgroup, "memory.current");
 	if (!mem_current || !values_close(mem_current, mem_max, 3))
