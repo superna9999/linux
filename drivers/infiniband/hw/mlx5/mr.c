@@ -781,7 +781,8 @@ static struct ib_mr *create_real_mr(struct ib_pd *pd, struct ib_umem *umem,
 		 * configured properly but left disabled. It is safe to go ahead
 		 * and configure it again via UMR while enabling it.
 		 */
-		err = mlx5r_umr_update_mr_pas(mr, MLX5_IB_UPD_XLT_ENABLE);
+		err = mlx5r_umr_update_mr_pas(mr, MLX5_IB_UPD_XLT_ENABLE,
+					      to_mpd(pd)->pdn);
 		if (err) {
 			mlx5_ib_dereg_mr(&mr->ibmr, NULL);
 			return ERR_PTR(err);
@@ -841,7 +842,7 @@ static struct ib_mr *create_user_odp_mr(struct ib_pd *pd, u64 start, u64 length,
 	if (err)
 		goto err_dereg_mr;
 
-	err = mlx5_ib_init_odp_mr(mr);
+	err = mlx5_ib_init_odp_mr(mr, pd);
 	if (err)
 		goto err_dereg_mr;
 	return &mr->ibmr;
@@ -874,7 +875,7 @@ struct ib_mr *mlx5_ib_reg_user_mr(struct ib_pd *pd, u64 start, u64 length,
 	if (access_flags & IB_ACCESS_ON_DEMAND)
 		return create_user_odp_mr(pd, start, length, iova, access_flags,
 					  udata);
-	umem = ib_umem_get(&dev->ib_dev, start, length, access_flags);
+	umem = ib_umem_get_va(&dev->ib_dev, start, length, access_flags);
 	if (IS_ERR(umem))
 		return ERR_CAST(umem);
 	return create_real_mr(pd, umem, iova, access_flags, dmah);
@@ -890,7 +891,8 @@ static void mlx5_ib_dmabuf_invalidate_cb(struct dma_buf_attachment *attach)
 	if (!umem_dmabuf->sgt || !mr)
 		return;
 
-	mlx5r_umr_update_mr_pas(mr, MLX5_IB_UPD_XLT_ZAP);
+	/* MLX5_IB_UPD_XLT_ZAP does not change the pdn */
+	mlx5r_umr_update_mr_pas(mr, MLX5_IB_UPD_XLT_ZAP, 0);
 	ib_umem_dmabuf_unmap_pages(umem_dmabuf);
 }
 
@@ -956,6 +958,10 @@ reg_user_mr_dmabuf(struct ib_pd *pd, struct device *dma_device,
 	atomic_add(ib_umem_num_pages(mr->umem), &dev->mdev->priv.reg_pages);
 	umem_dmabuf->private = mr;
 	if (!pinned_mode) {
+		err = mlx5r_odp_create_eq(dev, &dev->odp_pf_eq);
+		if (err)
+			goto err_dereg_mr;
+
 		err = mlx5r_store_odp_mkey(dev, &mr->mmkey);
 		if (err)
 			goto err_dereg_mr;
@@ -963,7 +969,7 @@ reg_user_mr_dmabuf(struct ib_pd *pd, struct device *dma_device,
 		mr->data_direct = true;
 	}
 
-	err = mlx5_ib_init_dmabuf_mr(mr);
+	err = mlx5_ib_init_dmabuf_mr(mr, pd);
 	if (err)
 		goto err_dereg_mr;
 	return &mr->ibmr;
@@ -1128,10 +1134,8 @@ static int umr_rereg_pas(struct mlx5_ib_mr *mr, struct ib_pd *pd,
 	if (err)
 		return err;
 
-	if (flags & IB_MR_REREG_PD) {
-		mr->ibmr.pd = pd;
+	if (flags & IB_MR_REREG_PD)
 		upd_flags |= MLX5_IB_UPD_XLT_PD;
-	}
 	if (flags & IB_MR_REREG_ACCESS) {
 		mr->access_flags = access_flags;
 		upd_flags |= MLX5_IB_UPD_XLT_ACCESS;
@@ -1141,7 +1145,7 @@ static int umr_rereg_pas(struct mlx5_ib_mr *mr, struct ib_pd *pd,
 	mr->ibmr.length = new_umem->length;
 	mr->page_shift = order_base_2(page_size);
 	mr->umem = new_umem;
-	err = mlx5r_umr_update_mr_pas(mr, upd_flags);
+	err = mlx5r_umr_update_mr_pas(mr, upd_flags, to_mpd(pd)->pdn);
 	if (err) {
 		/*
 		 * The MR is revoked at this point so there is no issue to free
@@ -1188,6 +1192,21 @@ struct ib_mr *mlx5_ib_rereg_user_mr(struct ib_mr *ib_mr, int flags, u64 start,
 	if (!(flags & IB_MR_REREG_PD))
 		new_pd = ib_mr->pd;
 
+	if (mr->is_odp_implicit && !(flags & IB_MR_REREG_TRANS)) {
+		if (!(new_access_flags & IB_ACCESS_ON_DEMAND))
+			return ERR_PTR(-EOPNOTSUPP);
+
+		/*
+		 * Due to all the child mkeys we cannot actually change an
+		 * implicit MR in place. If the user did not specify a new
+		 * translation then force the fixed implicit MR values.
+		 */
+		start = 0;
+		iova = 0;
+		length = U64_MAX;
+		flags |= IB_MR_REREG_TRANS;
+	}
+
 	if (!(flags & IB_MR_REREG_TRANS)) {
 		struct ib_umem *umem;
 
@@ -1202,7 +1221,7 @@ struct ib_mr *mlx5_ib_rereg_user_mr(struct ib_mr *ib_mr, int flags, u64 start,
 		}
 		/* DM or ODP MR's don't have a normal umem so we can't re-use it */
 		if (!mr->umem || is_odp_mr(mr) || is_dmabuf_mr(mr))
-			goto recreate;
+			return ERR_PTR(-EOPNOTSUPP);
 
 		/*
 		 * Only one active MR can refer to a umem at one time, revoke
@@ -1231,8 +1250,8 @@ struct ib_mr *mlx5_ib_rereg_user_mr(struct ib_mr *ib_mr, int flags, u64 start,
 		struct ib_umem *new_umem;
 		unsigned long page_size;
 
-		new_umem = ib_umem_get(&dev->ib_dev, start, length,
-				       new_access_flags);
+		new_umem = ib_umem_get_va(&dev->ib_dev, start, length,
+					  new_access_flags);
 		if (IS_ERR(new_umem))
 			return ERR_CAST(new_umem);
 
@@ -1813,7 +1832,7 @@ int mlx5_ib_alloc_mw(struct ib_mw *ibmw, struct ib_udata *udata)
 	resp.response_length =
 		min(offsetofend(typeof(resp), response_length), udata->outlen);
 	if (resp.response_length) {
-		err = ib_copy_to_udata(udata, &resp, resp.response_length);
+		err = ib_respond_udata(udata, resp);
 		if (err)
 			goto free_mkey;
 	}
