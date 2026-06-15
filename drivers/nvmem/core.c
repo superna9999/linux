@@ -1019,6 +1019,10 @@ struct nvmem_device *nvmem_register(const struct nvmem_config *config)
 	if (rval)
 		goto err_remove_dev;
 
+	/* If the device has WP GPIO, default to read-only */
+	if (nvmem->wp_gpio)
+		nvmem->read_only = true;
+
 #ifdef CONFIG_NVMEM_SYSFS
 	rval = nvmem_populate_sysfs_cells(nvmem);
 	if (rval)
