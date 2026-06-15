@@ -36,7 +36,7 @@ static int snprintf_hex(char *buf, size_t size, unsigned char *data, size_t len)
 	size_t i;
 
 	for (i = 0; i < len; i++)
-		ret += snprintf(buf + ret, size - ret, "%02x", data[i]);
+		ret += scnprintf(buf + ret, size - ret, "%02x", data[i]);
 	return ret;
 }
 
@@ -140,22 +140,24 @@ static int synthesize_bpf_prog_name(char *buf, int size,
 	const struct btf_type *t;
 	int name_len;
 
-	name_len = snprintf(buf, size, "bpf_prog_");
+	name_len = scnprintf(buf, size, "bpf_prog_");
 	name_len += snprintf_hex(buf + name_len, size - name_len,
 				 prog_tags[sub_id], BPF_TAG_SIZE);
 	if (btf) {
 		finfo = func_infos + sub_id * info->func_info_rec_size;
 		t = btf__type_by_id(btf, finfo->type_id);
-		short_name = btf__name_by_offset(btf, t->name_off);
+		if (t)
+			short_name = btf__name_by_offset(btf, t->name_off);
 	} else if (sub_id == 0 && sub_prog_cnt == 1) {
 		/* no subprog */
 		if (info->name[0])
 			short_name = info->name;
 	} else
 		short_name = "F";
-	if (short_name)
-		name_len += snprintf(buf + name_len, size - name_len,
-				     "_%s", short_name);
+	if (short_name) {
+		name_len += scnprintf(buf + name_len, size - name_len,
+				      "_%s", short_name);
+	}
 	return name_len;
 }
 
@@ -393,8 +395,10 @@ static struct bpf_metadata *bpf_metadata_create(struct bpf_prog_info *info)
 			continue;
 
 		metadata = bpf_metadata_alloc(info->nr_prog_tags, map.num_vars);
-		if (!metadata)
+		if (!metadata) {
+			bpf_metadata_free_map_data(&map);
 			continue;
+		}
 
 		bpf_metadata_fill_event(&map, &metadata->event->bpf_metadata);
 
@@ -869,6 +873,7 @@ static int perf_env__add_bpf_info(struct perf_env *env, u32 id)
 		if (!perf_env__insert_bpf_prog_info(env, info_node)) {
 			pr_debug("%s: duplicate add bpf info request for id %u\n",
 				 __func__, btf_id);
+			bpf_metadata_free(info_node->metadata);
 			free(info_linear);
 			free(info_node);
 			goto out;
