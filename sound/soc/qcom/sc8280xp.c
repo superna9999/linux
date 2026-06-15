@@ -38,6 +38,8 @@ static int sc8280xp_snd_init(struct snd_soc_pcm_runtime *rtd)
 		break;
 	case WSA_CODEC_DMA_RX_0:
 	case WSA_CODEC_DMA_RX_1:
+	case WSA2_CODEC_DMA_RX_0:
+	case WSA2_CODEC_DMA_RX_1:
 		/*
 		 * Set limit of -3 dB on Digital Volume and 0 dB on PA Volume
 		 * to reduce the risk of speaker damage until we have active
