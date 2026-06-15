@@ -120,6 +120,8 @@ static int try_number(const char *data, size_t dlen, u_int32_t array[],
 	for (i = 0, len = 0; len < dlen && i < array_size; len++, data++) {
 		if (*data >= '0' && *data <= '9') {
 			array[i] = array[i]*10 + *data - '0';
+			if (array[i] > 255)
+				return 0;
 		}
 		else if (*data == sep)
 			i++;
@@ -189,7 +191,7 @@ static int try_rfc1123(const char *data, size_t dlen,
 static int get_port(const char *data, int start, size_t dlen, char delim,
 		    __be16 *port)
 {
-	u_int16_t tmp_port = 0;
+	u32 tmp_port = 0;
 	int i;
 
 	for (i = start; i < dlen; i++) {
@@ -200,10 +202,11 @@ static int get_port(const char *data, int start, size_t dlen, char delim,
 			*port = htons(tmp_port);
 			pr_debug("get_port: return %d\n", tmp_port);
 			return i + 1;
-		}
-		else if (data[i] >= '0' && data[i] <= '9')
+		} else if (data[i] >= '0' && data[i] <= '9') {
 			tmp_port = tmp_port*10 + data[i] - '0';
-		else { /* Some other crap */
+			if (tmp_port > 65535)
+				break;
+		} else { /* Some other crap */
 			pr_debug("get_port: invalid char.\n");
 			break;
 		}
@@ -552,6 +555,7 @@ static int nf_ct_ftp_from_nlattr(struct nlattr *attr, struct nf_conn *ct)
 }
 
 static struct nf_conntrack_helper ftp[MAX_PORTS * 2] __read_mostly;
+static struct nf_conntrack_helper *ftp_ptr[MAX_PORTS * 2] __read_mostly;
 
 static const struct nf_conntrack_expect_policy ftp_exp_policy = {
 	.max_expected	= 1,
@@ -560,7 +564,7 @@ static const struct nf_conntrack_expect_policy ftp_exp_policy = {
 
 static void __exit nf_conntrack_ftp_fini(void)
 {
-	nf_conntrack_helpers_unregister(ftp, ports_c * 2);
+	nf_conntrack_helpers_unregister(ftp_ptr, ports_c * 2);
 }
 
 static int __init nf_conntrack_ftp_init(void)
@@ -585,7 +589,7 @@ static int __init nf_conntrack_ftp_init(void)
 				  nf_ct_ftp_from_nlattr, THIS_MODULE);
 	}
 
-	ret = nf_conntrack_helpers_register(ftp, ports_c * 2);
+	ret = nf_conntrack_helpers_register(ftp, ports_c * 2, ftp_ptr);
 	if (ret < 0) {
 		pr_err("failed to register helpers\n");
 		return ret;
