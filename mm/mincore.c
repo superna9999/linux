@@ -258,7 +258,21 @@ static long do_mincore(unsigned long addr, unsigned long pages, unsigned char *v
 		memset(vec, 1, pages);
 		return pages;
 	}
-	err = walk_page_range(vma->vm_mm, addr, end, &mincore_walk_ops, vec);
+
+	/*
+	 * walk_page_range_vma() does not call walk_page_test(), which
+	 * handles VM_PFNMAP VMA by invoking ->pte_hole() to skip the
+	 * page table walk. Without this check, PFNMAP PTEs would be
+	 * treated as present by mincore_pte_range(), changing the returned
+	 * residency status from the historical "not resident" to "resident".
+	 * Handle VM_PFNMAP explicitly to preserve the original behavior.
+	 */
+	if (vma->vm_flags & VM_PFNMAP) {
+		__mincore_unmapped_range(addr, end, vma, vec);
+		return (end - addr) >> PAGE_SHIFT;
+	}
+
+	err = walk_page_range_vma(vma, addr, end, &mincore_walk_ops, vec);
 	if (err < 0)
 		return err;
 	return (end - addr) >> PAGE_SHIFT;
