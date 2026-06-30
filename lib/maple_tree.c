@@ -5720,6 +5720,10 @@ bool mas_nomem(struct ma_state *mas, gfp_t gfp)
 	if (likely(mas->node != MA_ERROR(-ENOMEM)))
 		return false;
 
+	/* Allocations can fail, don't do this. */
+	WARN_ON_ONCE(!gfpflags_allow_blocking(gfp) &&
+		     mt_external_lock(mas->tree));
+
 	if (gfpflags_allow_blocking(gfp) && !mt_external_lock(mas->tree)) {
 		mtree_unlock(mas->tree);
 		mas_alloc_nodes(mas, gfp);
@@ -5730,9 +5734,12 @@ bool mas_nomem(struct ma_state *mas, gfp_t gfp)
 
 	/*
 	 * Return false on zero forward progress.  Partial allocations are kept
-	 * so the retry path will attempt to get the rest.
+	 * so the retry path will attempt to get the rest.  The failure should
+	 * not happen as we try our best to reclaim.  The user would need an
+	 * external lock with a non-blocking gfp in a low memory situation -
+	 * which would have triggered the first warning in this function.
 	 */
-	if (!mas->sheaf && !mas->alloc)
+	if (WARN_ON_ONCE(!mas->sheaf && !mas->alloc))
 		return false;
 
 	mas_reset(mas);
