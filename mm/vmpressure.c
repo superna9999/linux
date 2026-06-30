@@ -251,8 +251,7 @@ void vmpressure(gfp_t gfp, int order, struct mem_cgroup *memcg, bool tree,
 	 *   cgroup v1 + tree=true  -> userspace eventfds (memory.pressure_level)
 	 * Skip the other two: nothing consumes the result.
 	 */
-	if ((!cgroup_subsys_on_dfl(memory_cgrp_subsys) && !tree) ||
-	    (cgroup_subsys_on_dfl(memory_cgrp_subsys) && tree))
+	if (cgroup_subsys_on_dfl(memory_cgrp_subsys) == tree)
 		return;
 
 	vmpr = memcg_to_vmpressure(memcg);
