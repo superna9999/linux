@@ -1457,6 +1457,12 @@ static void obj_free(int class_size, unsigned long obj)
 	mod_zspage_inuse(zspage, -1);
 }
 
+/* Folds to 0 when ZS_OBJ_CLASS_BITS == 0; no ifdef needed at callers. */
+static unsigned int obj_to_class_idx(unsigned long obj)
+{
+	return (obj >> ZS_OBJ_IDX_BITS) & ZS_OBJ_CLASS_MASK;
+}
+
 /*
  * Resolve @handle to its zspage / size_class and acquire class->lock.
  *
@@ -1757,12 +1763,6 @@ static void lock_zspage(struct zspage *zspage)
 		}
 	}
 	zspage_read_unlock(zspage);
-}
-
-/* Folds to 0 when ZS_OBJ_CLASS_BITS == 0; no ifdef needed at callers. */
-static unsigned int obj_to_class_idx(unsigned long obj)
-{
-	return (obj >> ZS_OBJ_IDX_BITS) & ZS_OBJ_CLASS_MASK;
 }
 
 static void replace_sub_page(struct size_class *class, struct zspage *zspage,
