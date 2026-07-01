@@ -311,11 +311,7 @@ again:
 			if (folio_test_large(folio)) {
 				int ret;
 
-				/*
-				 * Keep the folio stable after dropping the PTE
-				 * lock. migrate_vma_split_folio() consumes this
-				 * reference.
-				 */
+				/* migrate_vma_split_folio() consumes this reference */
 				if (folio != fault_folio)
 					folio_get(folio);
 				lazy_mmu_mode_disable();
@@ -361,11 +357,7 @@ again:
 			if (folio && folio_test_large(folio)) {
 				int ret;
 
-				/*
-				 * Keep the folio stable after dropping the
-				 * PTE lock. migrate_vma_split_folio() consumes
-				 * this reference.
-				 */
+				/* migrate_vma_split_folio() consumes this reference */
 				if (folio != fault_folio)
 					folio_get(folio);
 				lazy_mmu_mode_disable();
