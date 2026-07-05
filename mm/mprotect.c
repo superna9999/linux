@@ -708,7 +708,7 @@ static int prot_none_hugetlb_entry(pte_t *pte, unsigned long hmask,
 
 	if (pfn_modify_allowed(pte_pfn(entry), *(pgprot_t *)(walk->private)))
 		return 0;
-	return -EACCESS;
+	return -EACCES;
 }
 #else
 #define prot_none_hugetlb_entry	NULL
