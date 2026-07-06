@@ -5039,8 +5039,8 @@ check_folio:
 		pte = pte_mkuffd_wp(pte);
 
 	/*
-	 * Similar logic as in do_wp_page(); however, optimize for pages that are
-	 * certainly not because the swap entry indicates exclusivity.
+	 * Similar logic as in do_wp_page(); however, optimize for pages that
+	 * are certainly exclusive.
 	 */
 	if (exclusive) {
 		if ((vma->vm_flags & VM_WRITE) && !userfaultfd_pte_wp(vma, pte) &&
