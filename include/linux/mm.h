@@ -2303,29 +2303,15 @@ static inline int memdesc_nid(const memdesc_flags_t *mdf)
 #endif
 #endif
 
-#ifdef CONFIG_NUMA
 static inline int page_to_nid(const struct page *page)
 {
-	const struct page *p = PF_POISONED_CHECK(page);
-
-	return memdesc_nid(&p->flags);
+	return memdesc_nid(&(PF_POISONED_CHECK(page)->flags));
 }
 
 static inline int folio_nid(const struct folio *folio)
 {
 	return memdesc_nid(&folio->flags);
 }
-#else
-static inline int page_to_nid(const struct page *page)
-{
-	return 0;
-}
-
-static inline int folio_nid(const struct folio *folio)
-{
-	return 0;
-}
-#endif
 
 #ifdef CONFIG_NUMA_BALANCING
 /* page access time bits needs to hold at least 4 seconds */
@@ -2566,9 +2552,7 @@ static inline void set_page_section(struct page *page, unsigned long section)
 
 static inline unsigned long memdesc_section(const memdesc_flags_t *mdf)
 {
-#if SECTIONS_WIDTH != 0
 	ASSERT_EXCLUSIVE_BITS(mdf->f, SECTIONS_MASK << SECTIONS_PGSHIFT);
-#endif
 	return (mdf->f >> SECTIONS_PGSHIFT) & SECTIONS_MASK;
 }
 #else /* !SECTION_IN_PAGE_FLAGS */
