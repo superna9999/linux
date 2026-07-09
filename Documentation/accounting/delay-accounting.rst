@@ -181,7 +181,7 @@ Interactive keyboard controls during runtime::
 	M - Toggle display mode (Default/Memory Verbose)
 	q - Quit
 
-Available sort fields(use -s/--sort or interactive command)::
+Available sort fields (use -s/--sort or interactive command)::
 
 	cpu(c)       - CPU delay
 	blkio(i)     - I/O delay
@@ -219,8 +219,8 @@ Advanced usage examples::
 
 
 
-delaytop add delay_max fields to track the maximum delay value for each delay type
-(cpu, blkio, irq, swapin, freepages, thrashing, compact, wpcopy) per task.
+delaytop add delay_max fields to track the maximum delay value for each delay
+  type (cpu, blkio, irq, swapin, freepages, thrashing, compact, wpcopy) per task::
 
 	bash# ./delaytop -t cpu
 	System Pressure Information: (avg10/avg60/avg300/total)
