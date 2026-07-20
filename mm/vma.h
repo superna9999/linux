@@ -104,6 +104,7 @@ struct vma_merge_struct {
 	unsigned long start;
 	unsigned long end;
 	pgoff_t pgoff;
+	pgoff_t anon_pgoff;
 
 	union {
 		/* Temporary while VMA flags are being converted. */
@@ -237,16 +238,16 @@ static inline bool vmg_nomem(struct vma_merge_struct *vmg)
 	return vmg->state == VMA_MERGE_ERROR_NOMEM;
 }
 
-static inline pgoff_t vmg_start_pgoff(const struct vma_merge_struct *vmg)
-{
-	return vmg->pgoff;
-}
-
 static inline pgoff_t vmg_pages(const struct vma_merge_struct *vmg)
 {
 	const unsigned long size = vmg->end - vmg->start;
 
 	return size >> PAGE_SHIFT;
+}
+
+static inline pgoff_t vmg_start_pgoff(const struct vma_merge_struct *vmg)
+{
+	return vmg->pgoff;
 }
 
 static inline pgoff_t vmg_end_pgoff(const struct vma_merge_struct *vmg)
@@ -283,6 +284,16 @@ static inline void vma_set_pgoff(struct vm_area_struct *vma, pgoff_t pgoff)
 	vma->vm_pgoff = pgoff;
 }
 
+static inline pgoff_t vmg_start_anon_pgoff(const struct vma_merge_struct *vmg)
+{
+	return vmg->anon_pgoff;
+}
+
+static inline pgoff_t vmg_end_anon_pgoff(const struct vma_merge_struct *vmg)
+{
+	return vmg_start_anon_pgoff(vmg) + vmg_pages(vmg);
+}
+
 static inline void __vma_set_virt_pgoff(struct vm_area_struct *vma, pgoff_t pgoff)
 {
 #ifdef CONFIG_64BIT
@@ -301,42 +312,100 @@ static inline void vma_add_pgoff(struct vm_area_struct *vma, pgoff_t delta)
 {
 	vma_assert_can_modify(vma);
 	vma_set_pgoff(vma, vma_start_pgoff(vma) + delta);
+	vma_set_virt_pgoff(vma, vma_start_virt_pgoff(vma) + delta);
 }
 
 static inline void vma_sub_pgoff(struct vm_area_struct *vma, pgoff_t delta)
 {
 	vma_assert_can_modify(vma);
 	vma_set_pgoff(vma, vma_start_pgoff(vma) - delta);
+	vma_set_virt_pgoff(vma, vma_start_virt_pgoff(vma) - delta);
 }
 
-#define VMG_STATE(name, mm_, vmi_, start_, end_, vma_flags_, pgoff_)	\
-	struct vma_merge_struct name = {				\
-		.mm = mm_,						\
-		.vmi = vmi_,						\
-		.start = start_,					\
-		.end = end_,						\
-		.vma_flags = vma_flags_,				\
-		.pgoff = pgoff_,					\
-		.state = VMA_MERGE_START,				\
+/**
+ * vma_anon_pgoff_addr() - Calculates the absolute anonymous page offset of
+ * @address.
+ * @vma: The VMA whose anonymous page offset is required.
+ * @address: The address whose absolute page offset is required.
+ *
+ * If the VMA is a shared file-backed mapping, then the file-based page offset
+ * is returned.
+ *
+ * Otherwise, the virtual page offset is returned.
+ *
+ * This means that shared file-backed mappings are correctly merged based on
+ * their file page offset compatibility.
+ *
+ * Returns: The absolute anonymous page offset of @address within @vma.
+ */
+static inline pgoff_t vma_anon_pgoff_addr(const struct vm_area_struct *vma,
+					  unsigned long address)
+{
+	if (vma_test(vma, VMA_SHARED_BIT))
+		return linear_page_index(vma, address);
+
+	return linear_virt_page_index(vma, address);
+}
+
+/**
+ * vma_start_anon_pgoff() - Calculates the absolute anonymous page offset used
+ * for purposes of merge compatibility.
+ * @vma: The VMA whose anonymous page offset is required.
+ *
+ * See vma_anon_pgoff_addr().
+ *
+ * Returns: The absolute anonymous page offset of @vma for purposes of merging.
+ */
+static inline pgoff_t vma_start_anon_pgoff(const struct vm_area_struct *vma)
+{
+	return vma_anon_pgoff_addr(vma, vma->vm_start);
+}
+
+/**
+ * vma_end_anon_pgoff() - Calculates the absolute exclusive end anonymous page
+ * offset used for purposes of merge compatibility.
+ * @vma: The VMA whose anonymous end page offset is required.
+ *
+ * See vma_start_anon_pgoff().
+ *
+ * Returns: The absolute exclusive end anonymous page offset of @vma for
+ * purposes of merging.
+ */
+static inline pgoff_t vma_end_anon_pgoff(const struct vm_area_struct *vma)
+{
+	return vma_start_anon_pgoff(vma) + vma_pages(vma);
+}
+
+#define VMG_STATE(name, mm_, vmi_, start_, end_, vma_flags_, pgoff_, anon_pgoff_) \
+	struct vma_merge_struct name = {					  \
+		.mm = mm_,							  \
+		.vmi = vmi_,							  \
+		.start = start_,						  \
+		.end = end_,							  \
+		.vma_flags = vma_flags_,					  \
+		.pgoff = pgoff_,						  \
+		.anon_pgoff = anon_pgoff_,					  \
+		.state = VMA_MERGE_START,					  \
 	}
 
-#define VMG_VMA_STATE(name, vmi_, prev_, vma_, start_, end_)	\
-	struct vma_merge_struct name = {			\
-		.mm = vma_->vm_mm,				\
-		.vmi = vmi_,					\
-		.prev = prev_,					\
-		.middle = vma_,					\
-		.next = NULL,					\
-		.start = start_,				\
-		.end = end_,					\
-		.vm_flags = vma_->vm_flags,			\
-		.pgoff = linear_page_index(vma_, start_),	\
-		.file = vma_->vm_file,				\
-		.anon_vma = vma_->anon_vma,			\
-		.policy = vma_policy(vma_),			\
-		.uffd_ctx = vma_->vm_userfaultfd_ctx,		\
-		.anon_name = anon_vma_name(vma_),		\
-		.state = VMA_MERGE_START,			\
+#define VMG_VMA_STATE(name, vmi_, prev_, vma_, start_, end_)		\
+	struct vma_merge_struct name = {				\
+		.mm = vma_->vm_mm,					\
+		.vmi = vmi_,						\
+		.prev = prev_,						\
+		.middle = vma_,						\
+		.next = NULL,						\
+		.start = start_,					\
+		.end = end_,						\
+		.vm_flags = vma_->vm_flags,				\
+		.pgoff = linear_page_index(vma_, start_),		\
+		.anon_pgoff = vma_anon_pgoff_addr(vma_, start_),	\
+		.file = vma_->vm_file,					\
+		.anon_vma = vma_->anon_vma,				\
+		.policy = vma_policy(vma_),				\
+		.uffd_ctx = vma_->vm_userfaultfd_ctx,			\
+		.anon_name = anon_vma_name(vma_),			\
+		.state = VMA_MERGE_START,				\
 	}
 
 #ifdef CONFIG_DEBUG_VM_MAPLE_TREE
@@ -520,7 +589,7 @@ void unlink_file_vma_batch_add(struct unlink_vma_file_batch *vb,
 
 struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 	unsigned long addr, unsigned long len, pgoff_t pgoff,
-	bool *need_rmap_locks);
+	pgoff_t anon_pgoff, bool *need_rmap_locks);
 
 struct anon_vma *find_mergeable_anon_vma(struct vm_area_struct *vma);
 
