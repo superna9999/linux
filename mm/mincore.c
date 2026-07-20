@@ -28,8 +28,7 @@ static int mincore_hugetlb(pte_t *pte, unsigned long hmask, unsigned long addr,
 			unsigned long end, struct mm_walk *walk)
 {
 #ifdef CONFIG_HUGETLB_PAGE
-	unsigned long nr = (end - addr) >> PAGE_SHIFT;
-	unsigned char *vec = walk->private;
+	const unsigned long nr = (end - addr) >> PAGE_SHIFT;
 	unsigned char resident;
 	spinlock_t *ptl;
 	pte_t ptep;
@@ -37,7 +36,7 @@ static int mincore_hugetlb(pte_t *pte, unsigned long hmask, unsigned long addr,
 	ptl = huge_pte_lock(hstate_vma(walk->vma), walk->mm, pte);
 	ptep = huge_ptep_get(walk->mm, addr, pte);
 	resident = !huge_pte_none(ptep) && !pte_is_marker(ptep);
-	memset(vec, resident, nr);
+	memset(walk->private, resident, nr);
 	walk->private += nr;
 	spin_unlock(ptl);
 #else
