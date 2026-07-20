@@ -149,7 +149,7 @@ static bool trace_kprobe_is_busy(struct dyn_event *ev)
 static bool trace_kprobe_match_command_head(struct trace_kprobe *tk,
 					    int argc, const char **argv)
 {
-	char buf[MAX_ARGSTR_LEN + 1];
+	char buf[MAX_COMMON_HEAD_LEN + 1];
 
 	if (!argc)
 		return true;
@@ -1319,6 +1319,8 @@ static int trace_kprobe_show(struct seq_file *m, struct dyn_event *ev)
 	for (i = 0; i < tk->tp.nr_args; i++)
 		seq_printf(m, " %s=%s", tk->tp.args[i].name, tk->tp.args[i].comm);
 	seq_putc(m, '\n');
+
+	trace_probe_dump_args(m, &tk->tp);
 
 	return 0;
 }
