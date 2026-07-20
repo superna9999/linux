@@ -160,16 +160,15 @@ static int mincore_unmapped_range(unsigned long addr, unsigned long end,
 	return 0;
 }
 
-static int mincore_pud_range(pud_t *pudp, unsigned long addr, unsigned long end,
+static int mincore_pud_entry(pud_t *pudp, unsigned long addr, unsigned long end,
 		struct mm_walk *walk)
 {
 	if (pud_is_huge(pudp_get(pudp))) {
-		int nr = (end - addr) >> PAGE_SHIFT;
-		unsigned char *vec = walk->private;
+		const unsigned long nr = (end - addr) >> PAGE_SHIFT;
 
-		memset(vec, 1, nr);
-		walk->action = ACTION_CONTINUE;
+		memset(walk->private, 1, nr);
 		walk->private += nr;
+		walk->action = ACTION_CONTINUE;
 	}
 
 	return 0;
@@ -247,7 +246,7 @@ static inline bool can_do_mincore(struct vm_area_struct *vma)
 }
 
 static const struct mm_walk_ops mincore_walk_ops = {
-	.pud_entry		= mincore_pud_range,
+	.pud_entry		= mincore_pud_entry,
 	.pmd_entry		= mincore_pte_range,
 	.pte_hole		= mincore_unmapped_range,
 	.hugetlb_entry		= mincore_hugetlb,
