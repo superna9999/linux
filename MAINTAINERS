@@ -28784,6 +28784,7 @@ F:	drivers/iio/light/veml3235.c
 
 VISHAY VEML3328 RGB IR LIGHT SENSOR DRIVER
 M:	Joshua Crofts <joshua.crofts1@gmail.com>
+L:	linux-iio@vger.kernel.org
 S:	Maintained
 F:	drivers/iio/light/veml3328.c
 
