@@ -6262,6 +6262,8 @@ void __init mnt_init(void)
 	if (!mount_hashtable || !mountpoint_hashtable)
 		panic("Failed to allocate mount hash table\n");
 
+	super_dev_init();
+
 	kernfs_init();
 
 	err = sysfs_init();
