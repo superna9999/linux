@@ -3586,7 +3586,7 @@ static inline unsigned int vm_shift(pgprot_t prot, unsigned long size)
 }
 
 static inline int get_vmap_batch_order(struct page **pages,
-		pgprot_t prot, unsigned int max_steps, unsigned int idx)
+		pgprot_t prot, unsigned int nr_pages)
 {
 	unsigned long pfn;
 	unsigned int nr_contig;
@@ -3595,16 +3595,16 @@ static inline int get_vmap_batch_order(struct page **pages,
 	if (!IS_ENABLED(CONFIG_HAVE_ARCH_HUGE_VMAP))
 		return 0;
 
-	nr_contig = num_pages_contiguous(&pages[idx], max_steps);
+	/* Limit nr_pages by pfn alignment */
+	pfn = page_to_pfn(*pages);
+	if (pfn > 0)
+		nr_pages = min_t(unsigned int, nr_pages, 1UL << __ffs(pfn));
+
+	nr_contig = num_pages_contiguous(pages, nr_pages);
 	if (nr_contig < 2)
 		return 0;
 
 	order = ilog2(nr_contig);
-	pfn = page_to_pfn(pages[idx]);
-
-	/* Limit order by pfn alignment */
-	if (pfn > 0)
-		order = min_t(int, order, __ffs(pfn));
 
 	if (vm_shift(prot, PAGE_SIZE << order) == PAGE_SHIFT)
 		return 0;
@@ -3615,8 +3615,8 @@ static inline int get_vmap_batch_order(struct page **pages,
 static int vmap_pages_range_batched(unsigned long addr, unsigned long end,
 		pgprot_t prot, struct page **pages)
 {
-	unsigned int count = (end - addr) >> PAGE_SHIFT;
-	unsigned int prev_shift = 0, idx = 0;
+	const unsigned int nr_pages = (end - addr) >> PAGE_SHIFT;
+	unsigned int prev_shift = 0, batch_start = 0;
 	unsigned long map_addr = addr, batch_end = addr;
 	int err;
 
@@ -3625,26 +3625,26 @@ static int vmap_pages_range_batched(unsigned long addr, unsigned long end,
 	if (err)
 		goto out;
 
-	for (unsigned int i = 0; i < count; ) {
+	for (unsigned int i = 0; i < nr_pages; ) {
 		unsigned int shift = PAGE_SHIFT +
-			get_vmap_batch_order(pages, prot, count - i, i);
+			get_vmap_batch_order(pages + i, prot, nr_pages - i);
 
 		if (!i)
 			prev_shift = shift;
 
 		if (shift != prev_shift) {
 			err = vmap_pages_range_noflush_walk(map_addr, batch_end,
-					prot, pages + idx, prev_shift);
+					prot, pages + batch_start, prev_shift);
 			if (err)
 				goto out;
 			prev_shift = shift;
 			map_addr = batch_end;
-			idx = i;
+			batch_start = i;
 		}
 
 		/*
-		 * Once small pages are encountered, the remaining pages
-		 * are likely small as well.
+		 * Once we fail to batch pages, we expect to fail batching
+		 * for all remaining pages, so just give up.
 		 */
 		if (shift == PAGE_SHIFT)
 			break;
@@ -3655,8 +3655,8 @@ static int vmap_pages_range_batched(unsigned long addr, unsigned long end,
 
 	/* Remaining */
 	if (map_addr < end)
-		err = vmap_pages_range_noflush_walk(map_addr, end,
-				prot, pages + idx, prev_shift);
+		err = vmap_pages_range_noflush_walk(map_addr, end, prot,
+				pages + batch_start, prev_shift);
 
 out:
 	flush_cache_vmap(addr, end);
