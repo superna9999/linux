@@ -2390,8 +2390,8 @@ short_read:
 int btrfs_validate_super(const struct btrfs_fs_info *fs_info,
 			 const struct btrfs_super_block *sb, int mirror_num)
 {
-	u64 nodesize = btrfs_super_nodesize(sb);
-	u64 sectorsize = btrfs_super_sectorsize(sb);
+	const u32 nodesize = btrfs_super_nodesize(sb);
+	const u32 sectorsize = btrfs_super_sectorsize(sb);
 	int ret = 0;
 	const bool ignore_flags = btrfs_test_opt(fs_info, IGNORESUPERFLAGS);
 
@@ -2433,24 +2433,24 @@ int btrfs_validate_super(const struct btrfs_fs_info *fs_info,
 	 */
 	if (unlikely(!is_power_of_2(sectorsize) || sectorsize < BTRFS_MIN_BLOCKSIZE ||
 		     sectorsize > BTRFS_MAX_METADATA_BLOCKSIZE)) {
-		btrfs_err(fs_info, "invalid sectorsize %llu", sectorsize);
+		btrfs_err(fs_info, "invalid sectorsize %u", sectorsize);
 		ret = -EINVAL;
 	}
 
 	if (unlikely(!btrfs_supported_blocksize(sectorsize))) {
 		btrfs_err(fs_info,
-			"sectorsize %llu not yet supported for page size %lu",
+			"sectorsize %u not yet supported for page size %lu",
 			sectorsize, PAGE_SIZE);
 		ret = -EINVAL;
 	}
 
 	if (unlikely(!is_power_of_2(nodesize) || nodesize < sectorsize ||
 		     nodesize > BTRFS_MAX_METADATA_BLOCKSIZE)) {
-		btrfs_err(fs_info, "invalid nodesize %llu", nodesize);
+		btrfs_err(fs_info, "invalid nodesize %u", nodesize);
 		ret = -EINVAL;
 	}
 	if (unlikely(nodesize != le32_to_cpu(sb->__unused_leafsize))) {
-		btrfs_err(fs_info, "invalid leafsize %u, should be %llu",
+		btrfs_err(fs_info, "invalid leafsize %u, should be %u",
 			  le32_to_cpu(sb->__unused_leafsize), nodesize);
 		ret = -EINVAL;
 	}
@@ -2900,7 +2900,6 @@ void btrfs_init_fs_info(struct btrfs_fs_info *fs_info)
 	fs_info->nodesize = 4096;
 	fs_info->sectorsize = 4096;
 	fs_info->sectorsize_bits = ilog2(4096);
-	fs_info->stripesize = 4096;
 
 	/* Default compress algorithm when user does -o compress */
 	fs_info->compress_type = BTRFS_COMPRESS_ZLIB;
@@ -3309,6 +3308,8 @@ static void invalidate_and_check_btree_folios(struct btrfs_fs_info *fs_info)
 	 */
 	rcu_read_lock();
 	xa_for_each(&fs_info->buffer_tree, index, eb) {
+		unsigned int refs;
+
 		/* Increase the ref so that the eb won't disappear. */
 		if (!refcount_inc_not_zero(&eb->refs))
 			continue;
@@ -3319,16 +3320,26 @@ static void invalidate_and_check_btree_folios(struct btrfs_fs_info *fs_info)
 			wait_on_bit_io(&eb->bflags, EXTENT_BUFFER_READING,
 				       TASK_UNINTERRUPTIBLE);
 		/*
+		 * We hold the spinlock to make sure above
+		 * EXTENT_BUFFER_READING flag is cleared with the held
+		 * ref dropped.
+		 * Or we can hit a race window and lead to false alerts.
+		 */
+		spin_lock(&eb->refs_lock);
+		refs = refcount_read(&eb->refs);
+		spin_unlock(&eb->refs_lock);
+
+		/*
 		 * The refs threshold is 2, one held by us at the beginning
 		 * of the loop, one for the ownership in the buffer tree.
 		 */
-		if (unlikely(refcount_read(&eb->refs) > 2 || extent_buffer_under_io(eb))) {
+		if (unlikely(refs > 2 || extent_buffer_under_io(eb))) {
 			WARN_ON_ONCE(IS_ENABLED(CONFIG_BTRFS_DEBUG));
 			btrfs_warn(fs_info,
 			"unable to release extent buffer %llu owner %llu gen %llu refs %u flags 0x%lx",
 				   eb->start, btrfs_header_owner(eb),
 				   btrfs_header_generation(eb),
-				   refcount_read(&eb->refs), eb->bflags);
+				   refs, eb->bflags);
 		}
 		free_extent_buffer(eb);
 		rcu_read_lock();
@@ -3350,7 +3361,6 @@ int __cold open_ctree(struct super_block *sb, struct btrfs_fs_devices *fs_device
 {
 	u32 sectorsize;
 	u32 nodesize;
-	u32 stripesize;
 	u64 generation;
 	u16 csum_type;
 	struct btrfs_super_block *disk_super;
@@ -3459,7 +3469,6 @@ int __cold open_ctree(struct super_block *sb, struct btrfs_fs_devices *fs_device
 	/* Set up fs_info before parsing mount options */
 	nodesize = btrfs_super_nodesize(disk_super);
 	sectorsize = btrfs_super_sectorsize(disk_super);
-	stripesize = sectorsize;
 	fs_info->dirty_metadata_batch = nodesize * (1 + ilog2(nr_cpu_ids));
 	fs_info->delalloc_batch = sectorsize * 512 * (1 + ilog2(nr_cpu_ids));
 
@@ -3470,7 +3479,6 @@ int __cold open_ctree(struct super_block *sb, struct btrfs_fs_devices *fs_device
 	fs_info->block_min_order = ilog2(round_up(sectorsize, PAGE_SIZE) >> PAGE_SHIFT);
 	fs_info->block_max_order = calc_block_max_order(fs_info->sectorsize_bits);
 	fs_info->csums_per_leaf = BTRFS_MAX_ITEM_SIZE(fs_info) / fs_info->csum_size;
-	fs_info->stripesize = stripesize;
 	fs_info->fs_devices->fs_info = fs_info;
 
 	if (fs_info->sectorsize > PAGE_SIZE)
@@ -4355,6 +4363,21 @@ void __cold close_ctree(struct btrfs_fs_info *fs_info)
 
 	/* clear out the rbtree of defraggable inodes */
 	btrfs_cleanup_defrag_inodes(fs_info);
+
+	/*
+	 * After we entered close_ctree() autodefrag could be running and before
+	 * we parked the cleaner kthread, it dirtied folios of some inode.
+	 * We don't want to leave any delalloc here, it may be flushed any time
+	 * after this point and result in ordered extents that create delayed
+	 * iputs after flushed the ordered extent queues further below, run
+	 * delayed iputs and set BTRFS_FS_STATE_NO_DELAYED_IPUT. If we are
+	 * mounted with flushoncommit, then btrfs_commit_super() called below
+	 * will flush delalloc and wait for ordered extents but we end up
+	 * getting delayed iputs than are never run. So flush delalloc and wait
+	 * for ordered extents.
+	 */
+	btrfs_start_delalloc_roots(fs_info, LONG_MAX, false);
+	btrfs_wait_ordered_roots(fs_info, U64_MAX, NULL);
 
 	/*
 	 * Handle the error fs first, as it will flush and wait for all ordered

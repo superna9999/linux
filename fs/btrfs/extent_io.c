@@ -6,6 +6,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/page-flags.h>
+#include <linux/rmap.h>
 #include <linux/sched/mm.h>
 #include <linux/spinlock.h>
 #include <linux/blkdev.h>
@@ -299,6 +300,25 @@ static noinline void unlock_delalloc_folio(const struct inode *inode,
 				PAGE_UNLOCK);
 }
 
+#ifdef CONFIG_BTRFS_DEBUG
+/*
+ * Writeback must write-protect a folio when locking it for IO, before
+ * anything consumes its data (zeroing, inline copy, compression,
+ * checksumming). If this fails, then an mmap writer would be able to
+ * modify the data concurrently while we need it to be stable.
+ */
+void btrfs_check_folio_write_protected(struct folio *folio)
+{
+	if (folio_mkclean(folio)) {
+		const struct btrfs_inode *inode = BTRFS_I(folio->mapping->host);
+
+		DEBUG_WARN("writable mmap PTEs, root %llu ino %llu pos %llu order %u",
+			   btrfs_root_id(inode->root), btrfs_ino(inode), folio_pos(folio),
+			   folio_order(folio));
+	}
+}
+#endif
+
 static noinline int lock_delalloc_folios(struct inode *inode,
 					 struct folio *locked_folio,
 					 u64 start, u64 end)
@@ -332,6 +352,8 @@ static noinline int lock_delalloc_folios(struct inode *inode,
 				folio_unlock(folio);
 				goto out;
 			}
+			/* Locked for writeback; revoke writable mmap PTEs before using the data. */
+			folio_mkclean(folio);
 			range_start = max_t(u64, folio_pos(folio), start);
 			range_len = min_t(u64, folio_next_pos(folio), end + 1) - range_start;
 			btrfs_folio_set_lock(fs_info, folio, range_start, range_len);
@@ -1780,6 +1802,13 @@ static noinline_for_stack int extent_writepage_io(struct btrfs_inode *inode,
 	ASSERT(end <= folio_end, "start=%llu len=%u folio_start=%llu folio_size=%zu",
 	       start, len, folio_start, folio_size(folio));
 
+	/*
+	 * We are about to checksum and write out the data, so it must not be
+	 * mmap writeable, or we could corrupt the data and end up with invalid
+	 * checksums.
+	 */
+	btrfs_check_folio_write_protected(folio);
+
 	/* Truncate the submit bitmap to the current range. */
 	if (start > folio_start)
 		bitmap_clear(bio_ctrl->submit_bitmap, 0,
@@ -2590,6 +2619,8 @@ retry:
 				continue;
 			}
 
+			/* Locked for writeback; revoke writable mmap PTEs before using the data. */
+			folio_mkclean(folio);
 			ret = extent_writepage(folio, bio_ctrl);
 			if (ret < 0) {
 				done = true;
@@ -2745,12 +2776,23 @@ void btrfs_readahead(struct readahead_control *rac)
 	struct fsverity_info *vi = NULL;
 
 	lock_extents_for_read(inode, start, end, &cached_state);
+	/* We don't use cached state for a bulk unlock, just free it. */
+	btrfs_free_extent_state(cached_state);
 	if (start < i_size_read(vfs_inode))
 		vi = fsverity_get_info(vfs_inode);
-	while ((folio = readahead_folio(rac)) != NULL)
-		btrfs_do_readpage(folio, &em_cached, &bio_ctrl, vi);
+	while ((folio = readahead_folio(rac)) != NULL) {
+		/*
+		 * Read start and end before btrfs_do_readpage(). It unlocks the
+		 * folio, so our reference might not be valid after.
+		 */
+		const u64 folio_start = folio_pos(folio);
+		const u64 folio_end = folio_start + folio_size(folio) - 1;
 
-	btrfs_unlock_extent(&inode->io_tree, start, end, &cached_state);
+		btrfs_do_readpage(folio, &em_cached, &bio_ctrl, vi);
+		/* Only unlock the range we locked, even if readahead expands. */
+		if (folio_start >= start && folio_end <= end)
+			btrfs_unlock_extent(&inode->io_tree, folio_start, folio_end, NULL);
+	}
 
 	if (em_cached)
 		btrfs_free_extent_map(em_cached);
@@ -2986,46 +3028,70 @@ static inline void btrfs_release_extent_buffer(struct extent_buffer *eb)
 }
 
 /*
+ * Claim a slot to track an extent buffer in, evicting the coldest tracked buffer
+ * when the array is full.
+ *
+ * Slots fill in order until the array is full. After that a CLOCK (second
+ * chance) scan advances the hand, clearing one reference bit per step, until
+ * it lands on an unreferenced slot whose buffer is evicted. Clearing a bit per
+ * step bounds the scan to BTRFS_INHIBITED_EBS_SLOTS iterations.
+ */
+static int btrfs_inhibit_claim_slot(struct btrfs_trans_handle *trans)
+{
+	int slot;
+
+	if (trans->nr_inhibited_ebs < BTRFS_INHIBITED_EBS_SLOTS)
+		return trans->nr_inhibited_ebs++;
+
+	while (trans->inhibited_ebs_referenced & (1U << trans->inhibited_ebs_hand)) {
+		trans->inhibited_ebs_referenced &= ~(1U << trans->inhibited_ebs_hand);
+		trans->inhibited_ebs_hand =
+			(trans->inhibited_ebs_hand + 1) % BTRFS_INHIBITED_EBS_SLOTS;
+	}
+	slot = trans->inhibited_ebs_hand;
+	trans->inhibited_ebs_hand = (trans->inhibited_ebs_hand + 1) % BTRFS_INHIBITED_EBS_SLOTS;
+
+	atomic_dec(&trans->inhibited_ebs[slot]->writeback_inhibitors);
+	free_extent_buffer(trans->inhibited_ebs[slot]);
+
+	return slot;
+}
+
+/*
  * Inhibit writeback on buffer during transaction.
  *
  * @trans:  transaction handle that will own the inhibitor
  * @eb:      extent buffer to inhibit writeback on
  *
- * Attempt to track this extent buffer in the transaction's inhibited set.  If
- * memory allocation fails, the buffer is simply not tracked. It may be written
- * back and need re-COW, which is the original behavior.  This is acceptable
- * since inhibiting writeback is an optimization.
+ * Attempt to track this extent buffer in the transaction's inhibited set.  When
+ * the set is full the coldest tracked buffer is evicted instead.  An untracked
+ * buffer may be written back and need re-COW, which is the original behavior.
+ * This is acceptable since inhibiting writeback is an optimization.
  */
 void btrfs_inhibit_eb_writeback(struct btrfs_trans_handle *trans, struct extent_buffer *eb)
 {
-	unsigned long index = eb->start >> trans->fs_info->nodesize_bits;
-	void *old;
+	int slot;
 
 	lockdep_assert_held(&eb->lock);
-	/* Check if already inhibited by this handle. */
-	old = xa_load(&trans->writeback_inhibited_ebs, index);
-	if (old == eb)
-		return;
 
-	/* Take reference for the xarray entry. */
+	/* Already tracked: set its reference bit (second chance) and return. */
+	for (int i = 0; i < trans->nr_inhibited_ebs; i++) {
+		if (trans->inhibited_ebs[i] == eb) {
+			trans->inhibited_ebs_referenced |= 1U << i;
+			return;
+		}
+	}
+
+	slot = btrfs_inhibit_claim_slot(trans);
+
+	/*
+	 * Pin the eb while the array holds a raw pointer to it; the counter is
+	 * what lock_extent_buffer_for_io() checks.
+	 */
 	refcount_inc(&eb->refs);
-
-	old = xa_store(&trans->writeback_inhibited_ebs, index, eb, GFP_NOFS);
-	if (xa_is_err(old)) {
-		/* Allocation failed, just skip inhibiting this buffer. */
-		free_extent_buffer(eb);
-		return;
-	}
-
-	/* Handle replacement of different eb at same index. */
-	if (old && old != eb) {
-		struct extent_buffer *old_eb = old;
-
-		atomic_dec(&old_eb->writeback_inhibitors);
-		free_extent_buffer(old_eb);
-	}
-
 	atomic_inc(&eb->writeback_inhibitors);
+	trans->inhibited_ebs[slot] = eb;
+	trans->inhibited_ebs_referenced |= 1U << slot;
 }
 
 /*
@@ -3033,14 +3099,13 @@ void btrfs_inhibit_eb_writeback(struct btrfs_trans_handle *trans, struct extent_
  */
 void btrfs_uninhibit_all_eb_writeback(struct btrfs_trans_handle *trans)
 {
-	struct extent_buffer *eb;
-	unsigned long index;
-
-	xa_for_each(&trans->writeback_inhibited_ebs, index, eb) {
-		atomic_dec(&eb->writeback_inhibitors);
-		free_extent_buffer(eb);
+	for (int i = 0; i < trans->nr_inhibited_ebs; i++) {
+		atomic_dec(&trans->inhibited_ebs[i]->writeback_inhibitors);
+		free_extent_buffer(trans->inhibited_ebs[i]);
 	}
-	xa_destroy(&trans->writeback_inhibited_ebs);
+	trans->nr_inhibited_ebs = 0;
+	trans->inhibited_ebs_referenced = 0;
+	trans->inhibited_ebs_hand = 0;
 }
 
 static struct extent_buffer *__alloc_extent_buffer(struct btrfs_fs_info *fs_info,
@@ -3698,11 +3763,30 @@ static int release_extent_buffer(struct extent_buffer *eb)
 	return 0;
 }
 
-void free_extent_buffer(struct extent_buffer *eb)
+static void clear_extent_buffer_reading(struct extent_buffer *eb)
+{
+	clear_and_wake_up_bit(EXTENT_BUFFER_READING, &eb->bflags);
+}
+
+static void free_extent_buffer_clear_reading(struct extent_buffer *eb,
+					     bool clear_reading)
 {
 	int refs;
+
 	if (!eb)
 		return;
+
+	/*
+	 * We want to clear EXTENT_BUFFER_READING flag and decrease refs
+	 * in the same critical section.
+	 * This will make sure invalidate_and_check_btree_folios() won't
+	 * see an eb with EXTENT_BUFFER_READING cleared but refs not yet
+	 * decreased.
+	 */
+	if (clear_reading) {
+		spin_lock(&eb->refs_lock);
+		clear_extent_buffer_reading(eb);
+	}
 
 	refs = refcount_read(&eb->refs);
 	while (1) {
@@ -3714,11 +3798,16 @@ void free_extent_buffer(struct extent_buffer *eb)
 		}
 
 		/* Optimization to avoid locking eb->refs_lock. */
-		if (atomic_try_cmpxchg(&eb->refs.refs, &refs, refs - 1))
+		if (atomic_try_cmpxchg(&eb->refs.refs, &refs, refs - 1)) {
+			if (clear_reading)
+				spin_unlock(&eb->refs_lock);
 			return;
+		}
 	}
 
-	spin_lock(&eb->refs_lock);
+	if (!clear_reading)
+		spin_lock(&eb->refs_lock);
+
 	if (refcount_read(&eb->refs) == 2 &&
 	    test_bit(EXTENT_BUFFER_STALE, &eb->bflags) &&
 	    !extent_buffer_under_io(eb) &&
@@ -3730,6 +3819,11 @@ void free_extent_buffer(struct extent_buffer *eb)
 	 * the uptodate bits and such for the extent buffers.
 	 */
 	release_extent_buffer(eb);
+}
+
+void free_extent_buffer(struct extent_buffer *eb)
+{
+	return free_extent_buffer_clear_reading(eb, false);
 }
 
 void free_extent_buffer_stale(struct extent_buffer *eb)
@@ -3857,11 +3951,6 @@ void set_extent_buffer_uptodate(struct extent_buffer *eb)
 		btrfs_meta_folio_set_uptodate(eb->folios[i], eb);
 }
 
-static void clear_extent_buffer_reading(struct extent_buffer *eb)
-{
-	clear_and_wake_up_bit(EXTENT_BUFFER_READING, &eb->bflags);
-}
-
 static void end_bbio_meta_read(struct btrfs_bio *bbio)
 {
 	struct extent_buffer *eb = bbio->private;
@@ -3885,8 +3974,7 @@ static void end_bbio_meta_read(struct btrfs_bio *bbio)
 	else
 		clear_extent_buffer_uptodate(eb);
 
-	clear_extent_buffer_reading(eb);
-	free_extent_buffer(eb);
+	free_extent_buffer_clear_reading(eb, true);
 
 	bio_put(&bbio->bio);
 }
