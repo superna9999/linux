@@ -28,7 +28,7 @@ static inline void preempt_count_set(u64 pc)
 
 static inline void set_preempt_need_resched(void)
 {
-	current_thread_info()->preempt.need_resched = 0;
+	WRITE_ONCE(current_thread_info()->preempt.need_resched, 0);
 }
 
 static inline void clear_preempt_need_resched(void)
