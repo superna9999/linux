@@ -7125,7 +7125,7 @@ W:	https://docs.dasharo.com/
 F:	drivers/platform/x86/dasharo-acpi.c
 
 DAMON
-M:	SeongJae Park <sj@kernel.org>
+M:	SJ Park <sj@kernel.org>
 L:	damon@lists.linux.dev
 L:	linux-mm@kvack.org
 S:	Maintained
@@ -17257,6 +17257,7 @@ R:	Ryan Roberts <ryan.roberts@arm.com>
 R:	Dev Jain <dev.jain@arm.com>
 R:	Barry Song <baohua@kernel.org>
 R:	Lance Yang <lance.yang@linux.dev>
+R:	Usama Arif <usama.arif@linux.dev>
 L:	linux-mm@kvack.org
 S:	Maintained
 W:	http://www.linux-mm.org
