@@ -20,7 +20,6 @@
 #include <linux/kvm_host.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
-#include <linux/mod_devicetable.h>
 #include <linux/mm.h>
 #include <linux/objtool.h>
 #include <linux/sched.h>
@@ -33,6 +32,7 @@
 #include <asm/asm.h>
 #include <asm/cpu.h>
 #include <asm/cpu_device_id.h>
+#include <asm/cpuid/api.h>
 #include <asm/debugreg.h>
 #include <asm/desc.h>
 #include <asm/fpu/api.h>
@@ -2159,7 +2159,7 @@ int vmx_get_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		    !guest_has_spec_ctrl_msr(vcpu))
 			return 1;
 
-		msr_info->data = to_vmx(vcpu)->spec_ctrl;
+		msr_info->data = vmx->spec_ctrl;
 		break;
 	case MSR_IA32_SYSENTER_CS:
 		msr_info->data = vmcs_read32(GUEST_SYSENTER_CS);
@@ -2191,7 +2191,7 @@ int vmx_get_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		if (!msr_info->host_initiated &&
 		    !guest_cpu_cap_has(vcpu, X86_FEATURE_SGX_LC))
 			return 1;
-		msr_info->data = to_vmx(vcpu)->msr_ia32_sgxlepubkeyhash
+		msr_info->data = vmx->msr_ia32_sgxlepubkeyhash
 			[msr_info->index - MSR_IA32_SGXLEPUBKEYHASH0];
 		break;
 	case KVM_FIRST_EMULATED_VMX_MSR ... KVM_LAST_EMULATED_VMX_MSR:
@@ -2404,7 +2404,7 @@ int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 
 		vmx_guest_debugctl_write(vcpu, data);
 
-		if (intel_pmu_lbr_is_enabled(vcpu) && !to_vmx(vcpu)->lbr_desc.event &&
+		if (intel_pmu_lbr_is_enabled(vcpu) && !vmx->lbr_desc.event &&
 		    (data & DEBUGCTLMSR_LBR))
 			intel_pmu_create_guest_lbr_event(vcpu);
 		return 0;
@@ -2483,7 +2483,7 @@ int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		break;
 	case MSR_IA32_MCG_EXT_CTL:
 		if ((!msr_info->host_initiated &&
-		     !(to_vmx(vcpu)->msr_ia32_feature_control &
+		     !(vmx->msr_ia32_feature_control &
 		       FEAT_CTL_LMCE_ENABLED)) ||
 		    (data & ~MCG_EXT_CTL_LMCE_EN))
 			return 1;
@@ -3678,13 +3678,14 @@ void vmx_get_segment(struct kvm_vcpu *vcpu, struct kvm_segment *var, int seg)
 
 u64 vmx_get_segment_base(struct kvm_vcpu *vcpu, int seg)
 {
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	struct kvm_segment s;
 
-	if (to_vmx(vcpu)->rmode.vm86_active) {
+	if (vmx->rmode.vm86_active) {
 		vmx_get_segment(vcpu, &s, seg);
 		return s.base;
 	}
-	return vmx_read_guest_seg_base(to_vmx(vcpu), seg);
+	return vmx_read_guest_seg_base(vmx, seg);
 }
 
 static int __vmx_get_cpl(struct kvm_vcpu *vcpu, bool no_cache)
@@ -5762,9 +5763,6 @@ static int handle_dr(struct kvm_vcpu *vcpu)
 	if (!kvm_require_dr(vcpu, dr))
 		return 1;
 
-	if (vmx_get_cpl(vcpu) > 0)
-		goto out;
-
 	dr7 = vmcs_readl(GUEST_DR7);
 	if (dr7 & DR7_GD) {
 		/*
@@ -5784,6 +5782,9 @@ static int handle_dr(struct kvm_vcpu *vcpu)
 			return 1;
 		}
 	}
+
+	if (vmx_get_cpl(vcpu) > 0)
+		goto out;
 
 	if (vcpu->guest_debug == 0) {
 		exec_controls_clearbit(to_vmx(vcpu), CPU_BASED_MOV_DR_EXITING);
@@ -8786,6 +8787,7 @@ __init int vmx_hardware_setup(void)
 		if (r)
 			return r;
 	}
+	vmx_nested_ops.enabled = nested;
 
 	kvm_set_posted_intr_wakeup_handler(pi_wakeup_handler);
 

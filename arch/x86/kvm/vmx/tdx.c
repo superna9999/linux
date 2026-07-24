@@ -440,16 +440,6 @@ void tdx_disable_virtualization_cpu(void)
 		tdx_flush_vp(&arg);
 	}
 	local_irq_restore(flags);
-
-	/*
-	 * Flush cache now if kexec is possible: this is necessary to avoid
-	 * having dirty private memory cachelines when the new kernel boots,
-	 * but WBINVD is a relatively expensive operation and doing it during
-	 * kexec can exacerbate races in native_stop_other_cpus().  Do it
-	 * now, since this is a safe moment and there is going to be no more
-	 * TDX activity on this CPU from this point on.
-	 */
-	tdx_cpu_flush_cache_for_kexec();
 }
 
 #define TDX_SEAMCALL_RETRIES 10000
@@ -829,7 +819,7 @@ static void tdx_prepare_switch_to_host(struct kvm_vcpu *vcpu)
 		return;
 
 	++vcpu->stat.host_state_reload;
-	wrmsrl(MSR_KERNEL_GS_BASE, vt->msr_host_kernel_gs_base);
+	wrmsrq(MSR_KERNEL_GS_BASE, vt->msr_host_kernel_gs_base);
 
 	vt->guest_state_loaded = false;
 }
@@ -1054,10 +1044,10 @@ static void tdx_load_host_xsave_state(struct kvm_vcpu *vcpu)
 
 	/*
 	 * Likewise, even if a TDX hosts didn't support XSS both arms of
-	 * the comparison would be 0 and the wrmsrl would be skipped.
+	 * the comparison would be 0 and the wrmsrq would be skipped.
 	 */
 	if (kvm_host.xss != (kvm_tdx->xfam & kvm_caps.supported_xss))
-		wrmsrl(MSR_IA32_XSS, kvm_host.xss);
+		wrmsrq(MSR_IA32_XSS, kvm_host.xss);
 }
 
 #define TDX_DEBUGCTL_PRESERVED (DEBUGCTLMSR_BTF | \
@@ -2807,7 +2797,11 @@ static int tdx_td_init(struct kvm *kvm, struct kvm_tdx_cmd *cmd)
 		goto out;
 	}
 
-	if (init_vm->cpuid.padding) {
+	/*
+	 * Reject the request if userspace changes cpuid.nent between the
+	 * initial read and the subsequent copy.
+	 */
+	if (init_vm->cpuid.padding || init_vm->cpuid.nent != nr_user_entries) {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -3198,9 +3192,6 @@ static int tdx_gmem_post_populate(struct kvm *kvm, gfn_t gfn, kvm_pfn_t pfn,
 	if (KVM_BUG_ON(kvm_tdx->page_add_src, kvm))
 		return -EIO;
 
-	if (!src_page)
-		return -EOPNOTSUPP;
-
 	kvm_tdx->page_add_src = src_page;
 	ret = kvm_tdp_mmu_map_private_pfn(arg->vcpu, gfn, pfn);
 	kvm_tdx->page_add_src = NULL;
@@ -3247,8 +3238,8 @@ static int tdx_vcpu_init_mem_region(struct kvm_vcpu *vcpu, struct kvm_tdx_cmd *c
 	if (copy_from_user(&region, u64_to_user_ptr(cmd->data), sizeof(region)))
 		return -EFAULT;
 
-	if (!PAGE_ALIGNED(region.source_addr) || !PAGE_ALIGNED(region.gpa) ||
-	    !region.nr_pages ||
+	if (!PAGE_ALIGNED(region.source_addr) || !region.source_addr ||
+	    !PAGE_ALIGNED(region.gpa) || !region.nr_pages ||
 	    region.gpa + (region.nr_pages << PAGE_SHIFT) <= region.gpa ||
 	    !vt_is_tdx_private_gpa(kvm, region.gpa) ||
 	    !vt_is_tdx_private_gpa(kvm, region.gpa + (region.nr_pages << PAGE_SHIFT) - 1))
