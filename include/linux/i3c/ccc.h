@@ -12,6 +12,8 @@
 #include <linux/i3c/device.h>
 
 /* I3C CCC (Common Command Codes) related definitions */
+#define I3C_CCC_RETRIES	1
+
 #define I3C_CCC_DIRECT			BIT(7)
 
 #define I3C_CCC_ID(id, broadcast)	\
@@ -343,11 +345,15 @@ struct i3c_ccc_getxtime {
 /**
  * struct i3c_ccc_cmd_payload - CCC payload
  *
- * @len: payload length
+ * @len: requested payload length
+ * @actual_len: number of bytes received on a GET CCC (filled by the driver)
+ * @optional_bytes: GET CCCs may return up to this many fewer bytes than @len
  * @data: payload data. This buffer must be DMA-able
  */
 struct i3c_ccc_cmd_payload {
 	u16 len;
+	u16 actual_len;
+	u16 optional_bytes;
 	void *data;
 };
 
@@ -372,12 +378,15 @@ struct i3c_ccc_cmd_dest {
  * @ndests: number of destinations. Should always be one for broadcast commands
  * @dests: array of destinations and associated payload for this CCC. Most of
  *	   the time, only one destination is provided
+ * @retries: number of times to retry a failed Direct GET CCC (see
+ *	     &I3C_CCC_RETRIES)
  * @err: I3C error code
  */
 struct i3c_ccc_cmd {
 	u8 rnw;
 	u8 id;
 	unsigned int ndests;
+	unsigned int retries;
 	struct i3c_ccc_cmd_dest *dests;
 	enum i3c_error_code err;
 };
