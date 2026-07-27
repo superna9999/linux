@@ -18343,6 +18343,13 @@ S:	Maintained
 F:	Documentation/hwmon/mp9945.rst
 F:	drivers/hwmon/pmbus/mp9945.c
 
+MPS MPQ82D00 DRIVER
+M:	Wensheng Wang <wenswang@yeah.net>
+L:	linux-hwmon@vger.kernel.org
+S:	Maintained
+F:	Documentation/hwmon/mpq82d00.rst
+F:	drivers/hwmon/pmbus/mpq82d00.c
+
 MR800 AVERMEDIA USB FM RADIO DRIVER
 M:	Alexey Klimov <alexey.klimov@linaro.org>
 L:	linux-media@vger.kernel.org
@@ -23287,6 +23294,7 @@ F:	drivers/char/hw_random/mpfs-rng.c
 F:	drivers/clk/microchip/clk-mpfs*.c
 F:	drivers/firmware/microchip/mpfs-auto-update.c
 F:	drivers/gpio/gpio-mpfs.c
+F:	drivers/hwmon/tvs-mpfs.c
 F:	drivers/i2c/busses/i2c-microchip-corei2c.c
 F:	drivers/mailbox/mailbox-mpfs.c
 F:	drivers/pci/controller/plda/pcie-microchip-host.c
