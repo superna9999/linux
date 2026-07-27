@@ -244,8 +244,9 @@ static int amdgpu_ttm_map_buffer(struct amdgpu_ttm_buffer_entity *entity,
 	r = amdgpu_job_alloc_with_ib(adev, &entity->base,
 				     AMDGPU_FENCE_OWNER_UNDEFINED,
 				     num_dw * 4 + num_bytes,
-				     AMDGPU_IB_POOL_DELAYED, &job,
-				     AMDGPU_KERNEL_JOB_ID_TTM_MAP_BUFFER);
+				     AMDGPU_IB_POOL_DELAYED,
+				     AMDGPU_KERNEL_JOB_ID_TTM_MAP_BUFFER,
+				     &job);
 	if (r)
 		return r;
 
@@ -1592,8 +1593,8 @@ static int amdgpu_ttm_access_memory_sdma(struct ttm_buffer_object *bo,
 	r = amdgpu_job_alloc_with_ib(adev, &adev->mman.default_entity.base,
 				     AMDGPU_FENCE_OWNER_UNDEFINED,
 				     num_dw * 4, AMDGPU_IB_POOL_DELAYED,
-				     &job,
-				     AMDGPU_KERNEL_JOB_ID_TTM_ACCESS_MEMORY_SDMA);
+				     AMDGPU_KERNEL_JOB_ID_TTM_ACCESS_MEMORY_SDMA,
+				     &job);
 	if (r)
 		goto out;
 
@@ -2443,7 +2444,7 @@ static int amdgpu_ttm_prepare_job(struct amdgpu_device *adev,
 	int r;
 	r = amdgpu_job_alloc_with_ib(adev, &entity->base,
 				     AMDGPU_FENCE_OWNER_UNDEFINED,
-				     num_dw * 4, pool, job, k_job_id);
+				     num_dw * 4, pool, k_job_id, job);
 	if (r)
 		return r;
 
