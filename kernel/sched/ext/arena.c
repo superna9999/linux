@@ -70,8 +70,6 @@ void scx_arena_pool_destroy(struct scx_sched *sch)
  */
 static int scx_arena_grow(struct scx_sched *sch, u32 page_cnt)
 {
-	u64 kern_vm_start;
-	u32 uaddr32;
 	void *p;
 	int ret;
 
@@ -83,15 +81,8 @@ static int scx_arena_grow(struct scx_sched *sch, u32 page_cnt)
 	if (!p)
 		return -ENOMEM;
 
-	uaddr32 = (u32)(unsigned long)p;
-	/* arena.o, which defines these, is built only on MMU && 64BIT */
-#if defined(CONFIG_MMU) && defined(CONFIG_64BIT)
-	kern_vm_start = bpf_arena_map_kern_vm_start(sch->arena_map);
-#else
-	kern_vm_start = 0;
-#endif
-
-	ret = gen_pool_add(sch->arena_pool, kern_vm_start + uaddr32,
+	ret = gen_pool_add(sch->arena_pool,
+			   (unsigned long)scx_arena_to_kaddr(sch, p),
 			   page_cnt * PAGE_SIZE, NUMA_NO_NODE);
 	if (ret) {
 		bpf_arena_free_pages_non_sleepable(sch->arena_map, p, page_cnt);
