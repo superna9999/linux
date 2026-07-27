@@ -9,7 +9,7 @@ config EFI_ESRT
 
 config EFI_VARS_PSTORE
 	tristate "Register efivars backend for pstore"
-	depends on PSTORE
+	depends on PSTORE && EFIVAR_FS
 	select UCS2_STRING
 	default y
 	help
