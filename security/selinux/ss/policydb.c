@@ -604,10 +604,15 @@ static int type_index(void *key, void *datum, void *datap)
 	typdatum = datum;
 	p = datap;
 
+	if (!typdatum->value || typdatum->value > p->p_types.nprim ||
+		typdatum->bounds > p->p_types.nprim) {
+		pr_err("SELinux: type %s had value %u bounds %u nprim %u\n",
+			(char *)key, typdatum->value, typdatum->bounds,
+			p->p_types.nprim);
+		return -EINVAL;
+	}
+
 	if (typdatum->primary) {
-		if (!typdatum->value || typdatum->value > p->p_types.nprim ||
-		    typdatum->bounds > p->p_types.nprim)
-			return -EINVAL;
 		p->sym_val_to_name[SYM_TYPES][typdatum->value - 1] = key;
 		p->type_val_to_struct[typdatum->value - 1] = typdatum;
 	}
