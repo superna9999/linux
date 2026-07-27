@@ -1251,6 +1251,10 @@ static int crypto4xx_probe(struct platform_device *ofdev)
 	if (!core_dev->dev)
 		return -ENOMEM;
 
+	core_dev->dev->ce_base = devm_platform_ioremap_resource(ofdev, 0);
+	if (IS_ERR(core_dev->dev->ce_base))
+		return PTR_ERR(core_dev->dev->ce_base);
+
 	/*
 	 * Older version of 460EX/GT have a hardware bug.
 	 * Hence they do not support H/W based security intr coalescing
@@ -1285,13 +1289,6 @@ static int crypto4xx_probe(struct platform_device *ofdev)
 	/* Init tasklet for bottom half processing */
 	tasklet_init(&core_dev->tasklet, crypto4xx_bh_tasklet_cb,
 		     (unsigned long) dev);
-
-	core_dev->dev->ce_base = devm_platform_ioremap_resource(ofdev, 0);
-	if (IS_ERR(core_dev->dev->ce_base)) {
-		dev_err(&ofdev->dev, "failed to ioremap resource");
-		rc = PTR_ERR(core_dev->dev->ce_base);
-		goto err_build_sdr;
-	}
 
 	/* Register for Crypto isr, Crypto Engine IRQ */
 	core_dev->irq = platform_get_irq(ofdev, 0);

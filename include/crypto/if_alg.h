@@ -161,8 +161,16 @@ struct af_alg_ctx {
 	unsigned int inflight;
 };
 
+struct af_alg_allowlist_entry {
+	const char *name;
+	bool privileged;
+};
+
 int af_alg_register_type(const struct af_alg_type *type);
 int af_alg_unregister_type(const struct af_alg_type *type);
+
+int af_alg_check_restriction(const char *name,
+			     const struct af_alg_allowlist_entry allowlist[]);
 
 int af_alg_release(struct socket *sock);
 void af_alg_release_parent(struct sock *sk);
