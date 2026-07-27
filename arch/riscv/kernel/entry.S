@@ -76,6 +76,8 @@
 	amoxor.d	a0, a1, (a0)
 
 	/*
+	 * Pairs with the smp_wmb() in mark_new_valid_map()
+	 *
 	 * A sfence.vma is required here. Even if we had Svvptc, there's no
 	 * guarantee that after returning we wouldn't just fault again.
 	 */
@@ -141,13 +143,8 @@ SYM_CODE_START(handle_exception)
 	/*
 	 * The RISC-V kernel does not flush TLBs on all CPUS after each new
 	 * vmalloc mapping or kfence_unprotect(), which may result in
-	 * exceptions:
-	 *
-	 * - if the uarch caches invalid entries, the new mapping would not be
-	 *   observed by the page table walker and an invalidation is needed.
-	 * - if the uarch does not cache invalid entries, a reordered access
-	 *   could "miss" the new mapping and traps: in that case, we only need
-	 *   to retry the access, no sfence.vma is required.
+	 * exceptions. In that case, we need to sfence.vma to "receive" the new
+	 * mappings and retry, whether or not we have Svvptc.
 	 */
 	new_valid_map_cpus_check
 #endif

@@ -368,10 +368,9 @@ static int parse(struct nlattr *na, struct cpumask *mask)
 		return -E2BIG;
 	if (len < 1)
 		return -EINVAL;
-	data = kmalloc(len, GFP_KERNEL);
+	data = nla_strdup(na, GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
-	nla_strscpy(data, na, len);
 	ret = cpulist_parse(data, mask);
 	kfree(data);
 	return ret;
@@ -423,7 +422,7 @@ static int cgroupstats_user_cmd(struct sk_buff *skb, struct genl_info *info)
 	fd = nla_get_u32(info->attrs[CGROUPSTATS_CMD_ATTR_FD]);
 	CLASS(fd, f)(fd);
 	if (fd_empty(f))
-		return 0;
+		return -EBADF;
 
 	size = nla_total_size(sizeof(struct cgroupstats));
 
