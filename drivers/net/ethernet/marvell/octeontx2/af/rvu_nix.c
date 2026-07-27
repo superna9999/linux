@@ -3936,6 +3936,11 @@ int rvu_mbox_handler_nix_get_hw_info(struct rvu *rvu, struct msg_req *req,
 	if (blkaddr < 0)
 		return NIX_AF_ERR_AF_LF_INVALID;
 
+	rsp->vwqe_delay = 0;
+	if (!is_rvu_otx2(rvu))
+		rsp->vwqe_delay = rvu_read64(rvu, blkaddr, NIX_AF_VWQE_TIMER) &
+				  GENMASK_ULL(9, 0);
+
 	if (is_lbk_vf(rvu, pcifunc))
 		rvu_get_lbk_link_max_frs(rvu, &rsp->max_mtu);
 	else
@@ -4283,6 +4288,13 @@ static int set_flowkey_fields(struct nix_rx_flowkey_alg *alg, u32 flow_cfg)
 			field->ltype_match = NPC_LT_LC_CUSTOM0;
 			field->ltype_mask = 0xF;
 			break;
+		case NIX_FLOW_KEY_TYPE_CH_LEN_90B:
+			field->lid = NPC_LID_LA;
+			field->hdr_offset = 24;
+			field->bytesm1 = 1; /* 2 Bytes*/
+			field->ltype_match = NPC_LT_LA_CUSTOM_L2_90B_ETHER;
+			field->ltype_mask = 0xF;
+			break;
 		case NIX_FLOW_KEY_TYPE_VLAN:
 			field->lid = NPC_LID_LB;
 			field->hdr_offset = 2; /* Skip TPID (2-bytes) */
@@ -4304,6 +4316,13 @@ static int set_flowkey_fields(struct nix_rx_flowkey_alg *alg, u32 flow_cfg)
 				field->hdr_offset = 4;
 				keyoff_marker = false;
 			}
+			break;
+		case NIX_FLOW_KEY_TYPE_ROCEV2:
+			field->hdr_offset = 5;
+			field->bytesm1 = 2; /* Destination QP */
+			field->ltype_mask = 0xF;
+			field->lid = NPC_LID_LE;
+			field->ltype_match = NPC_LT_LE_ROCEV2;
 			break;
 		}
 		field->ena = 1;
@@ -5392,7 +5411,7 @@ void rvu_nix_lf_teardown(struct rvu *rvu, u16 pcifunc, int blkaddr, int nixlf)
 
 	/* reset HW config done for Switch headers */
 	rvu_npc_set_parse_mode(rvu, pcifunc, OTX2_PRIV_FLAGS_DEFAULT,
-			       (PKIND_TX | PKIND_RX), 0, 0, 0, 0);
+			       (PKIND_TX | PKIND_RX), 0, 0, 0, 0, 0);
 
 	/* Disabling CGX and NPC config done for PTP */
 	if (pfvf->hw_rx_tstamp_en) {

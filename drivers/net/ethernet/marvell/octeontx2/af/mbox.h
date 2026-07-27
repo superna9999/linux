@@ -803,6 +803,7 @@ struct npc_set_pkind {
 			 */
 	u8 var_len_off_mask; /* Mask for length with in offset */
 	u8 shift_dir; /* shift direction to get length of the header at var_len_off */
+	u8 skip_size; /* l2 size to skip */
 };
 
 /* NPA mbox message formats */
@@ -1262,11 +1263,13 @@ struct nix_rss_flowkey_cfg {
 #define NIX_FLOW_KEY_TYPE_INNR_UDP      BIT(15)
 #define NIX_FLOW_KEY_TYPE_INNR_SCTP     BIT(16)
 #define NIX_FLOW_KEY_TYPE_INNR_ETH_DMAC BIT(17)
+#define NIX_FLOW_KEY_TYPE_CH_LEN_90B    BIT(18)
 #define NIX_FLOW_KEY_TYPE_CUSTOM0	BIT(19)
 #define NIX_FLOW_KEY_TYPE_VLAN		BIT(20)
 #define NIX_FLOW_KEY_TYPE_IPV4_PROTO	BIT(21)
 #define NIX_FLOW_KEY_TYPE_AH		BIT(22)
 #define NIX_FLOW_KEY_TYPE_ESP		BIT(23)
+#define NIX_FLOW_KEY_TYPE_ROCEV2	BIT(24)
 #define NIX_FLOW_KEY_TYPE_L4_DST_ONLY BIT(28)
 #define NIX_FLOW_KEY_TYPE_L4_SRC_ONLY BIT(29)
 #define NIX_FLOW_KEY_TYPE_L3_DST_ONLY BIT(30)
@@ -1461,7 +1464,7 @@ struct nix_inline_ipsec_lf_cfg {
 
 struct nix_hw_info {
 	struct mbox_msghdr hdr;
-	u16 rsvs16;
+	u16 vwqe_delay;
 	u16 max_mtu;
 	u16 min_mtu;
 	u32 rpm_dwrr_mtu;
