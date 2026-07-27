@@ -2101,7 +2101,6 @@ static int svm_set_nested_state(struct kvm_vcpu *vcpu,
 		kvm_make_request(KVM_REQ_APICV_UPDATE, vcpu);
 
 	kvm_make_request(KVM_REQ_GET_NESTED_STATE_PAGES, vcpu);
-	ret = 0;
 out_free:
 	kfree(save);
 	kfree(ctl);
@@ -2162,7 +2161,7 @@ static gpa_t svm_translate_nested_gpa(struct kvm_vcpu *vcpu, gpa_t gpa,
 	return w->gva_to_gpa(vcpu, w, gpa, access, exception);
 }
 
-struct kvm_x86_nested_ops svm_nested_ops = {
+struct kvm_x86_nested_ops svm_nested_ops __initdata = {
 	.leave_nested = svm_leave_nested,
 	.translate_nested_gpa = svm_translate_nested_gpa,
 	.is_exception_vmexit = nested_svm_is_exception_vmexit,
