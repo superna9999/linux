@@ -243,7 +243,7 @@ affs_unlink(struct inode *dir, struct dentry *dentry)
 
 int
 affs_create(struct mnt_idmap *idmap, struct inode *dir,
-	    struct dentry *dentry, umode_t mode, bool excl)
+	    struct dentry *dentry, umode_t mode)
 {
 	struct super_block *sb = dir->i_sb;
 	struct inode	*inode;
@@ -287,7 +287,7 @@ affs_mkdir(struct mnt_idmap *idmap, struct inode *dir,
 	if (!inode)
 		return ERR_PTR(-ENOSPC);
 
-	inode->i_mode = S_IFDIR | mode;
+	inode->i_mode = mode;
 	affs_mode_to_prot(inode);
 
 	inode->i_op = &affs_dir_inode_operations;
