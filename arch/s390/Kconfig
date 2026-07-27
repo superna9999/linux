@@ -20,6 +20,9 @@ config ARCH_HAS_ILOG2_U64
 config ARCH_PROC_KCORE_TEXT
 	def_bool y
 
+config ARCH_HAS_CPU_RELAX
+	def_bool y
+
 config GENERIC_HWEIGHT
 	def_bool !HAVE_MARCH_Z196_FEATURES
 
@@ -705,6 +708,8 @@ config KERNEL_IMAGE_BASE
 	  option is ignored and the image is loaded above the structures.
 
 endmenu
+
+source "drivers/cpuidle/Kconfig"
 
 menu "Memory setup"
 
