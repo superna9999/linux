@@ -1642,14 +1642,14 @@ static const struct exar8250_board pbn_exar_XR17V8358 = {
 	.exit		= pci_xr17v35x_exit,
 };
 
-#define CTI_EXAR_DEVICE(devid, bd) {                    \
-	PCI_DEVICE_SUB(                                 \
-		PCI_VENDOR_ID_EXAR,                     \
-		PCI_DEVICE_ID_EXAR_##devid,             \
-		PCI_SUBVENDOR_ID_CONNECT_TECH,          \
-		PCI_ANY_ID), 0, 0,                      \
-		(kernel_ulong_t)&bd                     \
-	}
+#define CTI_EXAR_DEVICE(devid, bd) {			\
+	PCI_DEVICE_SUB(					\
+		PCI_VENDOR_ID_EXAR,			\
+		PCI_DEVICE_ID_EXAR_##devid,		\
+		PCI_SUBVENDOR_ID_CONNECT_TECH,		\
+		PCI_ANY_ID),				\
+	.driver_data = (kernel_ulong_t)&bd		\
+}
 
 #define EXAR_DEVICE(vend, devid, bd) { PCI_DEVICE_DATA(vend, devid, &bd) }
 
@@ -1658,18 +1658,18 @@ static const struct exar8250_board pbn_exar_XR17V8358 = {
 		PCI_VENDOR_ID_EXAR,			\
 		PCI_DEVICE_ID_EXAR_##devid,		\
 		PCI_SUBVENDOR_ID_IBM,			\
-		PCI_SUBDEVICE_ID_IBM_##sdevid), 0, 0,	\
-		(kernel_ulong_t)&bd			\
-	}
+		PCI_SUBDEVICE_ID_IBM_##sdevid),		\
+	.driver_data = (kernel_ulong_t)&bd		\
+}
 
 #define USR_DEVICE(devid, sdevid, bd) {			\
 	PCI_DEVICE_SUB(					\
 		PCI_VENDOR_ID_USR,			\
 		PCI_DEVICE_ID_EXAR_##devid,		\
 		PCI_VENDOR_ID_EXAR,			\
-		PCI_SUBDEVICE_ID_USR_##sdevid), 0, 0,	\
-		(kernel_ulong_t)&bd			\
-	}
+		PCI_SUBDEVICE_ID_USR_##sdevid),		\
+	.driver_data = (kernel_ulong_t)&bd		\
+}
 
 static const struct pci_device_id exar_pci_tbl[] = {
 	EXAR_DEVICE(ACCESSIO, COM_2S, pbn_exar_XR17C15x),
@@ -1726,7 +1726,7 @@ static const struct pci_device_id exar_pci_tbl[] = {
 	EXAR_DEVICE(COMMTECH, 4224PCI335, pbn_fastcom335_4),
 	EXAR_DEVICE(COMMTECH, 2324PCI335, pbn_fastcom335_4),
 	EXAR_DEVICE(COMMTECH, 2328PCI335, pbn_fastcom335_8),
-	{ 0, }
+	{ }
 };
 MODULE_DEVICE_TABLE(pci, exar_pci_tbl);
 

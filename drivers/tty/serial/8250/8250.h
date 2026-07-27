@@ -8,6 +8,7 @@
  */
 
 #include <linux/bits.h>
+#include <linux/kconfig.h>
 #include <linux/serial_8250.h>
 #include <linux/serial_core.h>
 #include <linux/dmaengine.h>
@@ -332,6 +333,13 @@ static inline void rsa_reset(struct uart_8250_port *up) {}
 int fintek_8250_probe(struct uart_8250_port *uart);
 #else
 static inline int fintek_8250_probe(struct uart_8250_port *uart) { return 0; }
+#endif
+
+#if IS_REACHABLE(CONFIG_SERIAL_8250_HUB6)
+bool hub6_match_port(const struct uart_port *port1, const struct uart_port *port2);
+#else
+static inline bool hub6_match_port(const struct uart_port *port1, const struct uart_port *port2)
+{ return false; }
 #endif
 
 #ifdef CONFIG_ARCH_OMAP1
