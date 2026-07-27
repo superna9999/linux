@@ -568,7 +568,7 @@ static int afe4403_probe(struct spi_device *spi)
 }
 
 static const struct spi_device_id afe4403_ids[] = {
-	{ "afe4403", 0 },
+	{ .name = "afe4403" },
 	{ }
 };
 MODULE_DEVICE_TABLE(spi, afe4403_ids);

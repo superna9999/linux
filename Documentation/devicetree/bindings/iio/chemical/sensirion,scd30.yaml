@@ -8,6 +8,7 @@ title: Sensirion SCD30 carbon dioxide sensor
 
 maintainers:
   - Maxwell Doose <m32285159@gmail.com>
+  - Tomasz Duszynski <tduszyns@gmail.com>
 
 description: |
   Air quality sensor capable of measuring co2 concentration, temperature

@@ -130,7 +130,7 @@ static int bme680_spi_probe(struct spi_device *spi)
 }
 
 static const struct spi_device_id bme680_spi_id[] = {
-	{"bme680", 0},
+	{ .name = "bme680" },
 	{ }
 };
 MODULE_DEVICE_TABLE(spi, bme680_spi_id);

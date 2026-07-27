@@ -1071,7 +1071,10 @@ static int rpr0521_runtime_resume(struct device *dev)
 	struct rpr0521_data *data = iio_priv(indio_dev);
 	int ret;
 
-	regcache_sync(data->regmap);
+	ret = regcache_sync(data->regmap);
+	if (ret < 0)
+		return ret;
+
 	if (data->als_ps_need_en) {
 		ret = rpr0521_als_enable(data, RPR0521_MODE_ALS_ENABLE);
 		if (ret < 0)

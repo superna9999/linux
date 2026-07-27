@@ -647,7 +647,10 @@ static int vcnl4035_runtime_resume(struct device *dev)
 	struct vcnl4035_data *data = iio_priv(indio_dev);
 	int ret;
 
-	regcache_sync(data->regmap);
+	ret = regcache_sync(data->regmap);
+	if (ret < 0)
+		return ret;
+
 	ret = vcnl4035_set_als_power_state(data, VCNL4035_MODE_ALS_ENABLE);
 	if (ret < 0)
 		return ret;
