@@ -23,31 +23,15 @@ struct ndis_802_11_ssid {
 	u8  ssid[32];
 };
 
-enum ndis_802_11_network_type {
-	Ndis802_11FH,
-	Ndis802_11DS,
-	Ndis802_11OFDM5,
-	Ndis802_11OFDM24,
-	Ndis802_11NetworkTypeMax    /*  not a real type, defined as an upper bound */
-};
-
 /*
-	FW will only save the channel number in DSConfig.
-	ODI Handler will convert the channel number to freq. number.
-*/
+ * FW will only save the channel number in DSConfig.
+ * ODI Handler will convert the channel number to freq. number.
+ */
 struct ndis_802_11_conf {
 	u32 length;             /*  Length of structure */
 	u32 beacon_period;       /*  units are Kusec */
 	u32 atim_window;         /*  units are Kusec */
 	u32 ds_config;           /*  Frequency, units are kHz */
-};
-
-enum ndis_802_11_network_infrastructure {
-	Ndis802_11IBSS,
-	Ndis802_11Infrastructure,
-	Ndis802_11AutoUnknown,
-	Ndis802_11InfrastructureMax,     /*  Not a real value, defined as upper bound */
-	Ndis802_11APMode,
 };
 
 struct ndis_802_11_fix_ie {
@@ -65,7 +49,7 @@ struct ndis_80211_var_ie {
 /* Length is the 4 bytes multiples of the sum of
  * ETH_ALEN + 2 +
  * sizeof (struct ndis_802_11_ssid) + sizeof (u32) +
- * sizeof (long) + sizeof (enum ndis_802_11_network_type) +
+ * sizeof (long) +
  * sizeof (struct ndis_802_11_conf) + sizeof (NDIS_802_11_RATES_EX) + ie_length
  *
  * Except for ie_length, all other fields are fixed length. Therefore, we can
@@ -125,10 +109,6 @@ struct ndis_802_11_wep {
 /*  MIC check time, 60 seconds. */
 #define MIC_CHECK_TIME	60000000
 
-#ifndef Ndis802_11APMode
-#define Ndis802_11APMode (Ndis802_11InfrastructureMax + 1)
-#endif
-
 struct wlan_phy_info {
 	u8 signal_strength;/* in percentage) */
 	u8 signal_quality;/* in percentage) */
@@ -138,7 +118,8 @@ struct wlan_phy_info {
 
 struct wlan_bcn_info {
 	/* these infor get from rtw_get_encrypt_info when
-	 * * translate scan to UI */
+	 * translate scan to UI
+	 */
 	u8 encryp_protocol;/* ENCRYP_PROTOCOL_E: OPEN/WEP/WPA/WPA2/WAPI */
 	int group_cipher; /* WPA/WPA2 group cipher */
 	int pairwise_cipher;/* WPA/WPA2/WEP pairwise cipher */
@@ -150,8 +131,8 @@ struct wlan_bcn_info {
 };
 
 /* temporally add #pragma pack for structure alignment issue of
-*   struct wlan_bssid_ex and get_wlan_bssid_ex_sz()
-*/
+ * struct wlan_bssid_ex and get_wlan_bssid_ex_sz()
+ */
 struct wlan_bssid_ex {
 	u32  length;
 	u8 mac_address[ETH_ALEN];
@@ -159,9 +140,8 @@ struct wlan_bssid_ex {
 	struct ndis_802_11_ssid  ssid;
 	u32  privacy;
 	long  rssi;/* in dBM, raw data , get from PHY) */
-	enum ndis_802_11_network_type  network_type_in_use;
 	struct ndis_802_11_conf  configuration;
-	enum ndis_802_11_network_infrastructure  infrastructure_mode;
+	enum nl80211_iftype  infrastructure_mode;
 	NDIS_802_11_RATES_EX  supported_rates;
 	struct wlan_phy_info phy_info;
 	u32  ie_length;

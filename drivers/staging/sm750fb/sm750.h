@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef LYNXDRV_H_
 #define LYNXDRV_H_
+#include "ddk750_chip.h"
 
 #define FB_ACCEL_SMI 0xab
 
@@ -38,15 +39,6 @@ enum sm750_path {
 	sm750_pnc = 3,	/* panel and crt */
 };
 
-struct init_status {
-	ushort power_mode;
-	/* below three clocks are in unit of MHZ*/
-	ushort chip_clk;
-	ushort mem_clk;
-	ushort master_clk;
-	ushort setAllEngOff;
-	ushort reset_memory;
-};
 
 struct lynx_accel {
 	/* base virtual address of DPR registers */
@@ -97,12 +89,12 @@ struct sm750_dev {
 	unsigned long vidreg_start;
 	__u32 vidmem_size;
 	__u32 vidreg_size;
-	void __iomem *pvReg;
+	void __iomem *mmio;
 	unsigned char __iomem *vmem;
 	/* locks*/
 	spinlock_t slock;
 
-	struct init_status init_parm;
+	struct initchip_param init_parm;
 	enum sm750_pnltype pnltype;
 	enum sm750_dataflow dataflow;
 	int nocrt;
@@ -145,8 +137,6 @@ struct lynxfb_crtc {
 	u16 ypanstep;
 	u16 ywrapstep;
 
-	void *priv;
-
 	/* cursor information */
 	struct lynx_cursor cursor;
 };
@@ -168,7 +158,6 @@ struct lynxfb_output {
 	 * *channel=1 means secondary channel
 	 * output->channel ==> &crtc->channel
 	 */
-	void *priv;
 };
 
 struct lynxfb_par {

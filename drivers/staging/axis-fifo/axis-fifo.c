@@ -114,7 +114,7 @@ static void reset_ip_core(struct axis_fifo *fifo)
  * operations must be executed atomically, in order and one after the other
  * without missing any.
  *
- * Returns the number of bytes read from the device or negative error code
+ * Return: The number of bytes read from the device or negative error code
  *	on failure.
  */
 static ssize_t axis_fifo_read(struct file *f, char __user *buf,
@@ -207,7 +207,7 @@ end_unlock:
  * we need to lock before checking if the device has available space to avoid
  * any concurrency issue.
  *
- * Returns the number of bytes written to the device or negative error code
+ * Return: The number of bytes written to the device or negative error code
  *	on failure.
  */
 static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
@@ -246,7 +246,8 @@ static ssize_t axis_fifo_write(struct file *f, const char __user *buf,
 		mutex_lock(&fifo->write_lock);
 
 		ret = wait_event_interruptible(fifo->write_queue,
-			ioread32(fifo->base_addr + XLLF_TDFV_OFFSET) >= words_to_write);
+					       ioread32(fifo->base_addr + XLLF_TDFV_OFFSET) >=
+					       words_to_write);
 		if (ret)
 			goto end_unlock;
 	}

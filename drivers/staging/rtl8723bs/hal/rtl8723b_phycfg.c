@@ -376,7 +376,7 @@ int PHY_BBConfig8723B(struct adapter *Adapter)
 	RegVal = rtw_read16(Adapter, REG_SYS_FUNC_EN);
 	rtw_write16(Adapter, REG_SYS_FUNC_EN, (u16)(RegVal | BIT(13) | BIT(0) | BIT(1)));
 
-	rtw_write32(Adapter, 0x948, 0x280);	/*  Others use Antenna S1 */
+	rtw_write32(Adapter, rS0S1_PathSwitch, 0x280);	/*  Others use Antenna S1 */
 
 	rtw_write8(Adapter, REG_RF_CTRL, RF_EN | RF_RSTB | RF_SDMRSTB);
 

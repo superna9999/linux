@@ -248,7 +248,7 @@ struct	sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, u8 *hwaddr)
 
 		/* init recv timer */
 		timer_setup(&preorder_ctrl->reordering_ctrl_timer,
-				rtw_reordering_ctrl_timeout_handler, 0);
+			    rtw_reordering_ctrl_timeout_handler, 0);
 	}
 
 	/* init for DM */
@@ -256,7 +256,7 @@ struct	sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, u8 *hwaddr)
 	psta->rssi_stat.UndecoratedSmoothedCCK = (-1);
 
 	/* init for the sequence number of received management frame */
-	psta->RxMgmtFrameSeqNum = 0xffff;
+	psta->rx_mgmt_frame_seq_num = 0xffff;
 	spin_unlock_bh(&pstapriv->sta_hash_lock);
 	/* alloc mac id for non-bc/mc station, */
 	rtw_alloc_macid(pstapriv->padapter, psta);

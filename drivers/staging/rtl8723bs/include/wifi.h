@@ -329,21 +329,21 @@ static inline int IsFrameTypeCtrl(unsigned char *pframe)
  */
 struct ieee80211_ht_addt_info {
 	unsigned char control_chan;
-	unsigned char 	ht_param;
-	__le16	operation_mode;
-	__le16	stbc_param;
-	unsigned char 	basic_set[16];
+	unsigned char ht_param;
+	__le16 operation_mode;
+	__le16 stbc_param;
+	unsigned char basic_set[16];
 } __packed;
 
 
 struct HT_caps_element {
 	union {
 		struct {
-			__le16	HT_caps_info;
+			__le16 HT_caps_info;
 			unsigned char AMPDU_para;
 			unsigned char MCS_rate[16];
-			__le16	HT_ext_caps;
-			__le16	Beamforming_caps;
+			__le16 HT_ext_caps;
+			__le16 Beamforming_caps;
 			unsigned char ASEL_caps;
 		} HT_cap_element;
 		unsigned char HT_cap[26];
@@ -357,22 +357,22 @@ struct HT_info_element {
 } __packed;
 
 struct AC_param {
-	unsigned char 	ACI_AIFSN;
-	unsigned char 	CW;
-	__le16	TXOP_limit;
+	unsigned char ACI_AIFSN;
+	unsigned char CW;
+	__le16 TXOP_limit;
 } __packed;
 
 struct WMM_para_element {
-	unsigned char 	QoS_info;
-	unsigned char 	reserved;
-	struct AC_param	ac_param[4];
+	unsigned char QoS_info;
+	unsigned char reserved;
+	struct AC_param ac_param[4];
 } __packed;
 
 struct ADDBA_request {
-	unsigned char 	dialog_token;
-	__le16	BA_para_set;
-	__le16	BA_timeout_value;
-	__le16	BA_starting_seqctrl;
+	unsigned char dialog_token;
+	__le16 BA_para_set;
+	__le16 BA_timeout_value;
+	__le16 BA_starting_seqctrl;
 } __packed;
 
 /* 802.11n HT capabilities masks */

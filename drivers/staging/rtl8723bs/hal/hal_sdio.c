@@ -24,7 +24,7 @@ u8 rtw_hal_sdio_query_tx_freepage(
 {
 	struct hal_com_data	*pHalData = GET_HAL_DATA(padapter);
 
-	if ((pHalData->SdioTxFIFOFreePage[PageIdx]+pHalData->SdioTxFIFOFreePage[PUBLIC_QUEUE_IDX]) >= (RequiredPageNum))
+	if ((pHalData->SdioTxFIFOFreePage[PageIdx] + pHalData->SdioTxFIFOFreePage[PUBLIC_QUEUE_IDX]) >= (RequiredPageNum))
 		return true;
 	else
 		return false;

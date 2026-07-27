@@ -285,7 +285,7 @@ static s32 xmit_xmitframes(struct adapter *padapter, struct xmit_priv *pxmitpriv
 				pxmitframe->buf_addr = pxmitbuf->ptail;
 
 				ret = rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe);
-				if (ret != _SUCCESS) {
+				if (ret) {
 					netdev_err(padapter->pnetdev,
 						   "%s: coalesce failed with error %d\n",
 						   __func__, ret);
