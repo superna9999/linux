@@ -697,6 +697,11 @@ static bool ntfs_non_resident_attr_value_is_valid(const struct attr_record *a)
 	attr_len = le32_to_cpu(a->length);
 	min_len = offsetof(struct attr_record, data.non_resident.initialized_size) +
 		  sizeof(a->data.non_resident.initialized_size);
+
+	/* Sparse and compressed attributes have the extra compressed_size field */
+	if (a->flags & (ATTR_IS_SPARSE | ATTR_COMPRESSION_MASK))
+		min_len += sizeof(a->data.non_resident.compressed_size);
+
 	if (attr_len < min_len)
 		return false;
 
@@ -4293,6 +4298,16 @@ static int ntfs_non_resident_attr_shrink(struct ntfs_inode *ni, const s64 newsiz
 		ni->initialized_size = newsize;
 		ctx->attr->data.non_resident.initialized_size = cpu_to_le64(newsize);
 	}
+
+	/*
+	 * Drop any page-cache folios that now lie beyond the shrunk
+	 * attribute. The clusters backing them have just been freed and the
+	 * runlist truncated, so leaving stale dirty folios around makes a
+	 * later writeback map a vcn past the new allocation, which fails with
+	 * -ENOENT and loses the write.
+	 */
+	truncate_inode_pages(VFS_I(ni)->i_mapping, newsize);
+
 	/* Update data size in the index. */
 	if (ni->type == AT_DATA && ni->name == AT_UNNAMED)
 		NInoSetFileNameDirty(ni);

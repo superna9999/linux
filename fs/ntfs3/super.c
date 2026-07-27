@@ -1189,7 +1189,7 @@ read_boot:
 #ifdef CONFIG_NTFS3_64BIT_CLUSTER
 	if (clusters >= (1ull << (64 - cluster_bits)))
 		sbi->maxbytes = -1;
-	sbi->maxbytes_sparse = -1;
+	sbi->maxbytes_sparse = MAX_LFS_FILESIZE;
 	sb->s_maxbytes = MAX_LFS_FILESIZE;
 #else
 	/* Maximum size for sparse file. */
@@ -1458,7 +1458,10 @@ static int ntfs_fill_super(struct super_block *sb, struct fs_context *fc)
 					    Add2Ptr(a, roff),
 					    le32_to_cpu(a->size) - roff);
 			if (err < 0) {
-				ntfs_err(sb, "Failed to unpack $MFT bitmap extent (%d).", err);
+				ntfs_err(
+					sb,
+					"Failed to unpack $MFT bitmap extent (%d).",
+					err);
 				goto put_inode_out;
 			}
 			err = 0;
@@ -1866,8 +1869,7 @@ static int ntfs_init_fs_context(struct fs_context *fc)
 	/* Default options. */
 	opts->fs_uid = current_uid();
 	opts->fs_gid = current_gid();
-	opts->fs_fmask_inv = ~current_umask();
-	opts->fs_dmask_inv = ~current_umask();
+	opts->fs_fmask_inv = opts->fs_dmask_inv = ~current_umask();
 	opts->prealloc = 1;
 
 #ifdef CONFIG_NTFS3_FS_POSIX_ACL
@@ -1928,7 +1930,6 @@ static struct file_system_type ntfs_fs_type = {
 	.kill_sb		= ntfs3_kill_sb,
 	.fs_flags		= FS_REQUIRES_DEV | FS_ALLOW_IDMAP,
 };
-
 // clang-format on
 
 static int __init init_ntfs_fs(void)

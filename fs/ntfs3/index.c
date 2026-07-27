@@ -612,8 +612,8 @@ static const struct NTFS_DE *hdr_insert_head(struct INDEX_HDR *hdr,
 static bool index_hdr_check(const struct INDEX_HDR *hdr, u32 bytes)
 {
 	const bool has_subnode = hdr_has_subnode(hdr);
-	const u16 min_size = sizeof(struct NTFS_DE) +
-			     (has_subnode ? sizeof(u64) : 0);
+	const u16 min_size =
+		sizeof(struct NTFS_DE) + (has_subnode ? sizeof(u64) : 0);
 	u32 end = le32_to_cpu(hdr->used);
 	u32 tot = le32_to_cpu(hdr->total);
 	u32 off = le32_to_cpu(hdr->de_off);
@@ -2131,8 +2131,7 @@ static struct indx_node *indx_find_buffer(struct ntfs_index *indx,
 			if (err)
 				return ERR_PTR(err);
 
-			r = indx_find_buffer(indx, ni, root, vbn, n,
-					     depth + 1);
+			r = indx_find_buffer(indx, ni, root, vbn, n, depth + 1);
 			if (r)
 				return r;
 		}

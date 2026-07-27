@@ -2613,7 +2613,6 @@ bool check_index_header(const struct INDEX_HDR *hdr, size_t bytes)
 	const bool has_subnode = hdr_has_subnode(hdr);
 	__le16 mask;
 	u32 min_de, de_off, used, total;
-	const struct NTFS_DE *e;
 
 	if (has_subnode) {
 		min_de = sizeof(struct NTFS_DE) + sizeof(u64);
@@ -2632,8 +2631,8 @@ bool check_index_header(const struct INDEX_HDR *hdr, size_t bytes)
 		return false;
 	}
 
-	e = (const struct NTFS_DE *)((const u8 *)hdr + de_off);
 	for (;;) {
+		const struct NTFS_DE *e = Add2Ptr(hdr, de_off);
 		u16 esize = le16_to_cpu(e->size);
 		u16 key_size = le16_to_cpu(e->key_size);
 		u16 data_size;
@@ -2649,7 +2648,6 @@ bool check_index_header(const struct INDEX_HDR *hdr, size_t bytes)
 		if (de_is_last(e)) {
 			if (key_size)
 				return false;
-
 			break;
 		}
 
@@ -2658,7 +2656,6 @@ bool check_index_header(const struct INDEX_HDR *hdr, size_t bytes)
 			return false;
 
 		de_off += esize;
-		e = (const struct NTFS_DE *)((const u8 *)hdr + de_off);
 	}
 
 	return true;
@@ -3544,8 +3541,7 @@ move_data:
 		 * bound here so the memmove cannot reach past the entry.
 		 */
 		if (le16_to_cpu(e->view.data_off) > le16_to_cpu(e->size) ||
-		    le16_to_cpu(e->view.data_off) + dlen >
-			    le16_to_cpu(e->size))
+		    le16_to_cpu(e->view.data_off) + dlen > le16_to_cpu(e->size))
 			goto dirty_vol;
 
 		memmove(Add2Ptr(e, le16_to_cpu(e->view.data_off)), data, dlen);
@@ -3756,8 +3752,7 @@ move_data:
 
 		/* See UpdateRecordDataRoot for the rationale. */
 		if (le16_to_cpu(e->view.data_off) > le16_to_cpu(e->size) ||
-		    le16_to_cpu(e->view.data_off) + dlen >
-			    le16_to_cpu(e->size))
+		    le16_to_cpu(e->view.data_off) + dlen > le16_to_cpu(e->size))
 			goto dirty_vol;
 
 		memmove(Add2Ptr(e, le16_to_cpu(e->view.data_off)), data, dlen);
@@ -4653,11 +4648,11 @@ copy_lcns:
 		}
 
 		/*
-         * find_dp() only validates that target_vcn is the first
-         * cluster covered by dp.  The walk through lrh->lcns_follow
-         * further entries must stay within the allocated
-         * dp->page_lcns[] array, which is sized by dp->lcns_follow.
-         */
+		 * find_dp() only validates that target_vcn is the first
+		 * cluster covered by dp.  The walk through lrh->lcns_follow
+		 * further entries must stay within the allocated
+		 * dp->page_lcns[] array, which is sized by dp->lcns_follow.
+		 */
 		if (le64_to_cpu(lrh->target_vcn) - le64_to_cpu(dp->vcn) + t16 >
 		    le32_to_cpu(dp->lcns_follow)) {
 			err = -EINVAL;

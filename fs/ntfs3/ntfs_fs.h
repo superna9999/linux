@@ -401,7 +401,7 @@ struct ntfs_inode {
 			struct rw_semaphore run_lock;
 			/* Unpacked runs from just one record. */
 			struct runs_tree run;
-			/* 
+			/*
 			 * Pairs [vcn, len] for all delay allocated clusters.
 			 * Normal file always contains delayed clusters in one fragment.
 			 * TODO: use 2 CLST per pair instead of 3.
@@ -886,8 +886,8 @@ int run_unpack_ex(struct runs_tree *run, struct ntfs_sb_info *sbi, CLST ino,
 #else
 #define run_unpack_ex run_unpack
 #endif
-int run_get_highest_vcn(CLST vcn, const u8 *run_buf, size_t run_buf_size, 
-		       u64 *highest_vcn);
+int run_get_highest_vcn(CLST vcn, const u8 *run_buf, size_t run_buf_size,
+			u64 *highest_vcn);
 int run_clone(const struct runs_tree *run, struct runs_tree *new_run);
 bool run_remove_range(struct runs_tree *run, CLST vcn, CLST len, CLST *done);
 CLST run_len(const struct runs_tree *run);
