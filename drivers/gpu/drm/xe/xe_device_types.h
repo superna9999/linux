@@ -404,6 +404,10 @@ struct xe_device {
 		const struct xe_pat_table_entry *pat_primary_pta;
 		/** @pat.pat_media_pta: media GT PAT entry for page table accesses */
 		const struct xe_pat_table_entry *pat_media_pta;
+		/** @pat.pat_primary_tr_pta: primary GT PAT entry for TRTT page table accesses */
+		const struct xe_pat_table_entry *pat_primary_tr_pta;
+		/** @pat.pat_media_tr_pta: media GT PAT entry for TRTT page table accesses */
+		const struct xe_pat_table_entry *pat_media_tr_pta;
 		u16 idx[__XE_CACHE_LEVEL_COUNT];
 	} pat;
 
