@@ -67,13 +67,8 @@ find_video(acpi_handle handle, u32 lvl, void *context, void **rv)
 	long *cap = context;
 	struct pci_dev *dev;
 
-	static const struct acpi_device_id video_ids[] = {
-		{ACPI_VIDEO_HID, 0},
-		{"", 0},
-	};
-
-	if (acpi_dev && !acpi_match_device_ids(acpi_dev, video_ids)) {
-		dev = acpi_get_pci_dev(handle);
+	if (acpi_dev_is_video_device(acpi_dev)) {
+		dev = acpi_dev_get_pci_dev(acpi_dev);
 		if (!dev)
 			return AE_OK;
 		pci_dev_put(dev);

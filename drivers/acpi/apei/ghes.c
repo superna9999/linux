@@ -1397,8 +1397,8 @@ no_work:
 	return rc;
 }
 
-static int ghes_in_nmi_spool_from_list(struct list_head *rcu_list,
-				       enum fixed_addresses fixmap_idx)
+static int __maybe_unused ghes_in_nmi_spool_from_list(struct list_head *rcu_list,
+			       enum fixed_addresses fixmap_idx)
 {
 	int ret = -ENOENT;
 	struct ghes *ghes;
