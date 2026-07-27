@@ -427,7 +427,6 @@ static int test_cgcore_no_internal_process_constraint_on_threads(const char *roo
 
 cleanup:
 	cg_enter_current(root);
-	cg_enter_current(root);
 	if (child)
 		cg_destroy(child);
 	if (parent)
