@@ -8,6 +8,15 @@ if NVMEM_LAYOUTS
 
 menu "Layout Types"
 
+config NVMEM_LAYOUT_FIXED_LAYOUT
+	tristate "Fixed layout support"
+	default y
+	help
+	  Say Y here to enable support for NVMEM fixed layout, which provides a
+	  way to describe memory cells with fixed offsets and sizes.
+
+	  If unsure, say Y.
+
 config NVMEM_LAYOUT_SL28_VPD
 	tristate "Kontron sl28 VPD layout support"
 	select CRC8
