@@ -118,12 +118,15 @@ static void print_cpu(struct seq_file *m, int cpu, u64 now)
 		SEQ_printf(m, " clock %d:\n", i);
 		print_base(m, cpu_base->clock_base + i, now);
 	}
-#define P(x) \
+
+#define DIAG_READ(x) data_race(READ_ONCE(x))
+
+#define P(x)				     \
 	SEQ_printf(m, "  .%-15s: %Lu\n", #x, \
-		   (unsigned long long)(cpu_base->x))
+		   (unsigned long long)DIAG_READ(cpu_base->x))
 #define P_ns(x) \
 	SEQ_printf(m, "  .%-15s: %Lu nsecs\n", #x, \
-		   (unsigned long long)(ktime_to_ns(cpu_base->x)))
+		   (unsigned long long)ktime_to_ns(DIAG_READ(cpu_base->x)))
 
 #ifdef CONFIG_HIGH_RES_TIMERS
 	P_ns(expires_next);
@@ -139,12 +142,12 @@ static void print_cpu(struct seq_file *m, int cpu, u64 now)
 #ifdef CONFIG_TICK_ONESHOT
 # define P(x) \
 	SEQ_printf(m, "  .%-15s: %Lu\n", #x, \
-		   (unsigned long long)(ts->x))
+		   (unsigned long long)DIAG_READ(ts->x))
 # define P_ns(x) \
 	SEQ_printf(m, "  .%-15s: %Lu nsecs\n", #x, \
-		   (unsigned long long)(ktime_to_ns(ts->x)))
+		   (unsigned long long)ktime_to_ns(DIAG_READ(ts->x)))
 # define P_flag(x, f)			    \
-	SEQ_printf(m, "  .%-15s: %d\n", #x, !!(ts->flags & (f)))
+	SEQ_printf(m, "  .%-15s: %d\n", #x, !!(DIAG_READ(ts->flags) & (f)))
 
 	{
 		struct tick_sched *ts = tick_get_tick_sched(cpu);
@@ -166,6 +169,8 @@ static void print_cpu(struct seq_file *m, int cpu, u64 now)
 
 #undef P
 #undef P_ns
+#undef P_flag
+#undef DIAG_READ
 	SEQ_printf(m, "\n");
 }
 

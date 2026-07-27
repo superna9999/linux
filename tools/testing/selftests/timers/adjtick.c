@@ -22,9 +22,10 @@
 #include <sys/time.h>
 #include <sys/timex.h>
 #include <time.h>
-#include <include/vdso/time64.h>
-
 #include "kselftest.h"
+
+#define NSEC_PER_SEC		1000000000LL
+#define USEC_PER_SEC		1000000LL
 
 #define MILLION			1000000
 

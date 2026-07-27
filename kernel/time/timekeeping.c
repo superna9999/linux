@@ -339,7 +339,6 @@ static inline void clocksource_enable_inline_read(void) { }
 static void tk_setup_internals(struct timekeeper *tk, struct clocksource *clock)
 {
 	u64 interval;
-	u64 tmp, ntpinterval;
 	struct clocksource *old_clock;
 
 	++tk->cs_was_changed_seq;
@@ -353,20 +352,16 @@ static void tk_setup_internals(struct timekeeper *tk, struct clocksource *clock)
 	tk->tkr_raw.cycle_last = tk->tkr_mono.cycle_last;
 
 	/* Do the ns -> cycle conversion first, using original mult */
-	tmp = NTP_INTERVAL_LENGTH;
-	tmp <<= clock->shift;
-	ntpinterval = tmp;
-	tmp += clock->mult/2;
-	do_div(tmp, clock->mult);
-	if (tmp == 0)
-		tmp = 1;
+	interval = (u64)NTP_INTERVAL_LENGTH << clock->shift;
+	interval += clock->mult / 2;
+	do_div(interval, clock->mult);
+	if (interval == 0)
+		interval = 1;
 
-	interval = (u64) tmp;
 	tk->cycle_interval = interval;
 
 	/* Go back from cycles -> shifted ns */
 	tk->xtime_interval = interval * clock->mult;
-	tk->xtime_remainder = ntpinterval - tk->xtime_interval;
 	tk->raw_interval = interval * clock->mult;
 
 	 /* if changing clocks, convert xtime_nsec shift units */
@@ -386,7 +381,38 @@ static void tk_setup_internals(struct timekeeper *tk, struct clocksource *clock)
 
 	tk->ntp_error = 0;
 	tk->ntp_error_shift = NTP_SCALE_SHIFT - clock->shift;
-	tk->ntp_tick = ntpinterval << tk->ntp_error_shift;
+
+	/*
+	 * ntp_tick is the tick length that NTP disciplines (its ±500 PPM
+	 * scales only this part), in NTP-shifted ns: the real interval of
+	 * a whole number of counter cycles. Because cycle_interval is
+	 * rounded to an integer number of cycles, this ntp_tick differs
+	 * from the true intended 1/HZ tick length by up to half a cycle
+	 * period.
+	 */
+	tk->ntp_tick = (u64)tk->xtime_interval << tk->ntp_error_shift;
+
+	/*
+	 * cs_tick_adj is the constant difference between the disciplined
+	 * ntp_tick above and the true 1/HZ tick, expressed per-second to
+	 * match the ntp_update_frequency() addends and handed to NTP via
+	 * ntp_clear() to be explicitly included in its tick_length.
+	 *
+	 * Worked example: HZ=1000, ACPI PM timer at 3.579545 MHz, which
+	 * has 3579.545 cycles in 1ms, rounded to cycle_interval = 3580.
+	 *
+	 * So ntp_tick is actually 1.000127ms, as that is the amount of
+	 * time that 3580 cycles will take at the nominal frequency. This
+	 * is the part that NTP disciplines, causing each 3580 counts to
+	 * advance the clock by up to NTP's ±500PPM of that amount.
+	 *
+	 * The "extra" 127ns/tick is what's stored in cs_tick_adj and
+	 * applied as a constant correction by ntp_update_frequency() so
+	 * that NTP *believes* it's disciplining a 1ms tick.
+	 */
+	tk->cs_tick_adj = (s64)tk->ntp_tick -
+			  ((s64)NTP_INTERVAL_LENGTH << NTP_SCALE_SHIFT);
+	tk->cs_tick_adj *= NTP_INTERVAL_FREQ;
 
 	/*
 	 * The timekeeper keeps its own mult values for the currently
@@ -397,6 +423,7 @@ static void tk_setup_internals(struct timekeeper *tk, struct clocksource *clock)
 	tk->tkr_raw.mult = clock->mult;
 	tk->ntp_err_mult = 0;
 	tk->skip_second_overflow = 0;
+	tk->skew_delta = 0;
 
 	tk->cs_id = clock->id;
 
@@ -803,7 +830,7 @@ static void timekeeping_update_from_shadow(struct tk_data *tkd, unsigned int act
 
 	if (action & TK_CLEAR_NTP) {
 		tk->ntp_error = 0;
-		ntp_clear(tk->id);
+		ntp_clear(tk->id, tk->cs_tick_adj);
 	}
 
 	tk_update_leap_state(tk);
@@ -1202,10 +1229,21 @@ static inline u64 tk_clock_read_snapshot(const struct tk_read_base *tkr,
 
 /**
  * ktime_get_snapshot_id -  Simultaneously snapshot a given clock ID with
- *			    CLOCK_MONOTONIC_RAW and the underlying
+ *			    the corresponding monotonic raw and the underlying
  *			    clocksource counter value.
  * @clock_id:		The clock ID to snapshot
  * @systime_snapshot:	Pointer to struct receiving the system time snapshot
+ *
+ * For the system time keeping clocks (REALTIME, MONOTONIC and BOOTTIME) the
+ * monotonic raw clock is CLOCK_MONOTONIC_RAW. For AUX clocks this is the
+ * monotonic raw clock related to the AUX clock. These AUX clock related
+ * monotonic raw clocks have a strict linear offset to the system time
+ * CLOCK_MONOTONIC_RAW:
+ *
+ *	MONOTONIC_RAW(AUX$N) = CLOCK_MONOTONIC_RAW(system) + offset(AUX$N)
+ *
+ * The offset is established when a AUX clock is initialized, but it is
+ * currently not accessible.
  */
 void ktime_get_snapshot_id(clockid_t clock_id, struct system_time_snapshot *systime_snapshot)
 {
@@ -1512,6 +1550,9 @@ EXPORT_SYMBOL_GPL(ktime_real_to_base_clock);
  * @xtstamp:		Receives simultaneously captured system and device time
  *
  * Reads a timestamp from a device and correlates it to system time
+ *
+ * See documentation for ktime_get_snapshot_id() for information about the raw
+ * monotonic time stamp which is used here.
  */
 int get_device_system_crosststamp(int (*get_time_fn)
 				  (ktime_t *device_time,
@@ -2076,7 +2117,12 @@ void __init timekeeping_init(void)
 
 	tk_set_wall_to_mono(tks, wall_to_mono);
 
-	timekeeping_update_from_shadow(&tk_core, TK_CLOCK_WAS_SET);
+	/*
+	 * Use TK_UPDATE_ALL so the NTP layer picks up the clocksource's
+	 * cs_tick_adj via ntp_clear(). Clearing NTP here is otherwise
+	 * redundant as ntp_init() already initialised it above.
+	 */
+	timekeeping_update_from_shadow(&tk_core, TK_UPDATE_ALL);
 }
 
 /* time in seconds when suspend began for persistent clock */
@@ -2390,6 +2436,11 @@ static __always_inline void timekeeping_apply_adjustment(struct timekeeper *tk,
 	 *	xtime_nsec_2 = xtime_nsec_1 - offset
 	 * Which simplifies to:
 	 *	xtime_nsec -= offset
+	 *
+	 * When subtracting offset from xtime_nsec, the same amount
+	 * (in appropriate units) has to be added to ntp_error, in
+	 * order to correctly track the delta between the time
+	 * reported in xtime_nsec, and the intended time.
 	 */
 	if ((mult_adj > 0) && (tk->tkr_mono.mult + mult_adj < mult_adj)) {
 		/* NTP adjustment caused clocksource mult overflow */
@@ -2400,6 +2451,7 @@ static __always_inline void timekeeping_apply_adjustment(struct timekeeper *tk,
 	tk->tkr_mono.mult += mult_adj;
 	tk->xtime_interval += interval;
 	tk->tkr_mono.xtime_nsec -= offset;
+	tk->ntp_error += offset << tk->ntp_error_shift;
 }
 
 /*
@@ -2409,18 +2461,27 @@ static __always_inline void timekeeping_apply_adjustment(struct timekeeper *tk,
 static void timekeeping_adjust(struct timekeeper *tk, s64 offset)
 {
 	u64 ntp_tl = ntp_tick_length(tk->id);
+	s64 skew = ntp_get_skew_delta(tk->id);
 	u32 mult;
 
 	/*
-	 * Determine the multiplier from the current NTP tick length.
-	 * Avoid expensive division when the tick length doesn't change.
+	 * Determine the multiplier from the current NTP tick length plus
+	 * skew_delta. The skew biases mult so that ±1 dithering can deliver
+	 * the time_offset slew rate. Recompute when either changes.
 	 */
-	if (likely(tk->ntp_tick == ntp_tl)) {
+	if (likely(tk->ntp_tick == ntp_tl && tk->skew_delta == skew)) {
+		/* Revert to the base mult rate. */
 		mult = tk->tkr_mono.mult - tk->ntp_err_mult;
 	} else {
 		tk->ntp_tick = ntp_tl;
-		mult = div64_u64((tk->ntp_tick >> tk->ntp_error_shift) -
-				 tk->xtime_remainder, tk->cycle_interval);
+		tk->skew_delta = skew;
+		/*
+		 * skew_delta is stored pre-divided by HZ (matching time_offset);
+		 * scale it back up to the full per-tick rate for the mult bias.
+		 */
+		skew *= NTP_INTERVAL_FREQ;
+		mult = div64_u64((tk->ntp_tick + skew) >> tk->ntp_error_shift,
+				 tk->cycle_interval);
 	}
 
 	/*
@@ -2545,8 +2606,25 @@ static u64 logarithmic_accumulation(struct timekeeper *tk, u64 offset,
 
 	/* Accumulate error between NTP and clock interval */
 	tk->ntp_error += tk->ntp_tick << shift;
-	tk->ntp_error -= (tk->xtime_interval + tk->xtime_remainder) <<
-						(tk->ntp_error_shift + shift);
+	tk->ntp_error -= tk->xtime_interval << (tk->ntp_error_shift + shift);
+
+	/*
+	 * When skewing, do so by adjusting ntp_error to impart an extra
+	 * target delta into ntp_error per tick, limited to what can be
+	 * drained from time_offset / time_adjust to avoid overshoot.
+	 *
+	 * The base 'mult' value was calculated with the skew taken into
+	 * account, such that the per-tick choice of 'mult' vs. 'mult+1'
+	 * allows for the desired effective rate and ntp_error does not
+	 * grow unbounded.
+	 *
+	 * Once the full desired phase offset is delivered, any remaining
+	 * skew imparted by the adjusted 'mult', accounted above, remains
+	 * in ntp_error and will be compensated by the dithering over time.
+	 */
+	if (tk->skew_delta)
+		tk->ntp_error += ntp_drain_skew(tk->id, tk->skew_delta << shift,
+						shift) * NTP_INTERVAL_FREQ;
 
 	return offset;
 }
@@ -3313,7 +3391,9 @@ static const struct attribute_group aux_clock_enable_attr_group = {
 static int __init tk_aux_sysfs_init(void)
 {
 	struct kobject *auxo, *tko = kobject_create_and_add("time", kernel_kobj);
+	struct kobject *clks[MAX_AUX_CLOCKS];
 	int ret = -ENOMEM;
+	int i;
 
 	if (!tko)
 		return ret;
@@ -3322,21 +3402,28 @@ static int __init tk_aux_sysfs_init(void)
 	if (!auxo)
 		goto err_clean;
 
-	for (int i = 0; i < MAX_AUX_CLOCKS; i++) {
+	for (i = 0; i < MAX_AUX_CLOCKS; i++) {
 		char id[2] = { [0] = '0' + i, };
-		struct kobject *clk = kobject_create_and_add(id, auxo);
+		clks[i] = kobject_create_and_add(id, auxo);
 
-		if (!clk) {
+		if (!clks[i]) {
 			ret = -ENOMEM;
-			goto err_clean;
+			goto err_clks;
 		}
 
-		ret = sysfs_create_group(clk, &aux_clock_enable_attr_group);
+		ret = sysfs_create_group(clks[i], &aux_clock_enable_attr_group);
 		if (ret)
-			goto err_clean;
+			goto err_clk;
 	}
 	return 0;
 
+err_clk:
+	kobject_put(clks[i]);
+err_clks:
+	while (--i >= 0) {
+		sysfs_remove_group(clks[i], &aux_clock_enable_attr_group);
+		kobject_put(clks[i]);
+	}
 err_clean:
 	kobject_put(auxo);
 	kobject_put(tko);

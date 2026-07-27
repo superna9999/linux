@@ -29,8 +29,9 @@
 #include <signal.h>
 #include <errno.h>
 #include <mqueue.h>
-#include <include/vdso/time64.h>
 #include "kselftest.h"
+
+#define NSEC_PER_SEC 1000000000LL
 
 
 #define TARGET_TIMEOUT		100000000	/* 100ms in nanoseconds */
