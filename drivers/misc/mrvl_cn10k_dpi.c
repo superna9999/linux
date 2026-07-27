@@ -470,10 +470,8 @@ static int dpi_irq_init(struct dpipf *dpi)
 
 	ret = devm_request_irq(dev, pci_irq_vector(pdev, DPI_MBOX_PF_VF_INT_IDX),
 			       dpi_mbox_intr_handler, 0, "dpi-mbox", dpi);
-	if (ret) {
-		dev_err(dev, "DPI: request_irq failed for mbox; err=%d\n", ret);
+	if (ret)
 		return ret;
-	}
 
 	dpi_reg_write(dpi, DPI_MBOX_VF_PF_INT_ENA_W1S, GENMASK_ULL(31, 0));
 

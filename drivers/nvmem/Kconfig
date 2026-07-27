@@ -28,6 +28,19 @@ source "drivers/nvmem/layouts/Kconfig"
 
 # Devices
 
+config NVMEM_AIROHA_SMC_EFUSES
+	tristate "Airoha SMC eFuse support"
+	depends on ARCH_AIROHA || COMPILE_TEST
+	depends on HAVE_ARM_SMCCC
+	default ARCH_AIROHA
+	help
+	  Say y here to enable support for reading eFuses on Airoha AN7581
+	  SoCs. These are e.g. used to store factory programmed
+	  calibration data required for the PCIe or the USB-C PHY or Thermal.
+
+	  This driver can also be built as a module. If so, the module will
+	  be called nvmem-airoha-smc-efuses.
+
 config NVMEM_AN8855_EFUSE
 	tristate "Airoha AN8855 eFuse support"
 	depends on COMPILE_TEST
@@ -138,7 +151,7 @@ config NVMEM_JZ4780_EFUSE
 
 config NVMEM_LAN9662_OTPC
 	tristate "Microchip LAN9662 OTP controller support"
-	depends on SOC_LAN966 || COMPILE_TEST
+	depends on SOC_LAN966 || ARCH_LAN969X || COMPILE_TEST
 	depends on HAS_IOMEM
 	help
 	  This driver enables the OTP controller available on Microchip LAN9662
@@ -262,7 +275,7 @@ config NVMEM_S32G_OCOTP
 	  Programmable memory pages.
 
 config NVMEM_QCOM_QFPROM
-	tristate "QCOM QFPROM Support"
+	tristate "Qualcomm QFPROM Support"
 	depends on ARCH_QCOM || COMPILE_TEST
 	depends on HAS_IOMEM
 	help
@@ -273,7 +286,7 @@ config NVMEM_QCOM_QFPROM
 	  will be called nvmem_qfprom.
 
 config NVMEM_QCOM_SEC_QFPROM
-        tristate "QCOM SECURE QFPROM Support"
+        tristate "Qualcomm SECURE QFPROM Support"
         depends on ARCH_QCOM || COMPILE_TEST
         depends on HAS_IOMEM
         depends on OF
@@ -303,7 +316,6 @@ config NVMEM_RAVE_SP_EEPROM
 config NVMEM_RCAR_EFUSE
 	tristate "Renesas R-Car Gen4 E-FUSE support"
 	depends on (ARCH_RENESAS && ARM64) || COMPILE_TEST
-	depends on NVMEM
 	help
 	  Enable support for reading the fuses in the E-FUSE or OTP
 	  non-volatile memory block on Renesas R-Car Gen4 SoCs.
@@ -483,4 +495,4 @@ config NVMEM_QORIQ_EFUSE
 	  This driver can also be built as a module. If so, the module
 	  will be called nvmem_qoriq_efuse.
 
-endif
+endif # NVMEM

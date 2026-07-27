@@ -1536,7 +1536,8 @@ static void handle_control_message(struct virtio_device *vdev,
 	    cpkt->event != cpu_to_virtio16(vdev, VIRTIO_CONSOLE_PORT_ADD)) {
 		/* No valid header at start of buffer.  Drop it. */
 		dev_dbg(&portdev->vdev->dev,
-			"Invalid index %u in control packet\n", cpkt->id);
+			"Invalid index %u in control packet\n",
+			virtio32_to_cpu(vdev, cpkt->id));
 		return;
 	}
 
@@ -1553,7 +1554,8 @@ static void handle_control_message(struct virtio_device *vdev,
 			dev_warn(&portdev->vdev->dev,
 				"Request for adding port with "
 				"out-of-bound id %u, max. supported id: %u\n",
-				cpkt->id, portdev->max_nr_ports - 1);
+				 virtio32_to_cpu(vdev, cpkt->id),
+				 portdev->max_nr_ports - 1);
 			break;
 		}
 		add_port(portdev, virtio32_to_cpu(vdev, cpkt->id));

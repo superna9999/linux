@@ -274,11 +274,8 @@ static int hi6421v600_irq_probe(struct platform_device *pdev)
 					NULL,
 					IRQF_TRIGGER_LOW | IRQF_SHARED | IRQF_NO_SUSPEND,
 					"pmic", priv);
-	if (ret < 0) {
-		dev_err(dev, "Failed to start IRQ handling thread: error %d\n",
-			ret);
+	if (ret < 0)
 		return ret;
-	}
 
 	return 0;
 }

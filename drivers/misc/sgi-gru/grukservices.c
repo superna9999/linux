@@ -411,11 +411,14 @@ int gru_get_cb_exception_detail(void *cb,
 	cbe = get_cbe(GRUBASE(cb), cbrnum);
 	gru_flush_cache(cbe);	/* CBE not coherent */
 	sync_core();
+	excdet->cb = (unsigned long)cb;
 	excdet->opc = cbe->opccpy;
 	excdet->exopc = cbe->exopccpy;
 	excdet->ecause = cbe->ecause;
 	excdet->exceptdet0 = cbe->idef1upd;
 	excdet->exceptdet1 = cbe->idef3upd;
+	excdet->cbrstate = cbe->cbrstate;
+	excdet->cbrexecstatus = cbe->cbrexecstatus;
 	gru_flush_cache(cbe);
 	return 0;
 }
@@ -1154,4 +1157,3 @@ void gru_kservices_exit(void)
 	if (gru_free_kernel_contexts())
 		BUG();
 }
-

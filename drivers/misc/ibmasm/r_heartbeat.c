@@ -51,12 +51,12 @@ int ibmasm_start_reverse_heartbeat(struct service_processor *sp, struct reverse_
 	int times_failed = 0;
 	int result = 1;
 
-	cmd = ibmasm_new_command(sp, sizeof rhb_dot_cmd);
+	cmd = ibmasm_new_command(sp, sizeof(rhb_dot_cmd));
 	if (!cmd)
 		return -ENOMEM;
 
 	while (times_failed < 3) {
-		memcpy(cmd->buffer, (void *)&rhb_dot_cmd, sizeof rhb_dot_cmd);
+		memcpy(cmd->buffer, (void *)&rhb_dot_cmd, sizeof(rhb_dot_cmd));
 		cmd->status = IBMASM_CMD_PENDING;
 		ibmasm_exec_command(sp, cmd);
 		ibmasm_wait_for_response(cmd, IBMASM_CMD_TIMEOUT_NORMAL);
