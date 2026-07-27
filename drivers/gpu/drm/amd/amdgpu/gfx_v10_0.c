@@ -4080,7 +4080,7 @@ static int gfx_v10_0_ring_test_ib(struct amdgpu_ring *ring, long timeout)
 
 	memset(&ib, 0, sizeof(ib));
 
-	r = amdgpu_device_wb_get(adev, &index);
+	r = amdgpu_wb_get(adev, &index);
 	if (r)
 		return r;
 
@@ -4121,7 +4121,7 @@ err2:
 	amdgpu_ib_free(&ib, NULL);
 	dma_fence_put(f);
 err1:
-	amdgpu_device_wb_free(adev, index);
+	amdgpu_wb_free(adev, index);
 	return r;
 }
 
@@ -4988,11 +4988,11 @@ static int gfx_v10_0_sw_init(struct amdgpu_ip_block *ip_block)
 
 	gfx_v10_0_gpu_early_init(adev);
 
-	gfx_v10_0_alloc_ip_dump(adev);
-
 	r = amdgpu_gfx_sysfs_init(adev);
 	if (r)
 		return r;
+
+	gfx_v10_0_alloc_ip_dump(adev);
 
 	return 0;
 }
@@ -7860,6 +7860,8 @@ static int gfx_v10_0_early_init(struct amdgpu_ip_block *ip_block)
 
 	/* init rlcg reg access ctrl */
 	gfx_v10_0_init_rlcg_reg_access_ctrl(adev);
+
+	amdgpu_init_rlc_reg_funcs(adev);
 
 	return gfx_v10_0_init_microcode(adev);
 }

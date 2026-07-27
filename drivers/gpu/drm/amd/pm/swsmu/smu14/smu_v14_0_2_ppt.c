@@ -1832,9 +1832,10 @@ static int smu_v14_0_2_set_power_profile_mode(struct smu_context *smu,
 				return -ENOMEM;
 		}
 		if (custom_params && custom_params_max_idx) {
-			if (custom_params_max_idx != SMU_14_0_2_CUSTOM_PARAMS_COUNT)
-				return -EINVAL;
-			if (custom_params[0] >= SMU_14_0_2_CUSTOM_PARAMS_CLOCK_COUNT)
+			if (!smu_cmn_custom_params_count_valid(custom_params_max_idx,
+							       SMU_14_0_2_CUSTOM_PARAMS_COUNT) ||
+			    !smu_cmn_custom_params_clock_valid(custom_params[0],
+							       SMU_14_0_2_CUSTOM_PARAMS_CLOCK_COUNT))
 				return -EINVAL;
 			idx = custom_params[0] * SMU_14_0_2_CUSTOM_PARAMS_COUNT;
 			smu->custom_profile_params[idx] = 1;
@@ -2893,8 +2894,6 @@ static const struct pptable_funcs smu_v14_0_2_ppt_funcs = {
 	.deep_sleep_control = smu_v14_0_deep_sleep_control,
 	.gfx_ulv_control = smu_v14_0_gfx_ulv_control,
 	.get_bamaco_support = smu_v14_0_get_bamaco_support,
-	.baco_get_state = smu_v14_0_baco_get_state,
-	.baco_set_state = smu_v14_0_baco_set_state,
 	.baco_enter = smu_v14_0_2_baco_enter,
 	.baco_exit = smu_v14_0_2_baco_exit,
 	.mode1_reset_is_support = smu_v14_0_2_is_mode1_reset_supported,
