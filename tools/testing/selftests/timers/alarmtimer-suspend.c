@@ -28,9 +28,10 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <include/vdso/time64.h>
 #include <errno.h>
 #include "kselftest.h"
+
+#define NSEC_PER_SEC 1000000000LL
 
 #define UNREASONABLE_LAT (NSEC_PER_SEC * 5) /* hopefully we resume in 5 secs */
 

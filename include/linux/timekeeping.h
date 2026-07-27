@@ -276,7 +276,7 @@ static inline bool ktime_get_aux_ts64(clockid_t id, struct timespec64 *kt) { ret
 #endif
 
 /**
- * struct system_time_snapshot - Simultaneous time capture of CLOCK_MONOTONIC_RAW,
+ * struct system_time_snapshot - Simultaneous time capture of monotonic raw time,
  *				 a selected CLOCK_* and the clocksource counter value
  * @cycles:		Clocksource counter value to produce the system times
  * @hw_cycles:		For derived clocksources, the hardware counter value from
@@ -289,6 +289,10 @@ static inline bool ktime_get_aux_ts64(clockid_t id, struct timespec64 *kt) { ret
  * @clock_was_set_seq:	The sequence number of clock-was-set events
  * @cs_was_changed_seq:	The sequence number of clocksource change events
  * @valid:		True if the snapshot is valid
+ *
+ * @monoraw is CLOCK_MONOTONIC_RAW for system time CLOCK ids. For CLOCK_AUX$N
+ * clock ids it's the monotonic raw time related to the AUX clock, which is
+ * CLOCK_MONOTONIC_RAW plus a AUX clock specific offset.
  */
 struct system_time_snapshot {
 	u64			cycles;
@@ -326,6 +330,10 @@ struct system_counterval_t {
  * @sys_counter:	Clocksource counter value simultaneous with device time
  * @sys_systime:	System time for @clock_id
  * @sys_monoraw:	Monotonic raw simultaneous with device time
+ *
+ * @sys_monoraw is CLOCK_MONOTONIC_RAW for system time CLOCK ids. For
+ * CLOCK_AUX$N clock ids it's the monotonic raw time related to the AUX clock,
+ * which is CLOCK_MONOTONIC_RAW plus a AUX clock specific offset.
  */
 struct system_device_crosststamp {
 	clockid_t			clock_id;
