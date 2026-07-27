@@ -15,7 +15,7 @@ use kernel::{
         Atomic,
         Relaxed, //
     },
-    types::ForLt,
+    types::CovariantForLt,
 };
 
 use crate::gpu::Gpu;
@@ -29,7 +29,7 @@ pub(crate) struct NovaCore<'bound> {
     pub(crate) gpu: Gpu<'bound>,
     bar: pci::Bar<'bound, BAR0_SIZE>,
     #[allow(clippy::type_complexity)]
-    _reg: auxiliary::Registration<'bound, ForLt!(())>,
+    _reg: auxiliary::Registration<'bound, CovariantForLt!(())>,
 }
 
 pub(crate) struct NovaCoreDriver;

@@ -450,7 +450,7 @@ where
 ///
 /// register! {
 ///     FIXED_REG(u32) @ 0x100 {
-///         16:8 high_byte;
+///         15:8 high_byte;
 ///         7:0  low_byte;
 ///     }
 /// }
