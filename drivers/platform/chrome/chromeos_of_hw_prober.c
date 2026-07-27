@@ -100,7 +100,7 @@ static const struct hw_prober_entry hw_prober_platforms[] = {
 	}, {
 		.compatible = "google,spherion",
 		.prober = chromeos_i2c_component_prober,
-		.data = &chromeos_i2c_probe_hana_trackpad,
+		.data = &chromeos_i2c_probe_dumb_trackpad,
 	}, {
 		.compatible = "google,squirtle",
 		.prober = chromeos_i2c_component_prober,
