@@ -268,21 +268,17 @@ static int ntfs_setattr_size(struct inode *vi, struct iattr *attr)
 		return err;
 
 	inode_dio_wait(vi);
-	truncate_setsize(vi, attr->ia_size);
+	if (attr->ia_size > old_size) {
+		truncate_pagecache(vi, old_size);
+		i_size_write(vi, attr->ia_size);
+		pagecache_isize_extended(vi, old_size, attr->ia_size);
+	} else
+		truncate_setsize(vi, attr->ia_size);
+
 	err = ntfs_truncate_vfs(vi, attr->ia_size, old_size);
 	if (err) {
 		i_size_write(vi, old_size);
 		return err;
-	}
-
-	if (NInoNonResident(ni) && attr->ia_size > old_size &&
-	    old_size % PAGE_SIZE != 0) {
-		loff_t len = min_t(loff_t,
-				round_up(old_size, PAGE_SIZE) - old_size,
-				attr->ia_size - old_size);
-		err = iomap_zero_range(vi, old_size, len,
-				NULL, &ntfs_seek_iomap_ops,
-				&ntfs_iomap_folio_ops, NULL);
 	}
 
 	return err;
@@ -346,14 +342,12 @@ int ntfs_setattr(struct mnt_idmap *idmap, struct dentry *dentry,
 		if (ia_valid & ATTR_MODE)
 			flags |= NTFS_EA_MODE;
 
-		if (S_ISDIR(vi->i_mode))
-			vi->i_mode &= ~vol->dmask;
-		else
-			vi->i_mode &= ~vol->fmask;
-
 		mutex_lock(&ni->mrec_lock);
-		ntfs_ea_set_wsl_inode(vi, 0, NULL, flags);
+		err = ntfs_ea_set_wsl_inode(vi, 0, NULL, flags);
 		mutex_unlock(&ni->mrec_lock);
+		if (err)
+			goto out;
+
 	}
 
 	mark_inode_dirty(vi);
@@ -535,6 +529,31 @@ out:
 	return ret;
 }
 
+static int ntfs_expand_for_write(struct ntfs_inode *ni, loff_t end)
+{
+	struct ntfs_volume *vol = ni->vol;
+	loff_t prealloc_size = 0;
+	int err;
+
+	if (end <= ni->data_size)
+		return 0;
+
+	if (NInoCompressed(ni)) {
+		if (end > ni->allocated_size)
+			prealloc_size = round_up(end,
+						 ni->itype.compressed.block_size);
+	} else if (end > ni->allocated_size &&
+		   end < ni->allocated_size + vol->preallocated_size) {
+		prealloc_size = ni->allocated_size + vol->preallocated_size;
+	}
+
+	mutex_lock(&ni->mrec_lock);
+	err = ntfs_attr_expand(ni, end, prealloc_size);
+	mutex_unlock(&ni->mrec_lock);
+
+	return err;
+}
+
 static ssize_t ntfs_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 {
 	struct file *file = iocb->ki_filp;
@@ -543,7 +562,7 @@ static ssize_t ntfs_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	struct ntfs_volume *vol = ni->vol;
 	ssize_t ret;
 	ssize_t count;
-	loff_t pos;
+	loff_t pos, end;
 	int err;
 	loff_t old_data_size, old_init_size;
 
@@ -580,9 +599,23 @@ static ssize_t ntfs_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 
 	pos = iocb->ki_pos;
 	count = ret;
+	end = pos + count;
 
 	old_data_size = ni->data_size;
 	old_init_size = ni->initialized_size;
+
+	if (end > old_data_size) {
+		ret = ntfs_expand_for_write(ni, end);
+		if (ret < 0)
+			goto out;
+	}
+
+	if (NInoNonResident(ni) && !NInoCompressed(ni) &&
+	    end > old_init_size) {
+		ret = ntfs_extend_initialized_size(vi, pos, end);
+		if (ret < 0)
+			goto out;
+	}
 
 	if (NInoNonResident(ni) && NInoCompressed(ni)) {
 		ret = ntfs_compress_write(ni, pos, count, from);
@@ -655,7 +688,7 @@ static int ntfs_file_mmap_prepare(struct vm_area_desc *desc)
 			   from + desc->end - desc->start);
 
 		if (NTFS_I(inode)->initialized_size < to) {
-			err = ntfs_extend_initialized_size(inode, to, to, false);
+			err = ntfs_extend_initialized_size(inode, to, to);
 			if (err)
 				return err;
 		}
@@ -1126,13 +1159,9 @@ out:
 		filemap_invalidate_unlock(vi->i_mapping);
 	if (!err) {
 		if (mode == 0 && NInoNonResident(ni) &&
-		    offset > old_size && old_size % PAGE_SIZE != 0) {
-			loff_t len = min_t(loff_t,
-					   round_up(old_size, PAGE_SIZE) - old_size,
-					   offset - old_size);
-			err = iomap_zero_range(vi, old_size, len, NULL,
-					       &ntfs_seek_iomap_ops,
-					       &ntfs_iomap_folio_ops, NULL);
+		    offset > old_size) {
+			truncate_pagecache(vi, old_size);
+			pagecache_isize_extended(vi, old_size, offset);
 		}
 		NInoSetFileNameDirty(ni);
 		inode_set_mtime_to_ts(vi, inode_set_ctime_current(vi));
