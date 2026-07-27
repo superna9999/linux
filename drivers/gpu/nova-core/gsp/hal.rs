@@ -1,23 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
+mod ga102;
 mod gh100;
 mod tu102;
 
-use kernel::prelude::*;
-
 use kernel::{
-    device,
-    dma::Coherent, //
+    dma::Coherent,
+    prelude::*, //
 };
 
 use crate::{
-    driver::Bar0,
-    falcon::{
-        gsp::Gsp as GspEngine,
-        sec2::Sec2,
-        Falcon, //
-    },
     fb::FbLayout,
     firmware::gsp::GspFirmware,
     gpu::{
@@ -25,8 +18,8 @@ use crate::{
         Chipset, //
     },
     gsp::{
-        boot::BootUnloadGuard,
         Gsp,
+        GspBootContext,
         GspFwWprMeta, //
     },
 };
@@ -38,33 +31,22 @@ use crate::{
 /// required for unloading is prepared at load time, and stored here until it needs to be run.
 pub(super) trait UnloadBundle: Send {
     /// Performs the steps required to properly reset the GSP after it has been stopped.
-    fn run(
-        &self,
-        dev: &device::Device<device::Bound>,
-        bar: Bar0<'_>,
-        gsp_falcon: &Falcon<GspEngine>,
-        sec2_falcon: &Falcon<Sec2>,
-    ) -> Result;
+    fn run(&self, ctx: &mut GspBootContext<'_, '_>) -> Result;
 }
 
 /// Trait implemented by GSP HALs.
 pub(super) trait GspHal: Send {
     /// Performs the GSP boot process, loading and running the required firmwares as needed.
     ///
-    /// Upon success, returns a guard that runs the GSP unload sequence if GSP boot does not
-    /// complete.
-    #[allow(clippy::too_many_arguments)]
-    fn boot<'a>(
+    /// Upon success, returns the [`crate::gsp::UnloadBundle`] to use with [`Gsp::unload`], if one
+    /// could be created.
+    fn boot(
         &self,
-        gsp: &'a Gsp,
-        dev: &'a device::Device<device::Bound>,
-        bar: Bar0<'a>,
-        chipset: Chipset,
+        gsp: &Gsp,
+        ctx: &mut GspBootContext<'_, '_>,
         fb_layout: &FbLayout,
         wpr_meta: &Coherent<GspFwWprMeta>,
-        gsp_falcon: &'a Falcon<GspEngine>,
-        sec2_falcon: &'a Falcon<Sec2>,
-    ) -> Result<BootUnloadGuard<'a>>;
+    ) -> Result<Option<crate::gsp::UnloadBundle>>;
 
     /// Performs HAL-specific post-GSP boot tasks.
     ///
@@ -73,20 +55,38 @@ pub(super) trait GspHal: Send {
     fn post_boot(
         &self,
         _gsp: &Gsp,
-        _dev: &device::Device<device::Bound>,
-        _bar: Bar0<'_>,
+        _ctx: &mut GspBootContext<'_, '_>,
         _gsp_fw: &GspFirmware,
-        _gsp_falcon: &Falcon<GspEngine>,
-        _sec2_falcon: &Falcon<Sec2>,
     ) -> Result {
         Ok(())
+    }
+}
+
+/// Returns the names of the firmware files required to boot the GSP of `chipset`, in addition to
+/// the "bootloader" and "gsp" images required by all chipsets.
+pub(crate) const fn boot_firmware_files(chipset: Chipset) -> &'static [&'static str] {
+    match chipset.arch() {
+        // Turing chipsets boot the GSP via the SEC2 Booter, and require the FWSEC bootloader.
+        Architecture::Turing => &["booter_load", "booter_unload", "gen_bootloader"],
+        // GA100 also requires the FWSEC bootloader.
+        Architecture::Ampere if matches!(chipset, Chipset::GA100) => {
+            &["booter_load", "booter_unload", "gen_bootloader"]
+        }
+        // Other Ampere chipsets, as well as Ada chipsets, run FWSEC directly.
+        Architecture::Ampere | Architecture::Ada => &["booter_load", "booter_unload"],
+        // Hopper and later chipsets boot the GSP via the FMC image loaded by FSP.
+        Architecture::Hopper | Architecture::BlackwellGB10x | Architecture::BlackwellGB20x => {
+            &["fmc"]
+        }
     }
 }
 
 /// Returns the GSP HAL to be used for `chipset`.
 pub(super) fn gsp_hal(chipset: Chipset) -> &'static dyn GspHal {
     match chipset.arch() {
-        Architecture::Turing | Architecture::Ampere | Architecture::Ada => tu102::TU102_HAL,
+        Architecture::Turing => tu102::TU102_HAL,
+        Architecture::Ampere if matches!(chipset, Chipset::GA100) => tu102::TU102_HAL,
+        Architecture::Ampere | Architecture::Ada => ga102::GA102_HAL,
         Architecture::Hopper | Architecture::BlackwellGB10x | Architecture::BlackwellGB20x => {
             gh100::GH100_HAL
         }
