@@ -898,6 +898,14 @@ struct bpf_scc_info {
 
 struct bpf_liveness;
 
+struct bpf_fd_array {
+	union {
+		struct bpf_map *map;
+		struct btf *btf;
+		unsigned long val;
+	};
+};
+
 /* single container for all structs
  * one verifier_env per bpf_check() call
  */
@@ -939,6 +947,7 @@ struct bpf_verifier_env {
 	bool bypass_spec_v4;
 	bool seen_direct_write;
 	bool seen_exception;
+	bool signature;
 	struct bpf_insn_aux_data *insn_aux_data; /* array of per-insn state */
 	const struct bpf_line_info *prev_linfo;
 	struct bpf_verifier_log log;
@@ -989,7 +998,19 @@ struct bpf_verifier_env {
 	u32 free_list_size;
 	u32 explored_states_size;
 	u32 num_backedges;
-	bpfptr_t fd_array;
+	/*
+	 * The program's fd_array comes in two shapes, told apart by whether
+	 * the caller passed fd_array_cnt. They are mutually exclusive:
+	 *  - continuous (fd_array_cnt given): ->fd_array holds every entry
+	 *    resolved to its object up front, indexed by fd_array position,
+	 *    with ->fd_array_cnt slots; ->fd_array_raw is unused.
+	 *  - sparse (no fd_array_cnt): ->fd_array is NULL, and entries are
+	 *    read from ->fd_array_raw (the caller's fd_array) and resolved
+	 *    on the spot at each reference.
+	 */
+	struct bpf_fd_array *fd_array;
+	u32 fd_array_cnt;
+	bpfptr_t fd_array_raw;
 
 	/* bit mask to keep track of whether a register has been accessed
 	 * since the last time the function state was printed
@@ -1243,6 +1264,11 @@ static inline void bpf_bt_set_frame_slot(struct backtrack_state *bt, u32 frame, 
 	bt->stack_masks[frame] |= 1ull << slot;
 }
 
+static inline void bpf_bt_set_frame_slot_mask(struct backtrack_state *bt, u32 frame, u64 mask)
+{
+	bt->stack_masks[frame] |= mask;
+}
+
 static inline void bt_set_frame_stack_arg_slot(struct backtrack_state *bt, u32 frame, u32 slot)
 {
 	bt->stack_arg_masks[frame] |= 1 << slot;
@@ -1438,19 +1464,38 @@ struct ref_obj_desc {
 	u8 cnt;
 };
 
-struct bpf_kfunc_call_arg_meta {
-	/* In parameters */
+/*
+ * A memory argument a call fills in. The verifier allows the stack to be uninitialized if
+ * the range is a known constant. Stack slots are marked as STACK_MISC by check_mem_access().
+ */
+struct arg_raw_mem_desc {
+	u8 regno;
+	int size;
+};
+
+/* Size of PTR_TO_MEM returned, taken from a constant allocation-size argument */
+struct ret_mem_desc {
+	u32 size;
+	bool found;
+};
+
+struct bpf_call_arg_meta {
+	/* Common */
 	struct btf *btf;
 	u32 func_id;
+	u8 release_regno;
+	u32 ret_btf_id;
+	u32 subprogno;
+	struct bpf_map_desc map;
+	struct bpf_dynptr_desc dynptr;
+	struct ref_obj_desc ref_obj;
+	struct ret_mem_desc ret_mem;
+
+	/* Only set by kfunc */
+	bool r0_rdonly;
 	u32 kfunc_flags;
 	const struct btf_type *func_proto;
 	const char *func_name;
-	/* Out parameters */
-	u8 release_regno;
-	bool r0_rdonly;
-	u32 ret_btf_id;
-	u64 r0_size;
-	u32 subprogno;
 	struct {
 		u64 value;
 		bool found;
@@ -1481,28 +1526,31 @@ struct bpf_kfunc_call_arg_meta {
 		u8 spi;
 		u8 frameno;
 	} iter;
-	struct bpf_map_desc map;
-	struct bpf_dynptr_desc dynptr;
-	struct ref_obj_desc ref_obj;
-	u64 mem_size;
+
+	/* Only set by helper */
+	u64 msize_max_value;
+	s64 const_map_key;
+	struct btf *ret_btf;
+	struct btf_field *kptr_field;
+	struct arg_raw_mem_desc arg_raw_mem;
 };
 
 int bpf_get_helper_proto(struct bpf_verifier_env *env, int func_id,
 			 const struct bpf_func_proto **ptr);
 int bpf_fetch_kfunc_arg_meta(struct bpf_verifier_env *env, s32 func_id,
-			     s16 offset, struct bpf_kfunc_call_arg_meta *meta);
+			     s16 offset, struct bpf_call_arg_meta *meta);
 bool bpf_is_async_callback_calling_insn(struct bpf_insn *insn);
 bool bpf_is_sync_callback_calling_insn(struct bpf_insn *insn);
-static inline bool bpf_is_iter_next_kfunc(struct bpf_kfunc_call_arg_meta *meta)
+static inline bool bpf_is_iter_next_kfunc(struct bpf_call_arg_meta *meta)
 {
 	return meta->kfunc_flags & KF_ITER_NEXT;
 }
 
-static inline bool bpf_is_kfunc_sleepable(struct bpf_kfunc_call_arg_meta *meta)
+static inline bool bpf_is_kfunc_sleepable(struct bpf_call_arg_meta *meta)
 {
 	return meta->kfunc_flags & KF_SLEEPABLE;
 }
-bool bpf_is_kfunc_pkt_changing(struct bpf_kfunc_call_arg_meta *meta);
+bool bpf_is_kfunc_pkt_changing(struct bpf_call_arg_meta *meta);
 struct bpf_iarray *bpf_iarray_realloc(struct bpf_iarray *old, size_t n_elem);
 int bpf_copy_insn_array_uniq(struct bpf_map *map, u32 start, u32 end, u32 *off);
 bool bpf_insn_is_cond_jump(u8 code);
