@@ -472,6 +472,12 @@ static void mana_table_remove_rc_qp(struct mana_ib_dev *mdev, struct mana_ib_qp 
 	xa_erase_irq(&mdev->qp_table_wq, qp->ibqp.qp_num);
 }
 
+static void mana_table_drain_qp_ref(struct mana_ib_qp *qp)
+{
+	mana_put_qp_ref(qp);
+	wait_for_completion(&qp->free);
+}
+
 static int mana_table_store_ud_qp(struct mana_ib_dev *mdev, struct mana_ib_qp *qp)
 {
 	u32 qids = qp->ud_qp.queues[MANA_UD_SEND_QUEUE].id | MANA_SENDQ_MASK;
@@ -490,6 +496,7 @@ static int mana_table_store_ud_qp(struct mana_ib_dev *mdev, struct mana_ib_qp *q
 
 remove_sq:
 	xa_erase_irq(&mdev->qp_table_wq, qids);
+	mana_table_drain_qp_ref(qp);
 	return err;
 }
 
@@ -537,8 +544,7 @@ static void mana_table_remove_qp(struct mana_ib_dev *mdev,
 			  qp->ibqp.qp_type);
 		return;
 	}
-	mana_put_qp_ref(qp);
-	wait_for_completion(&qp->free);
+	mana_table_drain_qp_ref(qp);
 }
 
 static int mana_ib_create_rc_qp(struct ib_qp *ibqp, struct ib_pd *ibpd,
@@ -651,10 +657,8 @@ static int mana_ib_create_ud_qp(struct ib_qp *ibqp, struct ib_pd *ibpd,
 	u32 doorbell, queue_size;
 	int i, err;
 
-	if (udata) {
-		ibdev_dbg(&mdev->ib_dev, "User-level UD QPs are not supported\n");
+	if (udata)
 		return -EOPNOTSUPP;
-	}
 
 	for (i = 0; i < MANA_UD_QUEUE_TYPE_MAX; ++i) {
 		queue_size = mana_ib_queue_size(attr, i);
@@ -745,6 +749,11 @@ static int mana_ib_gd_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 	struct gdma_context *gc = mdev_to_gc(mdev);
 	struct mana_port_context *mpc;
 	struct net_device *ndev;
+	int err;
+
+	err = ib_no_udata_io(udata);
+	if (err)
+		return err;
 
 	mana_gd_init_req_hdr(&req.hdr, MANA_IB_SET_QP_STATE, sizeof(req), sizeof(resp));
 
@@ -797,7 +806,11 @@ static int mana_ib_gd_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 		req.ah_attr.flow_label = attr->ah_attr.grh.flow_label;
 	}
 
-	return mana_gd_send_request(gc, sizeof(req), &req, sizeof(resp), &resp);
+	err = mana_gd_send_request(gc, sizeof(req), &req, sizeof(resp), &resp);
+	if (err)
+		return err;
+
+	return 0;
 }
 
 int mana_ib_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
@@ -826,7 +839,11 @@ static int mana_ib_destroy_qp_rss(struct mana_ib_qp *qp,
 	struct mana_ib_pd *pd;
 	struct mana_ib_wq *wq;
 	struct ib_wq *ibwq;
-	int i;
+	int i, err;
+
+	err = ib_no_udata_io(udata);
+	if (err)
+		return err;
 
 	ndev = mana_ib_get_netdev(qp->ibqp.device, qp->port);
 	mpc = netdev_priv(ndev);
@@ -872,6 +889,11 @@ static int mana_ib_destroy_qp_raw(struct mana_ib_qp *qp, struct ib_udata *udata)
 	struct mana_port_context *mpc;
 	struct net_device *ndev;
 	struct mana_ib_pd *pd;
+	int err;
+
+	err = ib_no_udata_io(udata);
+	if (err)
+		return err;
 
 	ndev = mana_ib_get_netdev(qp->ibqp.device, qp->port);
 	mpc = netdev_priv(ndev);
@@ -890,7 +912,11 @@ static int mana_ib_destroy_rc_qp(struct mana_ib_qp *qp, struct ib_udata *udata)
 {
 	struct mana_ib_dev *mdev =
 		container_of(qp->ibqp.device, struct mana_ib_dev, ib_dev);
-	int i;
+	int i, err;
+
+	err = ib_no_udata_io(udata);
+	if (err)
+		return err;
 
 	mana_table_remove_qp(mdev, qp);
 
@@ -908,7 +934,11 @@ static int mana_ib_destroy_ud_qp(struct mana_ib_qp *qp, struct ib_udata *udata)
 {
 	struct mana_ib_dev *mdev =
 		container_of(qp->ibqp.device, struct mana_ib_dev, ib_dev);
-	int i;
+	int i, err;
+
+	err = ib_no_udata_io(udata);
+	if (err)
+		return err;
 
 	mana_remove_qp_from_cqs(qp);
 	mana_table_remove_qp(mdev, qp);
