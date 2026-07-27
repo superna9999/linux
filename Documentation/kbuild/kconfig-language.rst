@@ -164,6 +164,11 @@ applicable everywhere (see syntax).
 	That will limit the usefulness but on the other hand avoid
 	the illegal configurations all over.
 
+	select should also not be used on the member options of a choice.
+	Selecting a choice option will do nothing (dead code). Instead,
+	consider making these a dependency, or using the defaults of the
+	choice to enable the member option when it's needed.
+
 	If "select" <symbol> is followed by "if" <expr>, <symbol> will be
 	selected by the logical AND of the value of the current menu symbol
 	and <expr>. This means, the lower limit can be downgraded due to the
