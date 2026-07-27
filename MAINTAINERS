@@ -13714,6 +13714,7 @@ F:	sound/soc/codecs/sma*
 
 IRQ DOMAINS (IRQ NUMBER MAPPING LIBRARY)
 M:	Thomas Gleixner <tglx@kernel.org>
+R:	Radu Rendec <radu@rendec.net>
 S:	Maintained
 P:	Documentation/process/maintainer-tip.rst
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git irq/core
@@ -13725,6 +13726,7 @@ F:	kernel/irq/msi.c
 
 IRQ SUBSYSTEM
 M:	Thomas Gleixner <tglx@kernel.org>
+R:	Radu Rendec <radu@rendec.net>
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 P:	Documentation/process/maintainer-tip.rst
@@ -13739,6 +13741,7 @@ F:	lib/group_cpus.c
 
 IRQCHIP DRIVERS
 M:	Thomas Gleixner <tglx@kernel.org>
+R:	Radu Rendec <radu@rendec.net>
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 P:	Documentation/process/maintainer-tip.rst
