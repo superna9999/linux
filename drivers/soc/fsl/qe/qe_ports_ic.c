@@ -23,36 +23,39 @@ struct qepic_data {
 static void qepic_mask(struct irq_data *d)
 {
 	struct qepic_data *data = irq_data_get_irq_chip_data(d);
+	u32 val = ioread32be(data->reg + CEPIMR);
 
-	clrbits32(data->reg + CEPIMR, 1 << (31 - irqd_to_hwirq(d)));
+	iowrite32be(val & ~(1 << (31 - irqd_to_hwirq(d))), data->reg + CEPIMR);
 }
 
 static void qepic_unmask(struct irq_data *d)
 {
 	struct qepic_data *data = irq_data_get_irq_chip_data(d);
+	u32 val = ioread32be(data->reg + CEPIMR);
 
-	setbits32(data->reg + CEPIMR, 1 << (31 - irqd_to_hwirq(d)));
+	iowrite32be(val | 1 << (31 - irqd_to_hwirq(d)), data->reg + CEPIMR);
 }
 
 static void qepic_end(struct irq_data *d)
 {
 	struct qepic_data *data = irq_data_get_irq_chip_data(d);
 
-	out_be32(data->reg + CEPIER, 1 << (31 - irqd_to_hwirq(d)));
+	iowrite32be(1 << (31 - irqd_to_hwirq(d)), data->reg + CEPIER);
 }
 
 static int qepic_set_type(struct irq_data *d, unsigned int flow_type)
 {
 	struct qepic_data *data = irq_data_get_irq_chip_data(d);
 	unsigned int vec = (unsigned int)irqd_to_hwirq(d);
+	u32 val = ioread32be(data->reg + CEPICR);
 
 	switch (flow_type & IRQ_TYPE_SENSE_MASK) {
 	case IRQ_TYPE_EDGE_FALLING:
-		setbits32(data->reg + CEPICR, 1 << (31 - vec));
+		iowrite32be(val | 1 << (31 - vec), data->reg + CEPICR);
 		return 0;
 	case IRQ_TYPE_EDGE_BOTH:
 	case IRQ_TYPE_NONE:
-		clrbits32(data->reg + CEPICR, 1 << (31 - vec));
+		iowrite32be(val & ~(1 << (31 - vec)), data->reg + CEPICR);
 		return 0;
 	}
 	return -EINVAL;
@@ -69,7 +72,7 @@ static struct irq_chip qepic = {
 static int qepic_get_irq(struct irq_desc *desc)
 {
 	struct qepic_data *data = irq_desc_get_handler_data(desc);
-	u32 event = in_be32(data->reg + CEPIER);
+	u32 event = ioread32be(data->reg + CEPIER);
 
 	if (!event)
 		return -1;
