@@ -1232,8 +1232,6 @@
 			#size-cells = <2>;
 			ranges;
 
-			status = "disabled";
-
 			i2c0: i2c@a80000 {
 				compatible = "qcom,geni-i2c";
 				reg = <0x0 0x00a80000 0x0 0x4000>;
@@ -2696,7 +2694,7 @@
 
 		pdc: interrupt-controller@b220000 {
 			compatible = "qcom,eliza-pdc", "qcom,pdc";
-			reg = <0x0 0x0b220000 0x0 0x40000>,
+			reg = <0x0 0x0b220000 0x0 0x10000>,
 			      <0x0 0x174000f0 0x0 0x64>;
 
 			qcom,pdc-ranges = <0 480 8>, <8 719 1>, <9 718 1>,
@@ -3614,6 +3612,102 @@
 
 			#freq-domain-cells = <1>;
 			#clock-cells = <1>;
+		};
+
+		pmu@24091000 {
+			compatible = "qcom,eliza-llcc-bwmon", "qcom,sc7280-llcc-bwmon";
+			reg = <0x0 0x24091000 0x0 0x1000>;
+
+			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
+
+			interconnects = <&mc_virt MASTER_LLCC QCOM_ICC_TAG_ACTIVE_ONLY
+					 &mc_virt SLAVE_EBI1 QCOM_ICC_TAG_ACTIVE_ONLY>;
+
+			operating-points-v2 = <&llcc_bwmon_opp_table>;
+
+			llcc_bwmon_opp_table: opp-table {
+				compatible = "operating-points-v2";
+
+				opp-0 {
+					opp-peak-kBps = <2188800>;
+				};
+
+				opp-1 {
+					opp-peak-kBps = <5414400>;
+				};
+
+				opp-2 {
+					opp-peak-kBps = <6220800>;
+				};
+
+				opp-3 {
+					opp-peak-kBps = <6835200>;
+				};
+
+				opp-4 {
+					opp-peak-kBps = <8371200>;
+				};
+
+				opp-5 {
+					opp-peak-kBps = <10944000>;
+				};
+
+				opp-6 {
+					opp-peak-kBps = <12748800>;
+				};
+
+				opp-7 {
+					opp-peak-kBps = <14745600>;
+				};
+
+				opp-8 {
+					opp-peak-kBps = <16896000>;
+				};
+			};
+		};
+
+		pmu@240b7400 {
+			compatible = "qcom,eliza-cpu-bwmon", "qcom,sdm845-bwmon";
+			reg = <0x0 0x240b7400 0x0 0x600>;
+
+			interrupts = <GIC_SPI 581 IRQ_TYPE_LEVEL_HIGH>;
+
+			interconnects = <&gem_noc MASTER_APPSS_PROC QCOM_ICC_TAG_ACTIVE_ONLY
+					 &gem_noc SLAVE_LLCC QCOM_ICC_TAG_ACTIVE_ONLY>;
+
+			operating-points-v2 = <&cpu_bwmon_opp_table>;
+
+			cpu_bwmon_opp_table: opp-table {
+				compatible = "operating-points-v2";
+
+				opp-0 {
+					opp-peak-kBps = <307200>;
+				};
+
+				opp-1 {
+					opp-peak-kBps = <5600000>;
+				};
+
+				opp-2 {
+					opp-peak-kBps = <8528000>;
+				};
+
+				opp-3 {
+					opp-peak-kBps = <11120000>;
+				};
+
+				opp-4 {
+					opp-peak-kBps = <14000000>;
+				};
+
+				opp-5 {
+					opp-peak-kBps = <14928000>;
+				};
+
+				opp-6 {
+					opp-peak-kBps = <17056000>;
+				};
+			};
 		};
 
 		gem_noc: interconnect@24100000 {
