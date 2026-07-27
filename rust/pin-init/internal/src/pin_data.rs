@@ -85,7 +85,10 @@ pub(crate) fn pin_data(
         .map(|field| {
             let len = field.attrs.len();
             field.attrs.retain(|a| !a.path().is_ident("pin"));
-            let pinned = len != field.attrs.len();
+            let pinned_count = len - field.attrs.len();
+            if pinned_count > 1 {
+                dcx.error(&field, "#[pin] attribute specified more than once");
+            }
 
             let cfg_attrs = field
                 .attrs
@@ -95,7 +98,7 @@ pub(crate) fn pin_data(
 
             FieldInfo {
                 field: &*field,
-                pinned,
+                pinned: pinned_count != 0,
                 cfg_attrs,
             }
         })
@@ -242,7 +245,6 @@ fn generate_drop_impl(ident: &Ident, generics: &Generics, args: Args) -> TokenSt
             // `Drop`. Additionally we will implement this trait for the struct leading to a conflict,
             // if it also implements `Drop`
             trait MustNotImplDrop {}
-            #[expect(drop_bounds)]
             impl<T: ::core::ops::Drop + ?::core::marker::Sized> MustNotImplDrop for T {}
             impl #impl_generics MustNotImplDrop for #ident #ty_generics
                 #whr
@@ -250,7 +252,6 @@ fn generate_drop_impl(ident: &Ident, generics: &Generics, args: Args) -> TokenSt
             // We also take care to prevent users from writing a useless `PinnedDrop` implementation.
             // They might implement `PinnedDrop` correctly for the struct, but forget to give
             // `PinnedDrop` as the parameter to `#[pin_data]`.
-            #[expect(non_camel_case_types)]
             trait UselessPinnedDropImpl_you_need_to_specify_PinnedDrop {}
             impl<T: ::pin_init::PinnedDrop + ?::core::marker::Sized>
                 UselessPinnedDropImpl_you_need_to_specify_PinnedDrop for T {}
@@ -429,7 +430,6 @@ fn generate_the_pin_data(
         {}
 
         #[allow(dead_code)] // Some functions might never be used and private.
-        #[expect(clippy::missing_safety_doc)]
         impl #impl_generics __ThePinData #ty_generics
             #whr
         {
