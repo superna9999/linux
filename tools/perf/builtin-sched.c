@@ -2025,9 +2025,9 @@ static int perf_sched__read_events(struct perf_sched *sched)
 			goto out_delete;
 		}
 
-		sched->nr_events      = session->evlist->stats.nr_events[0];
-		sched->nr_lost_events = session->evlist->stats.total_lost;
-		sched->nr_lost_chunks = session->evlist->stats.nr_events[PERF_RECORD_LOST];
+		sched->nr_events      = evlist__stats(session->evlist)->nr_events[0];
+		sched->nr_lost_events = evlist__stats(session->evlist)->total_lost;
+		sched->nr_lost_chunks = evlist__stats(session->evlist)->nr_events[PERF_RECORD_LOST];
 	}
 
 	rc = 0;
@@ -2269,12 +2269,6 @@ static void timehist_print_sample(struct perf_sched *sched,
 		}
 		printf(" ");
 	}
-
-	if (!thread__comm_set(thread)) {
-		const char *prev_comm = perf_sample__strval(sample, "prev_comm");
-
-		thread__set_comm(thread, prev_comm, sample->time);
-        }
 
 	printf(" %-*s ", comm_width, timehist_get_commstr(thread));
 
@@ -2981,6 +2975,16 @@ static int timehist_sched_change_event(const struct perf_tool *tool,
 			thread__zput(itr->last_thread);
 		}
 
+		/*
+		 * If the process name is not set for the thread, use "prev_comm"
+		 * to set it. Otherwise the sched summary will have just pid information
+		 */
+		if (!thread__comm_set(thread)) {
+			const char *prev_comm = perf_sample__strval(sample, "prev_comm");
+
+			thread__set_comm(thread, prev_comm, sample->time);
+		}
+
 		if (!sched->summary_only)
 			timehist_print_sample(sched, sample, &al, thread, t, state);
 	}
@@ -3303,7 +3307,7 @@ static int timehist_check_attr(struct perf_sched *sched,
 	struct evsel *evsel;
 	struct evsel_runtime *er;
 
-	list_for_each_entry(evsel, &evlist->core.entries, core.node) {
+	list_for_each_entry(evsel, &evlist__core(evlist)->entries, core.node) {
 		er = evsel__get_runtime(evsel);
 		if (er == NULL) {
 			pr_err("Failed to allocate memory for evsel runtime data\n");
@@ -3475,9 +3479,9 @@ static int perf_sched__timehist(struct perf_sched *sched)
 		goto out;
 	}
 
-	sched->nr_events      = evlist->stats.nr_events[0];
-	sched->nr_lost_events = evlist->stats.total_lost;
-	sched->nr_lost_chunks = evlist->stats.nr_events[PERF_RECORD_LOST];
+	sched->nr_events      = evlist__stats(evlist)->nr_events[0];
+	sched->nr_lost_events = evlist__stats(evlist)->total_lost;
+	sched->nr_lost_chunks = evlist__stats(evlist)->nr_events[PERF_RECORD_LOST];
 
 	if (sched->summary)
 		timehist_print_summary(sched, session);
@@ -3924,7 +3928,7 @@ static int perf_sched__schedstat_record(struct perf_sched *sched,
 	session = perf_session__new(&data, &sched->tool);
 	if (IS_ERR(session)) {
 		pr_err("Perf session creation failed.\n");
-		evlist__delete(evlist);
+		evlist__put(evlist);
 		return PTR_ERR(session);
 	}
 
@@ -3982,7 +3986,7 @@ static int perf_sched__schedstat_record(struct perf_sched *sched,
 	if (err < 0)
 		goto out;
 
-	user_requested_cpus = evlist->core.user_requested_cpus;
+	user_requested_cpus = evlist__core(evlist)->user_requested_cpus;
 
 	err = perf_event__synthesize_schedstat(&(sched->tool),
 					       process_synthesized_schedstat_event,
@@ -3998,7 +4002,7 @@ static int perf_sched__schedstat_record(struct perf_sched *sched,
 		evlist__start_workload(evlist);
 
 	while (!done) {
-		if (argc && waitpid(evlist->workload.pid, NULL, WNOHANG) > 0)
+		if (argc && waitpid(evlist__workload_pid(evlist), NULL, WNOHANG) > 0)
 			break;
 		sleep(1);
 	}
@@ -4023,8 +4027,8 @@ out:
 	else
 		fprintf(stderr, "[ perf sched stats: Failed !! ]\n");
 
-	evlist__delete(evlist);
-	close(fd);
+	perf_session__delete(session);
+	evlist__put(evlist);
 	return err;
 }
 
@@ -4627,6 +4631,8 @@ static int perf_sched__process_schedstat(const struct perf_tool *tool __maybe_un
 			domain_second_pass = list_first_entry(&cpu_second_pass->domain_head,
 							      struct schedstat_domain, domain_list);
 			store_schedstat_cpu_diff(temp);
+			free(temp->cpu_data);
+			free(temp);
 		}
 	} else if (event->header.type == PERF_RECORD_SCHEDSTAT_DOMAIN) {
 		struct schedstat_cpu *cpu_tail;
@@ -4647,6 +4653,8 @@ static int perf_sched__process_schedstat(const struct perf_tool *tool __maybe_un
 		} else {
 			store_schedstat_domain_diff(temp);
 			domain_second_pass = list_next_entry(domain_second_pass, domain_list);
+			free(temp->domain_data);
+			free(temp);
 		}
 	}
 
@@ -4699,7 +4707,7 @@ static int perf_sched__schedstat_report(struct perf_sched *sched)
 	if (err < 0)
 		goto out;
 
-	user_requested_cpus = session->evlist->core.user_requested_cpus;
+	user_requested_cpus = evlist__core(session->evlist)->user_requested_cpus;
 
 	err = perf_session__process_events(session);
 
@@ -4875,7 +4883,7 @@ static int perf_sched__schedstat_live(struct perf_sched *sched,
 	if (err < 0)
 		goto out;
 
-	user_requested_cpus = evlist->core.user_requested_cpus;
+	user_requested_cpus = evlist__core(evlist)->user_requested_cpus;
 
 	err = perf_event__synthesize_schedstat(&(sched->tool),
 					       process_synthesized_event_live,
@@ -4891,7 +4899,7 @@ static int perf_sched__schedstat_live(struct perf_sched *sched,
 		evlist__start_workload(evlist);
 
 	while (!done) {
-		if (argc && waitpid(evlist->workload.pid, NULL, WNOHANG) > 0)
+		if (argc && waitpid(evlist__workload_pid(evlist), NULL, WNOHANG) > 0)
 			break;
 		sleep(1);
 	}
@@ -4927,7 +4935,7 @@ static int perf_sched__schedstat_live(struct perf_sched *sched,
 	free_cpu_domain_info(cd_map, sv, nr);
 out:
 	free_schedstat(&cpu_head);
-	evlist__delete(evlist);
+	evlist__put(evlist);
 	return err;
 }
 
@@ -5251,19 +5259,20 @@ int cmd_sched(int argc, const char **argv)
 			if (argc)
 				argc = parse_options(argc, argv, stats_options,
 						     stats_usage, 0);
-			return perf_sched__schedstat_record(&sched, argc, argv);
+			ret = perf_sched__schedstat_record(&sched, argc, argv);
 		} else if (argv[0] && !strcmp(argv[0], "report")) {
 			if (argc)
 				argc = parse_options(argc, argv, stats_options,
 						     stats_usage, 0);
-			return perf_sched__schedstat_report(&sched);
+			ret = perf_sched__schedstat_report(&sched);
 		} else if (argv[0] && !strcmp(argv[0], "diff")) {
 			if (argc)
 				argc = parse_options(argc, argv, stats_options,
 						     stats_usage, 0);
-			return perf_sched__schedstat_diff(&sched, argc, argv);
+			ret = perf_sched__schedstat_diff(&sched, argc, argv);
+		} else {
+			ret = perf_sched__schedstat_live(&sched, argc, argv);
 		}
-		return perf_sched__schedstat_live(&sched, argc, argv);
 	} else {
 		usage_with_options(sched_usage, sched_options);
 	}

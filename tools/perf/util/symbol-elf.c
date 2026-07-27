@@ -2216,6 +2216,10 @@ static int kcore_copy__process_kallsyms(void *arg, const char *name, char type,
 	if (!kallsyms__is_function(type))
 		return 0;
 
+	/* Ignore livepatch symbols */
+	if (is_livepatch_symbol(name))
+		return 0;
+
 	if (strchr(name, '[')) {
 		if (!kci->first_module_symbol || start < kci->first_module_symbol)
 			kci->first_module_symbol = start;

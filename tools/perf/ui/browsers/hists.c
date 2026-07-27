@@ -2,6 +2,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -688,10 +689,10 @@ static int hist_browser__handle_hotkey(struct hist_browser *browser, bool warn_l
 		ui_browser__update_nr_entries(&browser->b, nr_entries);
 
 		if (warn_lost_event &&
-		    (evsel->evlist->stats.nr_lost_warned !=
-		     evsel->evlist->stats.nr_events[PERF_RECORD_LOST])) {
-			evsel->evlist->stats.nr_lost_warned =
-				evsel->evlist->stats.nr_events[PERF_RECORD_LOST];
+		    (evlist__stats(evsel->evlist)->nr_lost_warned !=
+		     evlist__stats(evsel->evlist)->nr_events[PERF_RECORD_LOST])) {
+			evlist__stats(evsel->evlist)->nr_lost_warned =
+				evlist__stats(evsel->evlist)->nr_events[PERF_RECORD_LOST];
 			ui_browser__warn_lost_events(&browser->b);
 		}
 
@@ -2810,7 +2811,7 @@ add_script_opt(struct hist_browser *browser,
 	       struct popup_action *act, char **optstr,
 	       struct thread *thread, struct symbol *sym)
 {
-	int n, j;
+	int n, j, ret;
 	struct hist_entry *he;
 
 	n = add_script_opt_2(act, optstr, thread, sym, "");
@@ -2818,17 +2819,24 @@ add_script_opt(struct hist_browser *browser,
 	he = hist_browser__selected_entry(browser);
 	if (sort_order && strstr(sort_order, "time")) {
 		char tstr[128];
+		struct popup_action *time_act = act;
+		char **time_optstr = optstr;
 
-		optstr++;
-		act++;
+		if (n > 0) {
+			time_optstr++;
+			time_act++;
+		}
 		j = sprintf(tstr, " in ");
 		j += timestamp__scnprintf_usec(he->time, tstr + j,
 					       sizeof tstr - j);
 		j += sprintf(tstr + j, "-");
 		timestamp__scnprintf_usec(he->time + symbol_conf.time_quantum,
 				          tstr + j, sizeof tstr - j);
-		n += add_script_opt_2(act, optstr, thread, sym, tstr);
-		act->time = he->time;
+		ret = add_script_opt_2(time_act, time_optstr, thread, sym, tstr);
+		if (ret > 0) {
+			time_act->time = he->time;
+			n += ret;
+		}
 	}
 	return n;
 }
@@ -3003,7 +3011,7 @@ static int evsel__hists_browse(struct evsel *evsel, int nr_events, const char *h
 	struct hists *hists = evsel__hists(evsel);
 	struct hist_browser *browser = perf_evsel_browser__new(evsel, hbt, env);
 	struct branch_info *bi = NULL;
-#define MAX_OPTIONS  16
+#define MAX_OPTIONS  32
 	char *options[MAX_OPTIONS];
 	struct popup_action actions[MAX_OPTIONS];
 	int nr_options = 0;
@@ -3064,14 +3072,14 @@ static int evsel__hists_browse(struct evsel *evsel, int nr_events, const char *h
 		browser->min_pcnt = min_pcnt;
 	hist_browser__update_nr_entries(browser);
 
+	memset(options, 0, sizeof(options));
+	memset(actions, 0, sizeof(actions));
+
 	browser->pstack = pstack__new(3);
 	if (browser->pstack == NULL)
 		goto out;
 
 	ui_helpline__push(helpline);
-
-	memset(options, 0, sizeof(options));
-	memset(actions, 0, sizeof(actions));
 
 	if (symbol_conf.col_width_list_str)
 		perf_hpp__set_user_width(symbol_conf.col_width_list_str);
@@ -3321,7 +3329,7 @@ do_hotkey:		 // key came straight from options ui__popup_menu()
 				 * No need to refresh, resort/decay histogram
 				 * entries if we are not collecting samples:
 				 */
-				if (top->evlist->enabled) {
+				if (evlist__enabled(top->evlist)) {
 					helpline = "Press 'f' to disable the events or 'h' to see other hotkeys";
 					hbt->refresh = delay_secs;
 				} else {
@@ -3493,7 +3501,7 @@ static void perf_evsel_menu__write(struct ui_browser *browser,
 			   unit, unit == ' ' ? "" : " ", ev_name);
 	ui_browser__printf(browser, "%s", bf);
 
-	nr_events = evsel->evlist->stats.nr_events[PERF_RECORD_LOST];
+	nr_events = evlist__stats(evsel->evlist)->nr_events[PERF_RECORD_LOST];
 	if (nr_events != 0) {
 		menu->lost_events = true;
 		if (!current_entry)
@@ -3559,13 +3567,13 @@ browse_hists:
 			ui_browser__show_title(&menu->b, title);
 			switch (key) {
 			case K_TAB:
-				if (pos->core.node.next == &evlist->core.entries)
+				if (pos->core.node.next == &evlist__core(evlist)->entries)
 					pos = evlist__first(evlist);
 				else
 					pos = evsel__next(pos);
 				goto browse_hists;
 			case K_UNTAB:
-				if (pos->core.node.prev == &evlist->core.entries)
+				if (pos->core.node.prev == &evlist__core(evlist)->entries)
 					pos = evlist__last(evlist);
 				else
 					pos = evsel__prev(pos);
@@ -3618,7 +3626,7 @@ static int __evlist__tui_browse_hists(struct evlist *evlist, int nr_entries, con
 	struct evsel *pos;
 	struct evsel_menu menu = {
 		.b = {
-			.entries    = &evlist->core.entries,
+			.entries    = &evlist__core(evlist)->entries,
 			.refresh    = ui_browser__list_head_refresh,
 			.seek	    = ui_browser__list_head_seek,
 			.write	    = perf_evsel_menu__write,
@@ -3646,7 +3654,7 @@ static int __evlist__tui_browse_hists(struct evlist *evlist, int nr_entries, con
 
 static bool evlist__single_entry(struct evlist *evlist)
 {
-	int nr_entries = evlist->core.nr_entries;
+	int nr_entries = evlist__nr_entries(evlist);
 
 	if (nr_entries == 1)
 	       return true;
@@ -3664,7 +3672,7 @@ static bool evlist__single_entry(struct evlist *evlist)
 int evlist__tui_browse_hists(struct evlist *evlist, const char *help, struct hist_browser_timer *hbt,
 			     float min_pcnt, struct perf_env *env, bool warn_lost_event)
 {
-	int nr_entries = evlist->core.nr_entries;
+	int nr_entries = evlist__nr_entries(evlist);
 
 	if (evlist__single_entry(evlist)) {
 single_entry: {
