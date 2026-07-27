@@ -894,7 +894,7 @@ static ssize_t ntfs_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 
 out:
 	inode_unlock_shared(inode);
-	file_accessed(iocb->ki_filp);
+	file_accessed(file);
 	return err;
 }
 

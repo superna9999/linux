@@ -25,6 +25,11 @@ int ntfs_utf16_to_nls(struct ntfs_sb_info *sbi, const __le16 *name, u32 len,
 
 	static_assert(sizeof(wchar_t) == sizeof(__le16));
 
+	if (buf_len <= 0)
+		return -EINVAL;
+
+	buf_len -= 1;
+
 	if (!nls) {
 		/* UTF-16 -> UTF-8 */
 		ret = utf16s_to_utf8s((wchar_t *)name, len, UTF16_LITTLE_ENDIAN,
@@ -273,6 +278,12 @@ out:
 	return err == -ENOENT ? NULL : err ? ERR_PTR(err) : inode;
 }
 
+static inline bool de_fname_fits(const struct NTFS_DE *e, u32 e_size,
+				 const struct ATTR_FILE_NAME *fname)
+{
+	return sizeof(struct NTFS_DE) + fname_full_size(fname) <= e_size;
+}
+
 /*
  * returns false if 'ctx' if full
  */
@@ -281,7 +292,7 @@ static inline bool ntfs_dir_emit(struct ntfs_sb_info *sbi,
 				 u8 *name, struct dir_context *ctx)
 {
 	const struct ATTR_FILE_NAME *fname;
-	unsigned long ino;
+	u64 ino;
 	int name_len;
 	u32 dt_type;
 
@@ -305,15 +316,13 @@ static inline bool ntfs_dir_emit(struct ntfs_sb_info *sbi,
 	if (sbi->options->nohidden && (fname->dup.fa & FILE_ATTRIBUTE_HIDDEN))
 		return true;
 
-	if (sizeof(struct NTFS_DE) +
-	    offsetof(struct ATTR_FILE_NAME, name) +
-	    fname->name_len * sizeof(short) > le16_to_cpu(e->size))
+	if (!de_fname_fits(e, le16_to_cpu(e->size), fname))
 		return true;
 
 	name_len = ntfs_utf16_to_nls(sbi, fname->name, fname->name_len, name,
 				     PATH_MAX);
 	if (name_len <= 0) {
-		ntfs_warn(sbi->sb, "failed to convert name for inode %lx.",
+		ntfs_warn(sbi->sb, "failed to convert name for inode %llx.",
 			  ino);
 		return true;
 	}
@@ -576,6 +585,23 @@ out:
 	return err;
 }
 
+/*
+ * Return fname when @e passes the same checks as ntfs_dir_emit() before
+ * exposing an entry (valid key, non-DOS, fname fits in e->size).
+ */
+static inline const struct ATTR_FILE_NAME *
+de_countable_fname(const struct NTFS_DE *e, u32 e_size)
+{
+	const struct ATTR_FILE_NAME *fname;
+
+	fname = de_get_fname(e);
+	if (!fname || fname->type == FILE_NAME_DOS ||
+	    !de_fname_fits(e, e_size, fname))
+		return NULL;
+
+	return fname;
+}
+
 static int ntfs_dir_count(struct inode *dir, bool *is_empty, size_t *dirs,
 			  size_t *files)
 {
@@ -615,11 +641,8 @@ static int ntfs_dir_count(struct inode *dir, bool *is_empty, size_t *dirs,
 			if (de_is_last(e))
 				break;
 
-			fname = de_get_fname(e);
+			fname = de_countable_fname(e, e_size);
 			if (!fname)
-				continue;
-
-			if (fname->type == FILE_NAME_DOS)
 				continue;
 
 			if (is_empty) {
