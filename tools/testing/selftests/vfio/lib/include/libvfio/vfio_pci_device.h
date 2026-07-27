@@ -67,6 +67,20 @@ void vfio_pci_config_access(struct vfio_pci_device *device, bool write,
 #define vfio_pci_config_writew(_d, _o, _v) vfio_pci_config_write(_d, _o, _v, u16)
 #define vfio_pci_config_writel(_d, _o, _v) vfio_pci_config_write(_d, _o, _v, u32)
 
+static inline void vfio_pci_cmd_set(struct vfio_pci_device *device, u16 bits)
+{
+	u16 cmd = vfio_pci_config_readw(device, PCI_COMMAND);
+
+	vfio_pci_config_writew(device, PCI_COMMAND, cmd | bits);
+}
+
+static inline void vfio_pci_cmd_clear(struct vfio_pci_device *device, u16 bits)
+{
+	u16 cmd = vfio_pci_config_readw(device, PCI_COMMAND);
+
+	vfio_pci_config_writew(device, PCI_COMMAND, cmd & ~bits);
+}
+
 void vfio_pci_irq_enable(struct vfio_pci_device *device, u32 index,
 			 u32 vector, int count);
 void vfio_pci_irq_disable(struct vfio_pci_device *device, u32 index);
