@@ -3,6 +3,8 @@
  * CSS tweaks for the Alabaster theme
  */
 
+div.body {  max-width: 120em; }
+
 /* Shrink the headers a bit */
 div.body h1 { font-size: 180%; }
 div.body h2 { font-size: 150%; }
@@ -154,15 +156,6 @@ div.language-selection:hover ul {
 
 div.language-selection ul li:hover {
     background: #dddddd;
-}
-
-/*
- * Let long inline literals in paragraph text wrap as needed to prevent
- * overflow.
- */
-code.docutils.literal span.pre {
-    white-space: normal;
-    overflow-wrap: anywhere;
 }
 
 /* Let rendered reference links in tables wrap when needed. */
