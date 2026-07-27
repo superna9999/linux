@@ -668,7 +668,7 @@ union perf_capabilities {
 		u64	perf_metrics:1;
 		u64	pebs_output_pt_available:1;
 		u64	pebs_timing_info:1;
-		u64	anythread_deprecated:1;
+		u64	__reserved:1;
 		u64	rdpmc_metrics_clear:1;
 	};
 	u64	capabilities;
@@ -1175,7 +1175,7 @@ DECLARE_STATIC_CALL(x86_pmu_pebs_disable_all, *x86_pmu.pebs_disable_all);
 
 static __always_inline struct x86_perf_task_context_opt *task_context_opt(void *ctx)
 {
-	if (static_cpu_has(X86_FEATURE_ARCH_LBR))
+	if (cpu_feature_enabled(X86_FEATURE_ARCH_LBR))
 		return &((struct x86_perf_task_context_arch_lbr *)ctx)->opt;
 
 	return &((struct x86_perf_task_context *)ctx)->opt;
@@ -1344,7 +1344,7 @@ static inline u64 x86_pmu_get_event_config(struct perf_event *event)
 static inline bool x86_pmu_has_rdpmc_user_disable(struct pmu *pmu)
 {
 	return !!(hybrid(pmu, config_mask) &
-		 ARCH_PERFMON_EVENTSEL_RDPMC_USER_DISABLE);
+		  ARCH_PERFMON_EVENTSEL_RDPMC_USER_DISABLE);
 }
 
 extern struct event_constraint emptyconstraint;
