@@ -524,6 +524,8 @@ struct vmx_pages {
 	u64 apic_access_gpa;
 	void *apic_access;
 
+	void *stack;
+
 	u64 eptp_gpa;
 };
 
@@ -552,7 +554,7 @@ union vmx_ctrl_msr {
 
 struct vmx_pages *vcpu_alloc_vmx(struct kvm_vm *vm, gva_t *p_vmx_gva);
 bool prepare_for_vmx_operation(struct vmx_pages *vmx);
-void prepare_vmcs(struct vmx_pages *vmx, void *guest_rip, void *guest_rsp);
+void prepare_vmcs(struct vmx_pages *vmx, void *guest_rip);
 bool load_vmcs(struct vmx_pages *vmx);
 
 bool ept_1g_pages_supported(void);

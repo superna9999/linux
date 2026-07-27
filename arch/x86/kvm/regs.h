@@ -16,6 +16,18 @@
 
 static_assert(!(KVM_POSSIBLE_CR0_GUEST_BITS & X86_CR0_PDPTR_BITS));
 
+void kvm_post_set_cr0(struct kvm_vcpu *vcpu, unsigned long old_cr0, unsigned long cr0);
+void kvm_post_set_cr4(struct kvm_vcpu *vcpu, unsigned long old_cr4, unsigned long cr4);
+int kvm_set_cr0(struct kvm_vcpu *vcpu, unsigned long cr0);
+int kvm_set_cr3(struct kvm_vcpu *vcpu, unsigned long cr3);
+int kvm_set_cr4(struct kvm_vcpu *vcpu, unsigned long cr4);
+int kvm_set_cr8(struct kvm_vcpu *vcpu, unsigned long cr8);
+int kvm_set_dr(struct kvm_vcpu *vcpu, int dr, unsigned long val);
+unsigned long kvm_get_dr(struct kvm_vcpu *vcpu, int dr);
+unsigned long kvm_get_cr8(struct kvm_vcpu *vcpu);
+void kvm_lmsw(struct kvm_vcpu *vcpu, unsigned long msw);
+int load_pdptrs(struct kvm_vcpu *vcpu, unsigned long cr3);
+
 static inline bool is_long_mode(struct kvm_vcpu *vcpu)
 {
 #ifdef CONFIG_X86_64
@@ -397,6 +409,14 @@ static inline bool kvm_dr6_valid(u64 data)
 	return !(data >> 32);
 }
 
+static inline unsigned long kvm_get_effective_dr7(struct kvm_vcpu *vcpu)
+{
+	if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP)
+		return vcpu->arch.guest_debug_dr7;
+
+	return vcpu->arch.dr7;
+}
+
 static inline void enter_guest_mode(struct kvm_vcpu *vcpu)
 {
 	vcpu->arch.hflags |= HF_GUEST_MASK;
@@ -419,5 +439,45 @@ static inline bool is_guest_mode(struct kvm_vcpu *vcpu)
 {
 	return vcpu->arch.hflags & HF_GUEST_MASK;
 }
+
+static inline unsigned long kvm_get_segment_base(struct kvm_vcpu *vcpu, int seg)
+{
+	return kvm_x86_call(get_segment_base)(vcpu, seg);
+}
+
+static inline void kvm_set_segment(struct kvm_vcpu *vcpu,
+				   struct kvm_segment *var, int seg)
+{
+	kvm_x86_call(set_segment)(vcpu, var, seg);
+}
+
+static inline void kvm_get_segment(struct kvm_vcpu *vcpu,
+				   struct kvm_segment *var, int seg)
+{
+	kvm_x86_call(get_segment)(vcpu, var, seg);
+}
+
+unsigned long kvm_get_linear_rip(struct kvm_vcpu *vcpu);
+bool kvm_is_linear_rip(struct kvm_vcpu *vcpu, unsigned long linear_rip);
+
+unsigned long kvm_get_rflags(struct kvm_vcpu *vcpu);
+void __kvm_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags);
+void kvm_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags);
+
+void kvm_vcpu_ioctl_x86_get_sregs2(struct kvm_vcpu *vcpu,
+				   struct kvm_sregs2 *sregs2);
+int kvm_vcpu_ioctl_x86_set_sregs2(struct kvm_vcpu *vcpu,
+				  struct kvm_sregs2 *sregs2);
+
+void kvm_run_sync_regs_to_user(struct kvm_vcpu *vcpu);
+int kvm_run_sync_regs_from_user(struct kvm_vcpu *vcpu);
+
+void kvm_update_dr0123(struct kvm_vcpu *vcpu);
+void kvm_update_dr7(struct kvm_vcpu *vcpu);
+int kvm_vcpu_ioctl_x86_get_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+int kvm_vcpu_ioctl_x86_set_debugregs(struct kvm_vcpu *vcpu,
+				     struct kvm_debugregs *dbgregs);
+
 
 #endif

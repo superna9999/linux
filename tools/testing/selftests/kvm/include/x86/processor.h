@@ -1226,6 +1226,8 @@ struct idt_entry {
 void vm_install_exception_handler(struct kvm_vm *vm, int vector,
 			void (*handler)(struct ex_regs *));
 
+gva_t vm_alloc_stack(struct kvm_vm *vm, int nr_pages);
+
 /*
  * Exception fixup morphs #DE to an arbitrary magic vector so that '0' can be
  * used to signal "no expcetion".
@@ -1390,6 +1392,14 @@ static inline int get_kvm_amd_param_integer(const char *param)
 static inline bool kvm_is_pmu_enabled(void)
 {
 	return get_kvm_param_bool("enable_pmu");
+}
+
+static inline bool kvm_is_mediated_pmu_enabled(void)
+{
+	if (host_cpu_is_intel)
+		return get_kvm_intel_param_bool("enable_mediated_pmu");
+
+	return get_kvm_amd_param_bool("enable_mediated_pmu");
 }
 
 static inline bool kvm_is_forced_emulation_enabled(void)

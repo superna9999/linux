@@ -22,7 +22,8 @@
 #define __ARCH_X86_KVM_HYPERV_H__
 
 #include <linux/kvm_host.h>
-#include "x86.h"
+
+#include "regs.h"
 
 #ifdef CONFIG_KVM_HYPERV
 

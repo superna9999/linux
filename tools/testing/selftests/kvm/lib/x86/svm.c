@@ -46,6 +46,8 @@ vcpu_alloc_svm(struct kvm_vm *vm, gva_t *p_svm_gva)
 	svm->msr_gpa = addr_gva2gpa(vm, (uintptr_t)svm->msr);
 	memset(svm->msr_hva, 0, getpagesize());
 
+	svm->stack = (void *)vm_alloc_stack(vm, 1);
+
 	if (vm->stage2_mmu.pgd_created)
 		svm->ncr3_gpa = vm->stage2_mmu.pgd;
 
@@ -81,7 +83,7 @@ void vm_enable_npt(struct kvm_vm *vm)
 	tdp_mmu_init(vm, vm->mmu.pgtable_levels, &pte_masks);
 }
 
-void generic_svm_setup(struct svm_test_data *svm, void *guest_rip, void *guest_rsp)
+void generic_svm_setup(struct svm_test_data *svm, void *guest_rip)
 {
 	struct vmcb *vmcb = svm->vmcb;
 	u64 vmcb_gpa = svm->vmcb_gpa;
@@ -122,7 +124,7 @@ void generic_svm_setup(struct svm_test_data *svm, void *guest_rip, void *guest_r
 	ctrl->msrpm_base_pa = svm->msr_gpa;
 
 	vmcb->save.rip = (u64)guest_rip;
-	vmcb->save.rsp = (u64)guest_rsp;
+	vmcb->save.rsp = (u64)svm->stack;
 	guest_regs.rdi = (u64)svm;
 
 	if (svm->ncr3_gpa) {
