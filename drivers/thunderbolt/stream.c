@@ -1540,7 +1540,7 @@ static void tbstream_group_detach_stream(struct tbstream *stream)
 	config_group_put(&sg->group);
 }
 
-static int tbstream_probe(struct tb_service *svc, const struct tb_service_id *id)
+static int tbstream_probe(struct tb_service *svc)
 {
 	struct tbstream *stream;
 
@@ -1630,7 +1630,7 @@ static const struct dev_pm_ops tbstream_pm_ops = {
 
 static const struct tb_service_id tbstream_ids[] = {
 	{ TB_SERVICE("stream", 1) },
-	{ },
+	{ }
 };
 MODULE_DEVICE_TABLE(tbsvc, tbstream_ids);
 
