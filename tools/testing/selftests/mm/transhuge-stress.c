@@ -35,6 +35,7 @@ int main(int argc, char **argv)
 	size_t map_len;
 	int pagemap_fd;
 	int duration = 0;
+	double elapsed = 0;
 
 	ksft_print_header();
 
@@ -60,8 +61,6 @@ int main(int argc, char **argv)
 			len = atoll(argv[i]) << 20;
 	}
 
-	ksft_set_plan(1);
-
 	if (name) {
 		backing_fd = open(name, O_RDWR);
 		if (backing_fd == -1)
@@ -78,6 +77,10 @@ int main(int argc, char **argv)
 		ksft_exit_fail_msg("open pagemap\n");
 
 	len -= len % HPAGE_SIZE;
+	if (len == 0)
+		ksft_exit_fail_msg("len must be at least %d MiB\n",
+			HPAGE_SIZE >> 20);
+
 	ptr = mmap(NULL, len + HPAGE_SIZE, PROT_RW, mmap_flags, backing_fd, 0);
 	if (ptr == MAP_FAILED)
 		ksft_exit_fail_msg("initial mmap");
@@ -91,6 +94,7 @@ int main(int argc, char **argv)
 	if (!map)
 		ksft_exit_fail_msg("map malloc\n");
 
+	ksft_set_plan(1);
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	while (1) {
@@ -125,16 +129,28 @@ int main(int argc, char **argv)
 			/* split transhuge page, keep last page */
 			if (madvise(p, HPAGE_SIZE - psize(), MADV_DONTNEED))
 				ksft_exit_fail_msg("MADV_DONTNEED");
+
+			if (duration > 0) {
+				clock_gettime(CLOCK_MONOTONIC, &b);
+				elapsed = b.tv_sec - start.tv_sec +
+					(b.tv_nsec - start.tv_nsec) / 1000000000.;
+				if (elapsed >= duration)
+					break;
+			}
 		}
 		clock_gettime(CLOCK_MONOTONIC, &b);
 		s = b.tv_sec - a.tv_sec + (b.tv_nsec - a.tv_nsec) / 1000000000.;
 
 		ksft_print_msg("%.3f s/loop, %.3f ms/page, %10.3f MiB/s\t"
-			       "%4d succeed, %4d failed, %4d different pages\n",
-			       s, s * 1000 / (len >> HPAGE_SHIFT), len / s / (1 << 20),
-			       nr_succeed, nr_failed, nr_pages);
+				"%4d succeed, %4d failed, %4d different pages\n",
+				s, s * 1000 / (nr_failed + nr_succeed),
+				s > 0 ?
+					(double)(nr_failed + nr_succeed) *
+					(HPAGE_SIZE >> 20) / s :
+					0.0,
+				nr_succeed, nr_failed, nr_pages);
 
-		if (duration > 0 && b.tv_sec - start.tv_sec >= duration) {
+		if (duration > 0 && elapsed >= duration) {
 			ksft_test_result_pass("Completed\n");
 			ksft_finished();
 		}

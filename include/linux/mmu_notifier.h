@@ -576,6 +576,19 @@ static inline void _mmu_notifier_range_init(struct mmu_notifier_range *range,
 	_mmu_notifier_range_init(range, start, end)
 
 static inline bool
+mmu_interval_check_retry(struct mmu_interval_notifier *interval_sub,
+			 unsigned long seq)
+{
+	return true;
+}
+
+static inline unsigned long
+mmu_interval_read_begin(struct mmu_interval_notifier *interval_sub)
+{
+	return 0;
+}
+
+static inline bool
 mmu_notifier_range_blockable(const struct mmu_notifier_range *range)
 {
 	return true;
