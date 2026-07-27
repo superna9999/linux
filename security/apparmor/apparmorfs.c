@@ -23,6 +23,7 @@
 #include <linux/fs_context.h>
 #include <linux/poll.h>
 #include <linux/zstd.h>
+#include <linux/string.h>
 #include <uapi/linux/major.h>
 #include <uapi/linux/magic.h>
 
@@ -33,6 +34,7 @@
 #include "include/crypto.h"
 #include "include/ipc.h"
 #include "include/label.h"
+#include "include/net.h"
 #include "include/lib.h"
 #include "include/policy.h"
 #include "include/policy_ns.h"
@@ -482,6 +484,113 @@ static struct aa_loaddata *aa_simple_write_to_buffer(const char __user *userbuf,
 	return data;
 }
 
+static int decompress_zstd(char *src, size_t slen, char *dst, size_t dlen)
+{
+	if (slen < dlen) {
+		const size_t wksp_len = zstd_dctx_workspace_bound();
+		zstd_dctx *ctx;
+		void *wksp;
+		size_t out_len;
+		int ret = 0;
+
+		wksp = kvzalloc(wksp_len, GFP_KERNEL);
+		if (!wksp) {
+			ret = -ENOMEM;
+			goto cleanup;
+		}
+		ctx = zstd_init_dctx(wksp, wksp_len);
+		if (ctx == NULL) {
+			ret = -ENOMEM;
+			goto cleanup;
+		}
+		out_len = zstd_decompress_dctx(ctx, dst, dlen, src, slen);
+		if (zstd_is_error(out_len)) {
+			ret = -EINVAL;
+			goto cleanup;
+		}
+cleanup:
+		kvfree(wksp);
+		return ret;
+	}
+
+	if (dlen < slen)
+		return -EINVAL;
+	memcpy(dst, src, slen);
+	return 0;
+}
+
+/**
+ * aa_get_data_from_compressed - common routine for getting compressed policy
+ * from user and get both compressed and uncompressed version.
+ * @userbuf: user buffer to copy data from  (NOT NULL)
+ * @buffer_size: size of user buffer
+ * @pos: position write is at in the file (NOT NULL)
+ * @compressed_data Ptr on compressed data. *compressed_data is allocated there
+ *
+ * Returns: kernel buffer containing copy of user buffer data or an
+ *          ERR_PTR on failure.
+ */
+
+static struct aa_loaddata *aa_get_data_from_compressed(const char __user *userbuf,
+						  size_t buffer_size,
+						  loff_t *pos,
+						  char **compressed_data)
+{
+	struct aa_loaddata *data;
+	zstd_frame_header header;
+	int error;
+
+	if (!userbuf || !pos)
+		return ERR_PTR(-EINVAL);
+	if (*pos)
+		return ERR_PTR(-ESPIPE);
+
+	*compressed_data = kvmalloc(buffer_size, GFP_KERNEL);
+	if (!*compressed_data)
+		return ERR_PTR(-ENOMEM);
+	error = copy_from_user(*compressed_data, userbuf, buffer_size);
+	if (error)
+		goto fail;
+
+	error = zstd_get_frame_header(&header, *compressed_data, buffer_size);
+	if (error || header.frameContentSize == ZSTD_CONTENTSIZE_UNKNOWN ||
+	    header.frameContentSize == ZSTD_CONTENTSIZE_ERROR) {
+		error = -EINVAL;
+		goto fail;
+	}
+
+	data = aa_loaddata_alloc(header.frameContentSize);
+	if (IS_ERR(data)) {
+		error = PTR_ERR(data);
+		goto fail;
+	}
+
+	// We then decompress the data
+	error = decompress_zstd(*compressed_data, buffer_size, data->data,
+				header.frameContentSize);
+	if (error)
+		goto fail_decompress;
+
+	data->size = header.frameContentSize;
+	return data;
+
+fail_decompress:
+	aa_put_i_loaddata(data);
+fail:
+	kvfree(*compressed_data);
+	return ERR_PTR(error);
+
+}
+
+struct aa_user_hdr {
+	uint8_t version;
+	uint8_t compress_level;
+	uint8_t padding[6];	/* force 8-byte alignment */
+} __packed __aligned(8);
+
+#define aa_hdr_magic "\x04\x08\x00\x76\x65\x72\x73\x69\x6f\x6e\x00\x02"
+#define aa_hdr_magic_size 12
+
 static ssize_t policy_update(u32 mask, const char __user *buf, size_t size,
 			     loff_t *pos, struct aa_ns *ns,
 			     const struct cred *ocred)
@@ -489,6 +598,10 @@ static ssize_t policy_update(u32 mask, const char __user *buf, size_t size,
 	struct aa_loaddata *data;
 	struct aa_label *label;
 	ssize_t error;
+	char *compressed_data = NULL;
+	__le32 magic_le;
+	bool is_compressed;
+	u8 aahdr[aa_hdr_magic_size];
 
 	label = begin_current_label_crit_section();
 
@@ -499,10 +612,52 @@ static ssize_t policy_update(u32 mask, const char __user *buf, size_t size,
 	if (error)
 		goto end_section;
 
-	data = aa_simple_write_to_buffer(buf, size, size, pos);
-	error = PTR_ERR(data);
+	/* If the policy is userspace compressed we start by decompressing it
+	 * to make the required checks (computing hash, verifying profile, ...)
+	 *
+	 * Getting a userspace-compressed version then decompressing it in the
+	 * kernel actually makes sense since zstd decompression is ~3.5x faster
+	 * than compression. This also allow to increase the compression level.
+	 */
+
+	if (size >= sizeof(__le32) &&
+	    !copy_from_user(&magic_le, buf, sizeof(magic_le)) &&
+	    le32_to_cpu(magic_le) == ZSTD_MAGICNUMBER) {
+		is_compressed = true;
+	} else if (size >= sizeof(struct aa_user_hdr) + sizeof(__le32) &&
+		   !copy_from_user(&magic_le,
+				   buf + sizeof(struct aa_user_hdr),
+				   sizeof(magic_le)) &&
+		   le32_to_cpu(magic_le) == ZSTD_MAGICNUMBER) {
+		is_compressed = true;
+		/* skip the userspace header if present */
+		buf += sizeof(struct aa_user_hdr);
+		size -= sizeof(struct aa_user_hdr);
+	} else if (size >= sizeof(struct aa_user_hdr) +
+		   aa_hdr_magic_size &&
+		   !copy_from_user(&aahdr,
+				   buf + sizeof(struct aa_user_hdr),
+				   aa_hdr_magic_size) &&
+		   memcmp(&aahdr, aa_hdr_magic, aa_hdr_magic_size) == 0) {
+		/* uncompressed blob with user hdr */
+		buf += sizeof(struct aa_user_hdr);
+		size -= sizeof(struct aa_user_hdr);
+		is_compressed = false;
+	} else {
+		is_compressed = false;
+	}
+	if (is_compressed) {
+
+		data = aa_get_data_from_compressed(buf, size, pos, &compressed_data);
+		error = PTR_ERR(data);
+	} else {
+		data = aa_simple_write_to_buffer(buf, size, size, pos);
+		error = PTR_ERR(data);
+	}
+
 	if (!IS_ERR(data)) {
-		error = aa_replace_profiles(ns, label, mask, data);
+		error = aa_replace_profiles(ns, label, mask, data,
+					    compressed_data, size);
 		/* put pcount, which will put count and free if no
 		 * profiles referencing it.
 		 */
@@ -548,6 +703,7 @@ static const struct file_operations aa_fs_profile_replace = {
 	.write = profile_replace,
 	.llseek = default_llseek,
 };
+
 
 /* .remove file hook fn to remove loaded policy */
 static ssize_t profile_remove(struct file *f, const char __user *buf,
@@ -1395,41 +1551,6 @@ SEQ_RAWDATA_FOPS(abi);
 SEQ_RAWDATA_FOPS(revision);
 SEQ_RAWDATA_FOPS(hash);
 SEQ_RAWDATA_FOPS(compressed_size);
-
-static int decompress_zstd(char *src, size_t slen, char *dst, size_t dlen)
-{
-	if (slen < dlen) {
-		const size_t wksp_len = zstd_dctx_workspace_bound();
-		zstd_dctx *ctx;
-		void *wksp;
-		size_t out_len;
-		int ret = 0;
-
-		wksp = kvzalloc(wksp_len, GFP_KERNEL);
-		if (!wksp) {
-			ret = -ENOMEM;
-			goto cleanup;
-		}
-		ctx = zstd_init_dctx(wksp, wksp_len);
-		if (ctx == NULL) {
-			ret = -ENOMEM;
-			goto cleanup;
-		}
-		out_len = zstd_decompress_dctx(ctx, dst, dlen, src, slen);
-		if (zstd_is_error(out_len)) {
-			ret = -EINVAL;
-			goto cleanup;
-		}
-cleanup:
-		kvfree(wksp);
-		return ret;
-	}
-
-	if (dlen < slen)
-		return -EINVAL;
-	memcpy(dst, src, slen);
-	return 0;
-}
 
 static ssize_t rawdata_read(struct file *file, char __user *buf, size_t size,
 			    loff_t *ppos)
@@ -2483,6 +2604,8 @@ static struct aa_sfs_entry aa_sfs_entry_policy[] = {
 	AA_SFS_FILE_STRING("permstable32", PERMS32STR),
 	AA_SFS_FILE_U64("state32",	1),
 	AA_SFS_DIR("unconfined_restrictions",   aa_sfs_entry_unconfined),
+	AA_SFS_FILE_BOOLEAN("compressed_load",	1),
+	AA_SFS_FILE_BOOLEAN("extended_policy_header",	1),
 	{ }
 };
 
