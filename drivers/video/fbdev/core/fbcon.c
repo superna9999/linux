@@ -2453,6 +2453,13 @@ static int fbcon_do_set_font(struct vc_data *vc, int w, int h, int charcount,
 		}
 	}
 
+	if (con_is_visible(vc)) {
+		if (par->bitops->rotate_font && par->bitops->rotate_font(info, vc)) {
+			par->rotate = FB_ROTATE_UR;
+			set_blitting_type(vc, info);
+		}
+	}
+
 	if (resize) {
 		int cols, rows;
 
@@ -2507,6 +2514,13 @@ err_out:
 	 */
 	if (con_is_visible(vc))
 		set_blitting_type(vc, info);
+
+	if (con_is_visible(vc)) {
+		if (par->bitops->rotate_font && par->bitops->rotate_font(info, vc)) {
+			par->rotate = FB_ROTATE_UR;
+			set_blitting_type(vc, info);
+		}
+	}
 
 	font_data_put(data);
 
