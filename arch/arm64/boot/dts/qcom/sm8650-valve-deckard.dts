@@ -41,6 +41,7 @@
 / {
 	model = "Valve Deckard";
 	compatible = "valve,deckard", "qcom,sm8650";
+	chassis-type = "headset";
 
 	aliases {
 		serial0 = &uart15;
