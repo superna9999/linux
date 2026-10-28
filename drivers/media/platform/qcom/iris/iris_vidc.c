@@ -201,6 +201,7 @@ int iris_open(struct file *filp)
 	INIT_LIST_HEAD(&inst->buffers[BUF_PARTIAL].list);
 	init_completion(&inst->completion);
 	init_completion(&inst->flush_completion);
+	init_waitqueue_head(&inst->drc_wq);
 
 	iris_v4l2_fh_init(inst, filp);
 

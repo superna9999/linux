@@ -228,6 +228,15 @@ error:
 	return ret;
 }
 
+/* a source change whose drain the firmware has not completed yet */
+static bool iris_drc_draining(struct iris_inst *inst)
+{
+	enum iris_inst_sub_state sub_state = READ_ONCE(inst->sub_state);
+
+	return sub_state & IRIS_INST_SUB_DRC &&
+	       !(sub_state & IRIS_INST_SUB_DRC_LAST);
+}
+
 void iris_vb2_stop_streaming(struct vb2_queue *q)
 {
 	struct iris_inst *inst;
@@ -237,6 +246,17 @@ void iris_vb2_stop_streaming(struct vb2_queue *q)
 
 	if (V4L2_TYPE_IS_CAPTURE(q->type) && inst->state == IRIS_INST_INIT)
 		return;
+
+	/*
+	 * Stopping CAPTURE before the firmware has drained a pending
+	 * resolution change leaves the change incomplete, and decoding stalls
+	 * after the next STREAMON. Wait up to 500 ms for the drain.
+	 */
+	if (V4L2_TYPE_IS_CAPTURE(q->type) &&
+	    !wait_event_timeout(inst->drc_wq, !iris_drc_draining(inst),
+				msecs_to_jiffies(500)))
+		dev_warn(inst->core->dev,
+			 "resolution change drain timed out, stopping CAPTURE\n");
 
 	mutex_lock(&inst->lock);
 

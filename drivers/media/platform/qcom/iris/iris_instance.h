@@ -8,6 +8,7 @@
 
 #include <linux/kref.h>
 
+#include <linux/wait.h>
 #include <media/v4l2-ctrls.h>
 
 #include "iris_buffer.h"
@@ -56,6 +57,7 @@ struct iris_hfi_session_ops;
  * @metadata_idx: index for metadata buffer
  * @codec: codec type
  * @last_buffer_dequeued: a flag to indicate that last buffer is sent by driver
+ * @drc_wq: woken when IRIS_INST_SUB_DRC_LAST is set
  * @last_buf_ns: start time of received input buffer for current one second FPS window
  * @frame_counter: input buffer counter for current one second FPS window
  * @frame_rate: frame rate of current instance
@@ -104,6 +106,7 @@ struct iris_inst {
 	u32				metadata_idx;
 	u32				codec;
 	bool				last_buffer_dequeued;
+	wait_queue_head_t		drc_wq;
 	u64				last_buf_ns;
 	u32				frame_counter;
 	u32				frame_rate;
