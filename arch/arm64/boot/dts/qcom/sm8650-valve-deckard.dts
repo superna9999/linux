@@ -795,6 +795,107 @@
 		address-width = <16>;
 		wp-gpios = <&tlmm 78 GPIO_ACTIVE_HIGH>;
 	};
+
+    	sensor@10 {
+		compatible = "maxim,max34417";
+		reg = <0x10>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		vdd-supply = <&vreg_l2b_3p0>;
+		vio-supply = <&vreg_l15b_1p8>;
+		
+		channel@0 {
+			reg = <0>;
+			label = "vph";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@1 {
+			reg = <1>;
+			label = "s1c";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@2 {
+			reg = <2>;
+			label = "s3c";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@3 {
+			reg = <3>;
+			label = "s6c";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+	}; 
+
+	sensor@12 {
+		compatible = "maxim,max34417";
+		reg = <0x12>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		vdd-supply = <&vreg_l2b_3p0>;
+		vio-supply = <&vreg_l15b_1p8>;
+
+		channel@0 {
+			reg = <0>;
+			label = "apc0";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@1 {
+			reg = <1>;
+			label = "apc2";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@2 {
+			reg = <2>;
+			label = "apc1";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@3 {
+			reg = <3>;
+			label = "nsp1";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+	};
+
+	sensor@1a {
+		compatible = "maxim,max34417";
+		reg = <0x1a>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		vdd-supply = <&vreg_l2b_3p0>;
+		vio-supply = <&vreg_l15b_1p8>;
+
+		channel@0 {
+			reg = <0>;
+			label = "gfx";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@1 {
+			reg = <1>;
+			label = "nsp2";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		channel@2 {
+			reg = <2>;
+			label = "bob";
+			maxim,rsense-val-micro-ohms = <1000>;
+		};
+
+		/* Unused channel 3 */
+	};
 };
 
 &pcie0 {
