@@ -120,6 +120,7 @@ int iris_alloc_and_queue_input_int_bufs(struct iris_inst *inst);
 int iris_queue_buffer(struct iris_inst *inst, struct iris_buffer *buf);
 int iris_queue_deferred_buffers(struct iris_inst *inst, enum iris_buffer_type buf_type);
 int iris_vb2_buffer_done(struct iris_inst *inst, struct iris_buffer *buf);
+void iris_vb2_signal_eos(struct iris_inst *inst);
 void iris_vb2_queue_error(struct iris_inst *inst);
 
 #endif

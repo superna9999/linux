@@ -290,7 +290,6 @@ int iris_vb2_buf_out_validate(struct vb2_buffer *vb)
 
 void iris_vb2_buf_queue(struct vb2_buffer *vb2)
 {
-	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb2);
 	struct v4l2_m2m_ctx *m2m_ctx;
 	struct iris_inst *inst;
@@ -324,10 +323,7 @@ void iris_vb2_buf_queue(struct vb2_buffer *vb2)
 			vbuf->field = V4L2_FIELD_NONE;
 			vb2_set_plane_payload(vb2, 0, 0);
 			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
-			if (!v4l2_m2m_has_stopped(m2m_ctx)) {
-				v4l2_event_queue_fh(&inst->fh, &eos);
-				v4l2_m2m_mark_stopped(m2m_ctx);
-			}
+			iris_vb2_signal_eos(inst);
 			inst->last_buffer_dequeued = true;
 			goto exit;
 		}

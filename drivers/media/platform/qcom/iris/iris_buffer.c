@@ -870,9 +870,26 @@ static void iris_get_ts_metadata(struct iris_inst *inst, u64 timestamp_ns,
 	vbuf->timecode = inst->tss[inst->metadata_idx].tc;
 }
 
+/*
+ * Queue V4L2_EVENT_EOS and mark the m2m context stopped, once, when a LAST
+ * capture buffer ends a drain. The LAST buffer of a source change does not
+ * end the stream.
+ */
+void iris_vb2_signal_eos(struct iris_inst *inst)
+{
+	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
+	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
+
+	if (!(inst->sub_state & IRIS_INST_SUB_DRAIN_LAST) ||
+	    v4l2_m2m_has_stopped(m2m_ctx))
+		return;
+
+	v4l2_event_queue_fh(&inst->fh, &eos);
+	v4l2_m2m_mark_stopped(m2m_ctx);
+}
+
 int iris_vb2_buffer_done(struct iris_inst *inst, struct iris_buffer *buf)
 {
-	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
 	struct vb2_v4l2_buffer *vbuf;
 	struct vb2_buffer *vb2;
 	u32 type, state;
@@ -913,12 +930,7 @@ int iris_vb2_buffer_done(struct iris_inst *inst, struct iris_buffer *buf)
 	}
 
 	if (vbuf->flags & V4L2_BUF_FLAG_LAST) {
-		if (!v4l2_m2m_has_stopped(m2m_ctx)) {
-			const struct v4l2_event ev = { .type = V4L2_EVENT_EOS };
-
-			v4l2_event_queue_fh(&inst->fh, &ev);
-			v4l2_m2m_mark_stopped(m2m_ctx);
-		}
+		iris_vb2_signal_eos(inst);
 		inst->last_buffer_dequeued = true;
 	}
 
