@@ -56,23 +56,21 @@ void iris_inst_put(struct iris_inst *inst)
 	kref_put(&inst->kref, iris_inst_release);
 }
 
-static int iris_add_session(struct iris_inst *inst)
+static void iris_add_session(struct iris_inst *inst)
 {
 	struct iris_core *core = inst->core;
 	struct iris_inst *iter;
 	u32 count = 0;
 
-	guard(mutex)(&core->lock);
+	mutex_lock(&core->lock);
 
 	list_for_each_entry(iter, &core->instances, list)
 		count++;
 
-	if (count >= core->iris_platform_data->max_session_count)
-		return -EBUSY;
+	if (count < core->iris_platform_data->max_session_count)
+		list_add_tail(&inst->list, &core->instances);
 
-	list_add_tail(&inst->list, &core->instances);
-
-	return 0;
+	mutex_unlock(&core->lock);
 }
 
 static void iris_remove_session(struct iris_inst *inst)
@@ -224,17 +222,12 @@ int iris_open(struct file *filp)
 	if (ret)
 		goto fail_m2m_ctx_release;
 
-	ret = iris_add_session(inst);
-	if (ret)
-		goto fail_inst_deinit;
+	iris_add_session(inst);
 
 	inst->fh.m2m_ctx = inst->m2m_ctx;
 
 	return 0;
 
-fail_inst_deinit:
-	kfree(inst->fmt_src);
-	kfree(inst->fmt_dst);
 fail_m2m_ctx_release:
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
 fail_m2m_release:
