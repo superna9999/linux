@@ -4,7 +4,7 @@
  *
  * Datasheet: https://www.analog.com/en/products/max34417.html
  *
- * TODO: Slow Mode, Park Feature, Bulk Update
+ * TODO: Park Feature, Bulk Update
  */
 
 #include <linux/array_size.h>
@@ -77,8 +77,8 @@
 #define MAX34417_VOLTAGE_CORRECTION_SCALE	24
 #define MAX34417_VOLTAGE_FULL_SCALE_BITS	14
 
-/* TODO implement IIO_CHAN_INFO_SAMP_FREQ for slow mode */
 #define MAX34417_SLOW_SPS_BIT			3 /* 8 SPS */
+#define MAX34417_SLOW_SPS_CAM			8
 #define MAX34417_FAST_SPS_BIT			10 /* 1024 SPS */
 #define MAX34417_FAST_SPS_CAM			1536 /* 1.5 * 1024 SPS */
 
@@ -97,6 +97,7 @@
  * @overflow:		Indicates if a channel saved data has overflowed.
  * @last_update:	Timestamp of the last UPDATE call in CAM mode.
  * @cam_mode:		State of the Continuous Accumulate Mode feature.
+ * @sps:		Sample Per Seconds rate
  */
 struct max34417_data {
 	struct iio_dev *indio_dev;
@@ -109,6 +110,7 @@ struct max34417_data {
 	bool overflow[MAX34417_CHANNEL_COUNT];
 	ktime_t last_update;
 	bool cam_mode;
+	unsigned int sps;
 };
 
 static bool max34417_writeable_reg(struct device *dev, unsigned int reg)
@@ -178,6 +180,8 @@ static const struct regmap_config max34417_regmap_config = {
 		.info_mask_separate =				\
 			BIT(IIO_CHAN_INFO_RAW) |		\
 			BIT(IIO_CHAN_INFO_SCALE),		\
+		.info_mask_shared_by_all =			\
+			BIT(IIO_CHAN_INFO_SAMP_FREQ),		\
 		.channel = (_index),				\
 		.address = (_v_address),			\
 		.indexed = 1,					\
@@ -188,6 +192,8 @@ static const struct regmap_config max34417_regmap_config = {
 			BIT(IIO_CHAN_INFO_RAW) |		\
 			BIT(IIO_CHAN_INFO_AVERAGE_RAW) |	\
 			BIT(IIO_CHAN_INFO_SCALE),		\
+		.info_mask_shared_by_all =			\
+			BIT(IIO_CHAN_INFO_SAMP_FREQ),		\
 		.channel = (_index),				\
 		.address = (_power_address),			\
 		.indexed = 1,					\
@@ -199,6 +205,8 @@ static const struct regmap_config max34417_regmap_config = {
 			BIT(IIO_CHAN_INFO_SCALE),		\
 		.info_mask_shared_by_type =			\
 			BIT(IIO_CHAN_INFO_ENABLE),		\
+		.info_mask_shared_by_all =			\
+			BIT(IIO_CHAN_INFO_SAMP_FREQ),		\
 		.channel = (_index),				\
 		.address = (_power_address),			\
 		.indexed = 1,					\
@@ -635,6 +643,31 @@ static int max34417_setup_cam_mode(struct max34417_data *max34417, int val)
 	return 0;
 }
 
+static int max34417_set_sps(struct max34417_data *max34417, int val)
+{
+	int rc;
+
+	switch (val) {
+	case MAX34417_SLOW_SPS_CAM:
+		rc = regmap_set_bits(max34417->regmap, MAX34417_CONTROL_REG,
+				     MAX34417_CONTROL_SLOW);
+		break;
+	case MAX34417_FAST_SPS_CAM:
+		rc = regmap_clear_bits(max34417->regmap, MAX34417_CONTROL_REG,
+				       MAX34417_CONTROL_SLOW);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (rc)
+		return rc;
+
+	max34417->sps = val;
+
+	return regmap_write(max34417->regmap, MAX34417_UPDATE_REG, 1);
+}
+
 static int max34417_read_raw(struct iio_dev *indio_dev,
 			     struct iio_chan_spec const *chan,
 			     int *val, int *val2, long mask)
@@ -702,7 +735,7 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 			 * With the maximum input_correction of 2400, it fits in 64bits
 			 */
 			num = (u64)max34417->input_correction[chan->channel] * FEMTO;
-			den = (u64)MAX34417_FAST_SPS_CAM << MAX34417_PWR_AVG_FULL_SCALE_BITS;
+			den = (u64)max34417->sps << MAX34417_PWR_AVG_FULL_SCALE_BITS;
 			scale = div64_u64(num, den);
 			iio_val_s64_decompose(scale, val, val2);
 
@@ -712,6 +745,10 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 		}
 	case IIO_CHAN_INFO_ENABLE:
 		*val = max34417->cam_mode;
+
+		return IIO_VAL_INT;
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		*val = max34417->sps;
 
 		return IIO_VAL_INT;
 	default:
@@ -731,6 +768,8 @@ static int max34417_write_raw(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_ENABLE:
 		/* Setup the CAM mode for the 4 channels */
 		return max34417_setup_cam_mode(max34417, val);
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		return max34417_set_sps(max34417, val);
 	default:
 		return -EINVAL;
 	}
@@ -749,9 +788,30 @@ static int max34417_read_label(struct iio_dev *indio_dev,
 	return sysfs_emit(label, "channel%d\n", chan->channel);
 }
 
+static const int max34417_sps_avail[] = {
+	MAX34417_SLOW_SPS_CAM, MAX34417_FAST_SPS_CAM
+};
+
+static int max34417_read_avail(struct iio_dev *indio_dev,
+			       struct iio_chan_spec const *chan,
+			       const int **vals, int *type,
+			       int *length, long mask)
+{
+	switch (mask) {
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		*vals = max34417_sps_avail;
+		*type = IIO_VAL_INT;
+		*length = ARRAY_SIZE(max34417_sps_avail);
+		return IIO_AVAIL_LIST;
+	default:
+		return -EINVAL;
+	}
+}
+
 static const struct iio_info max34417_info = {
 	.read_raw	= max34417_read_raw,
 	.write_raw	= max34417_write_raw,
+	.read_avail	= max34417_read_avail,
 	.read_label	= max34417_read_label,
 };
 
@@ -843,6 +903,9 @@ static int max34417_probe(struct i2c_client *client)
 	for (int i = 0; i < MAX34417_CHANNEL_COUNT; i++)
 		max34417->input_correction[i] =
 			max34417_calc_input_correction(MAX34417_DEFAULT_RSENSE);
+
+	/* Default SPS for CAM mode */
+	max34417->sps = MAX34417_FAST_SPS_CAM;
 
 	device_for_each_child_node_scoped(dev, node) {
 		rc = max34417_probe_channel_node(dev, max34417, node);
