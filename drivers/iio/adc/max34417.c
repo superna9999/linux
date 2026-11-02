@@ -4,7 +4,7 @@
  *
  * Datasheet: https://www.analog.com/en/products/max34417.html
  *
- * TODO: Slow Mode, Park Feature, Bulk Update, Perr_Verr Correction
+ * TODO: Slow Mode, Park Feature, Bulk Update
  */
 
 #include <linux/array_size.h>
@@ -399,6 +399,43 @@ static int max34417_read_voltage(struct max34417_data *max34417,
 	return IIO_VAL_INT;
 }
 
+/* Applies the Perr/Verr correction dynamically to power or energy values */
+static void max34417_apply_correction(struct max34417_data *max34417,
+				      const struct iio_chan_spec *chan,
+				      s64 acc_count, s64 *val)
+{
+	u32 raw_v, v_err = 0, v_cm_mv;
+	int rc;
+
+	/* Datasheet: Correction strictly requires >= 1000 samples */
+	if (acc_count < 1000)
+		return;
+
+	rc = max34417_read_voltage_raw(max34417, chan->address, &raw_v);
+	if (rc || raw_v == 0)
+		return;
+
+	/* Convert raw voltage to mV */
+	v_cm_mv = ((u64)raw_v * MAX34417_VOLTAGE_CORRECTION_SCALE * MILLI) >>
+		  MAX34417_VOLTAGE_FULL_SCALE_BITS;
+
+	if (v_cm_mv >= 500 && v_cm_mv < 1000)
+		v_err = 3;
+	else if (v_cm_mv >= 1000 && v_cm_mv < 1500)
+		v_err = 2;
+	else if (v_cm_mv >= 1500 && v_cm_mv < 2000)
+		v_err = 1;
+
+	if (v_err > 0) {
+		/*
+		 * P_adj = P * (raw_v - v_err) / raw_v
+		 * Rewritten as: val = val - (val * v_err) / raw_v
+		 * using mul_u64_u32_div to prevent 64-bit overflow on large accumulators
+		 */
+		*val -= mul_u64_u32_div(*val, v_err, raw_v);
+	}
+}
+
 static int max34417_read_power(struct max34417_data *max34417,
 			       const struct iio_chan_spec *chan,
 			       int *val, int *val2)
@@ -476,6 +513,7 @@ static int max34417_read_power(struct max34417_data *max34417,
 			power = 0;
 		} else {
 			power = div64_s64(acc_power, acc_count);
+			max34417_apply_correction(max34417, chan, acc_count, &power);
 		}
 	} else {
 		rc = max34417_read_acc_power(max34417, chan->address, &power);
@@ -495,6 +533,7 @@ static int max34417_read_energy(struct max34417_data *max34417,
 	struct regmap *map = max34417->regmap;
 	s64 delta_us = ktime_us_delta(ktime_get(), max34417->last_update);
 	s64 acc_power;
+	s64 acc_count;
 	int rc;
 
 	/* Sleep up to 1msec to make sure we have a measurement cycle done */
@@ -523,8 +562,11 @@ static int max34417_read_energy(struct max34417_data *max34417,
 
 	/* Get current channel power and reset them */
 	acc_power = max34417->acc_power[chan->channel];
+	acc_count = max34417->acc_count[chan->channel];
 	max34417->acc_power[chan->channel] = 0;
 	max34417->acc_count[chan->channel] = 0;
+
+	max34417_apply_correction(max34417, chan, acc_count, &acc_power);
 
 	iio_val_s64_decompose(acc_power, val, val2);
 
