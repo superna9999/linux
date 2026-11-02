@@ -246,6 +246,23 @@ static int max34417_read_acc_power(struct max34417_data *max34417, unsigned int 
 	return 0;
 }
 
+static int max34417_read_voltage_raw(struct max34417_data *max34417, unsigned int address,
+				     u32 *voltage_raw)
+{
+	struct regmap *map = max34417->regmap;
+	u8 buf[MAX34417_VOLTAGE_READ_LENGTH];
+	int rc;
+
+	rc = regmap_noinc_read(map, address, &buf, sizeof(buf));
+	if (rc)
+		return rc;
+
+	/* Ignore first byte which contains the Byte Count & data starts at Bit 2 */
+	*voltage_raw = get_unaligned_be16(&buf[MAX34417_VOLTAGE_READ_OFFSET]) >> 2;
+
+	return 0;
+}
+
 /*
  * Check the OVF status bit indicating if one of the channels
  * has reached overflow, meaning one of the accumulators has
@@ -326,7 +343,7 @@ static int max34417_read_voltage(struct max34417_data *max34417,
 {
 	s64 delta_us = ktime_us_delta(ktime_get(), max34417->last_update);
 	struct regmap *map = max34417->regmap;
-	u8 buf[MAX34417_VOLTAGE_READ_LENGTH];
+	u32 voltage_raw;
 	int rc;
 
 	/* Sleep up to 1msec to make sure we have a measurement cycle done */
@@ -373,12 +390,11 @@ static int max34417_read_voltage(struct max34417_data *max34417,
 			return rc;
 	}
 
-	rc = regmap_noinc_read(map, chan->address, &buf, sizeof(buf));
+	rc = max34417_read_voltage_raw(max34417, chan->address, &voltage_raw);
 	if (rc)
 		return rc;
 
-	/* Ignore first byte which contains the Byte Count & data starts at Bit 2 */
-	*val = get_unaligned_be16(&buf[MAX34417_VOLTAGE_READ_OFFSET]) >> 2;
+	*val = voltage_raw;
 
 	return IIO_VAL_INT;
 }
