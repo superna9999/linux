@@ -27,6 +27,19 @@ config IIO_STM32_LPTIMER_TRIGGER
 	  To compile this driver as a module, choose M here: the
 	  module will be called stm32-lptimer-trigger.
 
+config IIO_MAX34417_TRIGGER
+	tristate "Analog Devices MAX34417 Bulk I2C trigger"
+	depends on I2C
+	help
+	  Provides an IIO trigger for the MAX34417 power accumulator.
+	  This trigger uses the I2C broadcast address (0x2c) to send a
+	  synchronized UPDATE command to all MAX34417 devices on the same
+	  I2C bus, ensuring perfectly synchronized latching of power data
+	  across multiple chips.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called iio-trig-max34417.
+
 config IIO_STM32_TIMER_TRIGGER
 	tristate "STM32 Timer Trigger"
 	depends on (ARCH_STM32 && MFD_STM32_TIMERS) || COMPILE_TEST

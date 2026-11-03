@@ -3,8 +3,6 @@
  * IIO driver for Analog Devices MAX34417 ADC, 4-Channels High Dynamic Range Power Accumulator
  *
  * Datasheet: https://www.analog.com/en/products/max34417.html
- *
- * TODO: Bulk Update
  */
 
 #include <linux/array_size.h>
@@ -14,8 +12,13 @@
 #include <linux/err.h>
 #include <linux/i2c.h>
 #include <linux/iio/iio.h>
+#include <linux/iio/trigger.h>
+#include <linux/iio/trigger_consumer.h>
+#include <linux/iio/triggered_buffer.h>
+#include <linux/kref.h>
 #include <linux/init.h>
 #include <linux/ktime.h>
+#include <linux/list.h>
 #include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -69,6 +72,9 @@
 #define MAX34417_VOLTAGE_READ_LENGTH	3
 #define MAX34417_VOLTAGE_READ_OFFSET	1
 
+#define MAX34417_BULK_V_LEN		(1 + MAX34417_CHANNEL_COUNT * 2)
+#define MAX34417_BULK_P_LEN		(1 + MAX34417_CHANNEL_COUNT * 7)
+
 #define MAX34417_MIN_RSENSE		(1 * MILLI) /* 1000 microOhm */
 #define MAX34417_MAX_RSENSE		(100 * MILLI) /* 100000 microOhm */
 #define MAX34417_DEFAULT_RSENSE		(1 * MILLI) /* 1000 microOhm */
@@ -85,6 +91,23 @@
 #define MAX34417_FAST_SPS_CAM			1536 /* 1.5 * 1024 SPS */
 
 #define MAX34417_CHANNEL_COUNT			4
+
+/**
+ * struct max34417_bulk_data - MAX34417 bulk specific data.
+ * @refcount:	refcount of max34417 users.
+ * @adap:	i2c adapter when the bulk trigger is attached.
+ * @client:	bulk trigger i2c client.
+ * @list:	list of bulk data.
+ */
+struct max34417_bulk_data {
+	struct kref refcount;
+	struct i2c_adapter *adap;
+	struct i2c_client *client;
+	struct list_head list;
+};
+
+static DEFINE_MUTEX(max34417_bulk_lock);
+static LIST_HEAD(max34417_bulk_list);
 
 /**
  * struct max34417_data - MAX34417 specific data.
@@ -280,6 +303,13 @@ static const struct iio_chan_spec_ext_info max34417_ext_info[] = {
 		.address = (_v_address),			\
 		.ext_info = max34417_ext_info,			\
 		.indexed = 1,					\
+		.scan_index = (_index),				\
+		.scan_type = {					\
+			.sign = 'u',				\
+			.realbits = 14,				\
+			.storagebits = 16,			\
+			.endianness = IIO_CPU,			\
+		},						\
 	},							\
 	{							\
 		.type = IIO_POWER,				\
@@ -293,6 +323,14 @@ static const struct iio_chan_spec_ext_info max34417_ext_info[] = {
 		.address = (_power_address),			\
 		.ext_info = max34417_ext_info,			\
 		.indexed = 1,					\
+		.scan_index =					\
+			(_index) + MAX34417_CHANNEL_COUNT,	\
+		.scan_type = {					\
+			.sign = 'u',				\
+			.realbits = 64,				\
+			.storagebits = 64,			\
+			.endianness = IIO_CPU,			\
+		},						\
 	},							\
 	{							\
 		.type = IIO_ENERGY,				\
@@ -307,6 +345,14 @@ static const struct iio_chan_spec_ext_info max34417_ext_info[] = {
 		.address = (_power_address),			\
 		.ext_info = max34417_ext_info,			\
 		.indexed = 1,					\
+		.scan_index =					\
+			(_index) + (MAX34417_CHANNEL_COUNT * 2),\
+		.scan_type = {					\
+			.sign = 'u',				\
+			.realbits = 64,				\
+			.storagebits = 64,			\
+			.endianness = IIO_CPU,			\
+		},						\
 	}
 
 static const struct iio_chan_spec max34417_channels[] = {
@@ -315,8 +361,6 @@ static const struct iio_chan_spec max34417_channels[] = {
 	MAX34417_CHANNEL(2, MAX34417_V_CH3_REG, MAX34417_PWR_ACC_3_REG),
 	MAX34417_CHANNEL(3, MAX34417_V_CH4_REG, MAX34417_PWR_ACC_4_REG),
 };
-
-/* TODO Implement trigger to update accumulator once and get all channels at once */
 
 static int max34417_read_acc_count(struct max34417_data *max34417, u32 *acc_count)
 {
@@ -508,19 +552,12 @@ static int max34417_read_voltage(struct max34417_data *max34417,
 }
 
 /* Applies the Perr/Verr correction dynamically to power or energy values */
-static void max34417_apply_correction(struct max34417_data *max34417,
-				      const struct iio_chan_spec *chan,
-				      s64 acc_count, s64 *val)
+static void max34417_apply_correction(u32 raw_v, s64 acc_count, s64 *val)
 {
-	u32 raw_v, v_err = 0, v_cm_mv;
-	int rc;
+	u32 v_err = 0, v_cm_mv;
 
 	/* Datasheet: Correction strictly requires >= 1000 samples */
 	if (acc_count < 1000)
-		return;
-
-	rc = max34417_read_voltage_raw(max34417, chan->address, &raw_v);
-	if (rc || raw_v == 0)
 		return;
 
 	/* Convert raw voltage to mV */
@@ -551,6 +588,7 @@ static int max34417_read_power(struct max34417_data *max34417,
 	s64 delta_us = ktime_us_delta(ktime_get(), max34417->last_update);
 	struct regmap *map = max34417->regmap;
 	s64 power;
+	u32 raw_v;
 	int rc;
 
 	/* Sleep up to 1msec to make sure we have a measurement cycle done */
@@ -620,8 +658,13 @@ static int max34417_read_power(struct max34417_data *max34417,
 					     "unexpected zero accumulator count\n");
 			power = 0;
 		} else {
+			rc = max34417_read_voltage_raw(max34417, chan->address, &raw_v);
+			if (rc)
+				return rc;
+
 			power = div64_s64(acc_power, acc_count);
-			max34417_apply_correction(max34417, chan, acc_count, &power);
+			if (raw_v)
+				max34417_apply_correction(raw_v, acc_count, &power);
 		}
 	} else {
 		rc = max34417_read_acc_power(max34417, chan->address, &power);
@@ -642,6 +685,7 @@ static int max34417_read_energy(struct max34417_data *max34417,
 	s64 delta_us = ktime_us_delta(ktime_get(), max34417->last_update);
 	s64 acc_power;
 	s64 acc_count;
+	u32 raw_v;
 	int rc;
 
 	/* Sleep up to 1msec to make sure we have a measurement cycle done */
@@ -668,13 +712,18 @@ static int max34417_read_energy(struct max34417_data *max34417,
 		return -EOVERFLOW;
 	}
 
+	rc = max34417_read_voltage_raw(max34417, chan->address, &raw_v);
+	if (rc)
+		return rc;
+
 	/* Get current channel power and reset them */
 	acc_power = max34417->acc_power[chan->channel];
 	acc_count = max34417->acc_count[chan->channel];
 	max34417->acc_power[chan->channel] = 0;
 	max34417->acc_count[chan->channel] = 0;
 
-	max34417_apply_correction(max34417, chan, acc_count, &acc_power);
+	if (raw_v)
+		max34417_apply_correction(raw_v, acc_count, &acc_power);
 
 	iio_val_s64_decompose(acc_power, val, val2);
 
@@ -919,6 +968,209 @@ static const struct iio_info max34417_info = {
 	.read_label	= max34417_read_label,
 };
 
+static irqreturn_t max34417_trigger_handler(int irq, void *p)
+{
+	struct iio_poll_func *pf = p;
+	struct iio_dev *indio_dev = pf->indio_dev;
+	struct max34417_data *max34417 = iio_priv(indio_dev);
+	s64 delta_us = ktime_us_delta(ktime_get(), max34417->last_update);
+	struct regmap *map = max34417->regmap;
+	u8 v_buf[MAX34417_BULK_V_LEN];
+	u8 p_buf[MAX34417_BULK_P_LEN];
+	u32 acc_count = 1;
+	int i, rc;
+
+	/* Buffer layout matching scan_index order */
+	struct {
+		u16 voltage[MAX34417_CHANNEL_COUNT];
+		u64 power[MAX34417_CHANNEL_COUNT];
+		u64 energy[MAX34417_CHANNEL_COUNT];
+		s64 timestamp __aligned(8);
+	} scan;
+
+	memset(&scan, 0, sizeof(scan));
+
+	guard(mutex)(&max34417->lock);
+	    
+	if (!max34417->cam_mode &&
+	    indio_dev->trig && strstarts(indio_dev->trig->name, "max34417-bulk")) {
+		/* Wait 1msec since the BULK update and get the data */
+		fsleep(1 * USEC_PER_MSEC);
+
+		rc = regmap_write(map, MAX34417_UPDATE_REG, 1);
+		if (rc)
+			return rc;
+	} else {
+		/* Sleep up to 1msec to make sure we have a measurement cycle done */
+		if (delta_us >= 0 && delta_us < (1 * USEC_PER_MSEC))
+			fsleep((1 * USEC_PER_MSEC) - delta_us);
+
+		/*
+		 * When not in CAM mode, we use the default mode where each
+		 * UPDATE command will move the current accumulated data to the
+		 * SMbus registers, reset those accumulators and run a new
+		 * measurement cycle.
+		 */
+		if (!max34417->cam_mode) {
+			/* Reset the accumulators and perform a measurement cycle */
+			rc = regmap_write(map, MAX34417_UPDATE_REG, 1);
+			if (rc)
+				return rc;
+			/*
+			 * UPDATE commands should be no less than 1msec apart for reliable
+			 * measurements, since in Manual mode the SPS is 1kHz, we need wait
+			 * for the measurement to finish before moving the data in the SMbus
+			 * registers.
+			 */
+			fsleep(1 * USEC_PER_MSEC);
+		}
+
+		rc = regmap_write(map, MAX34417_UPDATE_REG, 1);
+		if (rc)
+			return rc;
+	}
+
+	/* Save the timestamp for the next read */
+	max34417->last_update = ktime_get();
+
+	/* 2. Read accumulator count if in CAM mode */
+	if (max34417->cam_mode) {
+		rc = max34417_read_acc_count(max34417, &acc_count);
+		if (rc)
+			goto done;
+	}
+
+	/* 3. Bulk read voltages and powers */
+	rc = regmap_noinc_read(map, MAX34417_BULK_VOLTAGE_READOUT_REG,
+			       &v_buf, sizeof(v_buf));
+	if (rc)
+		goto done;
+
+	rc = regmap_noinc_read(map, MAX34417_BULK_POWER_READOUT_REG,
+			       &p_buf, sizeof(p_buf));
+	if (rc)
+		goto done;
+
+	/* 4. Check hardware overflow */
+	if (max34417->cam_mode)
+		max34417_check_ovf(max34417);
+
+	/* 5. Process data per channel */
+	for (i = 0; i < MAX34417_CHANNEL_COUNT; i++) {
+		u64 processed_p;
+		u32 raw_v;
+		u64 raw_p;
+
+		/* Skip skipped/disabled parked channels */
+		if (max34417->parked_channel != -1 && max34417->parked_channel != i)
+			continue;
+
+		/* Extract Voltage (Assuming block read layout: byte 0 is count) */
+		raw_v = get_unaligned_be16(&v_buf[1 + (i * 2)]) >> 2;
+		scan.voltage[i] = raw_v;
+
+		/* Extract Power Accumulator (7 bytes per channel) */
+		raw_p = get_unaligned_be56(&p_buf[1 + (i * 7)]);
+
+		if (max34417->cam_mode) {
+			max34417->acc_power[i] += raw_p;
+			max34417->acc_count[i] += acc_count;
+
+			/* Check software overflow */
+			if (check_add_overflow(max34417->acc_power[i], raw_p, &max34417->acc_power[i]) ||
+			    check_add_overflow(max34417->acc_count[i], acc_count, &max34417->acc_count[i])) {
+				max34417->overflow[i] = true;
+				continue;
+			}
+
+			if (max34417->overflow[i])
+				continue; /* In a bad state, waiting for a read to clear it */
+
+			/* Calculate Energy */
+			scan.energy[i] = max34417->acc_power[i];
+			max34417_apply_correction(raw_v, max34417->acc_count[i], &scan.energy[i]);
+
+			processed_p = div64_u64(max34417->acc_power[i], max34417->acc_count[i]);
+			max34417_apply_correction(raw_v, max34417->acc_count[i], &processed_p);
+			scan.power[i] = processed_p;
+
+			/* Reset accumulators so next trigger represents the next delta */
+			max34417->acc_power[i] = 0;
+			max34417->acc_count[i] = 0;
+		} else {
+			scan.power[i] = raw_p;
+		}
+	}
+
+	/* 6. Push buffer to IIO */
+	iio_push_to_buffers_with_timestamp(indio_dev, &scan, iio_get_time_ns(indio_dev));
+
+done:
+	iio_trigger_notify_done(indio_dev->trig);
+	return IRQ_HANDLED;
+}
+
+static void max34417_bulk_data_release(struct kref *ref)
+{
+	struct max34417_bulk_data *bulk = container_of(ref, struct max34417_bulk_data, refcount);
+
+	list_del(&bulk->list);
+	mutex_unlock(&max34417_bulk_lock);
+	i2c_unregister_device(bulk->client);
+	kfree(bulk);
+}
+
+static void max34417_bulk_data_put(void *data)
+{
+	struct max34417_bulk_data *bulk = data;
+
+	kref_put_mutex(&bulk->refcount, max34417_bulk_data_release, &max34417_bulk_lock);
+}
+
+static int max34417_setup_bulk(struct i2c_client *client)
+{
+	struct max34417_bulk_data *bulk = NULL, *iter;
+	struct i2c_board_info bulk_info = {
+		I2C_BOARD_INFO("max34417-bulk", MAX34417_BULK_UPDATE_ADDRESS),
+	};
+	int rc;
+
+	/* Find or create the bulk context for this specific I2C adapter */
+	mutex_lock(&max34417_bulk_lock);
+	list_for_each_entry(iter, &max34417_bulk_list, list) {
+		if (iter->adap == client->adapter) {
+			bulk = iter;
+			kref_get(&bulk->refcount);
+			break;
+		}
+	}
+
+	if (!bulk) {
+		bulk = kzalloc(sizeof(*bulk), GFP_KERNEL);
+		if (!bulk) {
+			mutex_unlock(&max34417_bulk_lock);
+			return -ENOMEM;
+		}
+
+		bulk->adap = client->adapter;
+		kref_init(&bulk->refcount);
+
+		bulk->client = i2c_new_client_device(client->adapter, &bulk_info);
+		if (IS_ERR(bulk->client)) {
+			rc = PTR_ERR(bulk->client);
+			kfree(bulk);
+			mutex_unlock(&max34417_bulk_lock);
+			dev_err(&client->dev, "Failed to instantiate bulk trigger\n");
+			return rc;
+		}
+
+		list_add(&bulk->list, &max34417_bulk_list);
+	}
+	mutex_unlock(&max34417_bulk_lock);
+
+	return devm_add_action_or_reset(&client->dev, max34417_bulk_data_put, bulk);
+}
+
 static u32 max34417_calc_input_correction(u32 rsense_uOhm)
 {
 	/* Derived from Table 14. Correction Factors for Various Current-Sense Resistor Values */
@@ -1041,6 +1293,17 @@ static int max34417_probe(struct i2c_client *client)
 
 	/* Save the timestamp for the next read */
 	max34417->last_update = ktime_get();
+
+	rc = devm_iio_triggered_buffer_setup(&client->dev, indio_dev,
+					     NULL,
+					     max34417_trigger_handler,
+					     NULL);
+	if (rc)
+		return rc;
+
+	rc = max34417_setup_bulk(client);
+	if (rc)
+		dev_warn(dev, "failed to setup bulk trigger\n");
 
 	return devm_iio_device_register(dev, indio_dev);
 }
