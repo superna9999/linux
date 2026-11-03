@@ -4,7 +4,7 @@
  *
  * Datasheet: https://www.analog.com/en/products/max34417.html
  *
- * TODO: Park Feature, Bulk Update
+ * TODO: Bulk Update
  */
 
 #include <linux/array_size.h>
@@ -58,6 +58,8 @@
 #define MAX34417_CONTROL_CAM		BIT(6)
 #define MAX34417_CONTROL_MODE		BIT(7)
 
+#define MAX34417_CONTROL_PARK_MASK (MAX34417_CONTROL_PARK1 | MAX34417_CONTROL_PARK0)
+
 #define MAX34417_ACC_COUNT_READ_LENGTH	4
 #define MAX34417_ACC_COUNT_READ_OFFSET	1
 
@@ -98,6 +100,8 @@
  * @last_update:	Timestamp of the last UPDATE call in CAM mode.
  * @cam_mode:		State of the Continuous Accumulate Mode feature.
  * @sps:		Sample Per Seconds rate
+ * @park_mode:		Park mode is enabled
+ * @parked_channel:	Parked channel index
  */
 struct max34417_data {
 	struct iio_dev *indio_dev;
@@ -111,6 +115,8 @@ struct max34417_data {
 	ktime_t last_update;
 	bool cam_mode;
 	unsigned int sps;
+	bool park_mode;
+	unsigned int parked_channel;
 };
 
 static bool max34417_writeable_reg(struct device *dev, unsigned int reg)
@@ -174,6 +180,94 @@ static const struct regmap_config max34417_regmap_config = {
 	/* No cache since the only non-volatile register is read-only */
 };
 
+static int max34417_set_park(struct max34417_data *max34417, int channel)
+{
+	struct regmap *map = max34417->regmap;
+	int rc;
+
+	if (!max34417->park_mode && channel >= 0) {
+		rc = regmap_update_bits(map, MAX34417_CONTROL_REG,
+					MAX34417_CONTROL_PARK_EN | MAX34417_CONTROL_PARK_MASK,
+					MAX34417_CONTROL_PARK_EN |
+					FIELD_PREP(MAX34417_CONTROL_PARK_MASK, channel));
+		if (rc)
+			return rc;
+
+		max34417->park_mode = true;
+		max34417->parked_channel = channel;
+	 } else if (max34417->park_mode && channel < 0) {
+		rc = regmap_clear_bits(map, MAX34417_CONTROL_REG,
+					MAX34417_CONTROL_PARK_EN | MAX34417_CONTROL_PARK_MASK);
+		if (rc)
+			return rc;
+
+		max34417->park_mode = false;
+		max34417->parked_channel = 0;
+	} else
+		return 0;
+
+	/* Reset software accumulators and overflow flags for the new period */
+	for (int i = 0; i < MAX34417_CHANNEL_COUNT; i++) {
+		max34417->acc_power[i] = 0;
+		max34417->acc_count[i] = 0;
+		max34417->overflow[i] = false;
+	}
+
+	return regmap_write(map, MAX34417_UPDATE_REG, 1);
+}
+
+static ssize_t max34417_read_park(struct iio_dev *indio_dev,
+				  uintptr_t private,
+				  const struct iio_chan_spec *chan, char *buf)
+{
+	struct max34417_data *max34417 = iio_priv(indio_dev);
+
+	return sysfs_emit(buf, "%d\n", max34417->parked_channel == chan->channel);
+}
+
+static ssize_t max34417_write_park(struct iio_dev *indio_dev,
+				   uintptr_t private,
+				   const struct iio_chan_spec *chan,
+				   const char *buf, size_t len)
+{
+	struct max34417_data *max34417 = iio_priv(indio_dev);
+	bool park;
+	int rc;
+
+	rc = kstrtobool(buf, &park);
+	if (rc)
+		return rc;
+
+	guard(mutex)(&max34417->lock);
+
+	if (park) {
+		if (max34417->park_mode)
+			return -EINVAL;
+
+		rc = max34417_set_park(max34417, chan->channel);
+	} else {
+		if (max34417->park_mode && max34417->parked_channel != chan->channel)
+			return -EINVAL;
+
+		if (max34417->park_mode)
+			rc = max34417_set_park(max34417, -1);
+		else
+			rc = 0;
+	}
+
+	return rc ? rc : len;
+}
+
+static const struct iio_chan_spec_ext_info max34417_ext_info[] = {
+	{
+		.name = "park_mode",
+		.read = max34417_read_park,
+		.write = max34417_write_park,
+		.shared = IIO_SEPARATE,
+	},
+	{ }
+};
+
 #define MAX34417_CHANNEL(_index, _v_address, _power_address)	\
 	{							\
 		.type = IIO_VOLTAGE,				\
@@ -184,6 +278,7 @@ static const struct regmap_config max34417_regmap_config = {
 			BIT(IIO_CHAN_INFO_SAMP_FREQ),		\
 		.channel = (_index),				\
 		.address = (_v_address),			\
+		.ext_info = max34417_ext_info,			\
 		.indexed = 1,					\
 	},							\
 	{							\
@@ -196,6 +291,7 @@ static const struct regmap_config max34417_regmap_config = {
 			BIT(IIO_CHAN_INFO_SAMP_FREQ),		\
 		.channel = (_index),				\
 		.address = (_power_address),			\
+		.ext_info = max34417_ext_info,			\
 		.indexed = 1,					\
 	},							\
 	{							\
@@ -209,6 +305,7 @@ static const struct regmap_config max34417_regmap_config = {
 			BIT(IIO_CHAN_INFO_SAMP_FREQ),		\
 		.channel = (_index),				\
 		.address = (_power_address),			\
+		.ext_info = max34417_ext_info,			\
 		.indexed = 1,					\
 	}
 
@@ -328,6 +425,9 @@ static int max34417_save_accumulators(struct max34417_data *max34417)
 		return rc;
 
 	for (int i = 0; i < MAX34417_CHANNEL_COUNT; i++) {
+		if (max34417->park_mode && max34417->parked_channel != i)
+			continue;
+
 		rc = max34417_read_acc_power(max34417, MAX34417_PWR_ACC_1_REG + i,
 					     &acc_power);
 		if (rc)
@@ -673,9 +773,13 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 			     int *val, int *val2, long mask)
 {
 	struct max34417_data *max34417 = iio_priv(indio_dev);
+	unsigned int active_sps = max34417->park_mode ? 4 * max34417->sps : max34417->sps;
 	u64 num, den, scale;
 
 	guard(mutex)(&max34417->lock);
+
+	if (max34417->park_mode && max34417->parked_channel != chan->channel)
+		return -EBUSY;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -735,7 +839,7 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 			 * With the maximum input_correction of 2400, it fits in 64bits
 			 */
 			num = (u64)max34417->input_correction[chan->channel] * FEMTO;
-			den = (u64)max34417->sps << MAX34417_PWR_AVG_FULL_SCALE_BITS;
+			den = (u64)active_sps << MAX34417_PWR_AVG_FULL_SCALE_BITS;
 			scale = div64_u64(num, den);
 			iio_val_s64_decompose(scale, val, val2);
 
@@ -748,7 +852,7 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		*val = max34417->sps;
+		*val = active_sps;
 
 		return IIO_VAL_INT;
 	default:
