@@ -1148,6 +1148,8 @@ config MAX34417
 	tristate "Maxim MAX34417 ADC driver"
 	depends on I2C
 	select REGMAP_I2C
+	select IIO_BUFFER
+	select IIO_TRIGGERED_BUFFER
 	help
 	  Say yes here to build ADC support for Maxim MAX34417 Four-Channel High
 	  Dynamic Range Power Accumulator.

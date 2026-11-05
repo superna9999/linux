@@ -86,9 +86,10 @@
 #define MAX34417_VOLTAGE_FULL_SCALE_BITS	14
 
 #define MAX34417_SLOW_SPS_BIT			3 /* 8 SPS */
-#define MAX34417_SLOW_SPS_CAM			8
+#define MAX34417_SLOW_SPS			8
+#define MAX34417_NORMAL_SPS			1024 /* 1024 SPS */
 #define MAX34417_FAST_SPS_BIT			10 /* 1024 SPS */
-#define MAX34417_FAST_SPS_CAM			1536 /* 1.5 * 1024 SPS */
+#define MAX34417_FAST_SPS			1536 /* 1.5 * 1024 SPS */
 
 #define MAX34417_CHANNEL_COUNT			4
 
@@ -135,12 +136,45 @@ struct max34417_data {
 	s64 acc_power[MAX34417_CHANNEL_COUNT];
 	s64 acc_count[MAX34417_CHANNEL_COUNT];
 	bool overflow[MAX34417_CHANNEL_COUNT];
+	u32 update_delay;
 	ktime_t last_update;
-	bool cam_mode;
+	bool slow_mode;
 	unsigned int sps;
+	bool cam_mode;
 	bool park_mode;
 	unsigned int parked_channel;
 };
+
+static void max34417_set_update_delay(struct max34417_data *max34417)
+{
+	if (max34417->slow_mode) {
+		if (max34417->cam_mode) {
+			if (max34417->park_mode)
+				max34417->sps = 48; /* 1.5 * 8 * 4 */
+			else
+				max34417->sps = 12; /* 1.5 * 8 */
+		} else {
+			if (max34417->park_mode)
+				max34417->sps = MAX34417_SLOW_SPS * 4;
+			else
+				max34417->sps = MAX34417_SLOW_SPS;
+		}
+	} else {
+		if (max34417->cam_mode) {
+			if (max34417->park_mode)
+				max34417->sps = MAX34417_FAST_SPS * 4;
+			else
+				max34417->sps = MAX34417_FAST_SPS;
+		} else {
+			if (max34417->park_mode)
+				max34417->sps = MAX34417_NORMAL_SPS * 4;
+			else
+				max34417->sps = MAX34417_NORMAL_SPS;
+		}
+	}
+
+	max34417->update_delay = DIV_ROUND_UP(USEC_PER_SEC, max34417->sps * MSEC_PER_SEC);
+}
 
 static bool max34417_writeable_reg(struct device *dev, unsigned int reg)
 {
@@ -229,6 +263,8 @@ static int max34417_set_park(struct max34417_data *max34417, int channel)
 	} else
 		return 0;
 
+	max34417_set_update_delay(max34417);
+
 	/* Reset software accumulators and overflow flags for the new period */
 	for (int i = 0; i < MAX34417_CHANNEL_COUNT; i++) {
 		max34417->acc_power[i] = 0;
@@ -245,7 +281,9 @@ static ssize_t max34417_read_park(struct iio_dev *indio_dev,
 {
 	struct max34417_data *max34417 = iio_priv(indio_dev);
 
-	return sysfs_emit(buf, "%d\n", max34417->parked_channel == chan->channel);
+	return sysfs_emit(buf, "%d\n",
+			  max34417->park_mode &&
+			  max34417->parked_channel == chan->channel);
 }
 
 static ssize_t max34417_write_park(struct iio_dev *indio_dev,
@@ -499,8 +537,8 @@ static int max34417_read_voltage(struct max34417_data *max34417,
 	int rc;
 
 	/* Sleep up to 1msec to make sure we have a measurement cycle done */
-	if (delta_us >= 0 && delta_us < (1 * USEC_PER_MSEC))
-		fsleep((1 * USEC_PER_MSEC) - delta_us);
+	if (delta_us >= 0 && delta_us < max34417->update_delay)
+		fsleep(max34417->update_delay - delta_us);
 
 	/*
 	 * When not in CAM mode, we use the default mode where each
@@ -519,7 +557,7 @@ static int max34417_read_voltage(struct max34417_data *max34417,
 		 * for the measurement to finish before moving the data in the SMbus
 		 * registers.
 		 */
-		fsleep(1 * USEC_PER_MSEC);
+		fsleep(max34417->update_delay);
 	}
 
 	/*
@@ -592,8 +630,8 @@ static int max34417_read_power(struct max34417_data *max34417,
 	int rc;
 
 	/* Sleep up to 1msec to make sure we have a measurement cycle done */
-	if (delta_us >= 0 && delta_us < (1 * USEC_PER_MSEC))
-		fsleep((1 * USEC_PER_MSEC) - delta_us);
+	if (delta_us >= 0 && delta_us < max34417->update_delay)
+		fsleep(max34417->update_delay - delta_us);
 
 	/*
 	 * When not in CAM mode, we use the default mode where each
@@ -612,7 +650,7 @@ static int max34417_read_power(struct max34417_data *max34417,
 		 * for the measurement to finish before moving the data in the SMbus
 		 * registers.
 		 */
-		fsleep(1 * USEC_PER_MSEC);
+		fsleep(max34417->update_delay);
 	}
 
 	/*
@@ -667,9 +705,21 @@ static int max34417_read_power(struct max34417_data *max34417,
 				max34417_apply_correction(raw_v, acc_count, &power);
 		}
 	} else {
-		rc = max34417_read_acc_power(max34417, chan->address, &power);
+		s32 acc_count;
+
+		rc = max34417_read_acc_count(max34417, &acc_count);
 		if (rc)
 			return rc;
+
+		if (acc_count != 1) {
+			dev_warn_ratelimited(&max34417->indio_dev->dev,
+					     "unexpected zero accumulator count\n");
+			power = 0;
+		} else {
+			rc = max34417_read_acc_power(max34417, chan->address, &power);
+			if (rc)
+				return rc;
+		}
 	}
 
 	iio_val_s64_decompose(power, val, val2);
@@ -689,8 +739,8 @@ static int max34417_read_energy(struct max34417_data *max34417,
 	int rc;
 
 	/* Sleep up to 1msec to make sure we have a measurement cycle done */
-	if (delta_us >= 0 && delta_us < (1 * USEC_PER_MSEC))
-		fsleep((1 * USEC_PER_MSEC) - delta_us);
+	if (delta_us >= 0 && delta_us < max34417->update_delay)
+		fsleep(max34417->update_delay - delta_us);
 
 	/* Move the data to the SMBus registers */
 	rc = regmap_write(map, MAX34417_UPDATE_REG, 1);
@@ -754,6 +804,9 @@ static int max34417_setup_cam_mode(struct max34417_data *max34417, int val)
 		rc = regmap_write(map, MAX34417_UPDATE_REG, 1);
 		if (rc)
 			return rc;
+
+		/* Save the timestamp for the next read */
+		max34417->last_update = ktime_get();
 	} else if (!max34417->cam_mode && val) {
 		/*
 		 * If CAM mode must be set, the Control byte must be set to
@@ -776,16 +829,19 @@ static int max34417_setup_cam_mode(struct max34417_data *max34417, int val)
 		if (rc)
 			return rc;
 
+		/* Save the timestamp for the next read */
+		max34417->last_update = ktime_get();
+
 		/* Reset counters and accumulators */
 		for (int i = 0; i < MAX34417_CHANNEL_COUNT; i++) {
 			max34417->acc_power[i] = 0;
 			max34417->acc_count[i] = 0;
 			max34417->overflow[i] = false;
 		}
-	}
+	} else
+		return 0;
 
-	/* Save the timestamp for the next read */
-	max34417->last_update = ktime_get();
+	max34417_set_update_delay(max34417);
 
 	max34417->cam_mode = val;
 
@@ -794,16 +850,25 @@ static int max34417_setup_cam_mode(struct max34417_data *max34417, int val)
 
 static int max34417_set_sps(struct max34417_data *max34417, int val)
 {
+	bool slow_mode;
 	int rc;
 
 	switch (val) {
-	case MAX34417_SLOW_SPS_CAM:
+	case 12:
+	case 48:
+	case MAX34417_SLOW_SPS:
+	case MAX34417_SLOW_SPS * 4:
 		rc = regmap_set_bits(max34417->regmap, MAX34417_CONTROL_REG,
 				     MAX34417_CONTROL_SLOW);
+		slow_mode = true;
 		break;
-	case MAX34417_FAST_SPS_CAM:
+	case MAX34417_NORMAL_SPS:
+	case MAX34417_NORMAL_SPS * 4:
+	case MAX34417_FAST_SPS:
+	case MAX34417_FAST_SPS * 4:
 		rc = regmap_clear_bits(max34417->regmap, MAX34417_CONTROL_REG,
 				       MAX34417_CONTROL_SLOW);
+		slow_mode = false;
 		break;
 	default:
 		return -EINVAL;
@@ -812,7 +877,9 @@ static int max34417_set_sps(struct max34417_data *max34417, int val)
 	if (rc)
 		return rc;
 
-	max34417->sps = val;
+	max34417->slow_mode = slow_mode;
+
+	max34417_set_update_delay(max34417);
 
 	return regmap_write(max34417->regmap, MAX34417_UPDATE_REG, 1);
 }
@@ -822,7 +889,6 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 			     int *val, int *val2, long mask)
 {
 	struct max34417_data *max34417 = iio_priv(indio_dev);
-	unsigned int active_sps = max34417->park_mode ? 4 * max34417->sps : max34417->sps;
 	u64 num, den, scale;
 
 	guard(mutex)(&max34417->lock);
@@ -888,7 +954,7 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 			 * With the maximum input_correction of 2400, it fits in 64bits
 			 */
 			num = (u64)max34417->input_correction[chan->channel] * FEMTO;
-			den = (u64)active_sps << MAX34417_PWR_AVG_FULL_SCALE_BITS;
+			den = (u64)max34417->sps << MAX34417_PWR_AVG_FULL_SCALE_BITS;
 			scale = div64_u64(num, den);
 			iio_val_s64_decompose(scale, val, val2);
 
@@ -901,7 +967,7 @@ static int max34417_read_raw(struct iio_dev *indio_dev,
 
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		*val = active_sps;
+		*val = max34417->sps;
 
 		return IIO_VAL_INT;
 	default:
@@ -942,7 +1008,14 @@ static int max34417_read_label(struct iio_dev *indio_dev,
 }
 
 static const int max34417_sps_avail[] = {
-	MAX34417_SLOW_SPS_CAM, MAX34417_FAST_SPS_CAM
+	12,
+	48,
+	MAX34417_SLOW_SPS,
+	MAX34417_SLOW_SPS * 4,
+	MAX34417_NORMAL_SPS,
+	MAX34417_NORMAL_SPS * 4,
+	MAX34417_FAST_SPS,
+	MAX34417_FAST_SPS * 4
 };
 
 static int max34417_read_avail(struct iio_dev *indio_dev,
@@ -995,15 +1068,15 @@ static irqreturn_t max34417_trigger_handler(int irq, void *p)
 	if (!max34417->cam_mode &&
 	    indio_dev->trig && strstarts(indio_dev->trig->name, "max34417-bulk")) {
 		/* Wait 1msec since the BULK update and get the data */
-		fsleep(1 * USEC_PER_MSEC);
+		fsleep(max34417->update_delay);
 
 		rc = regmap_write(map, MAX34417_UPDATE_REG, 1);
 		if (rc)
 			return rc;
 	} else {
 		/* Sleep up to 1msec to make sure we have a measurement cycle done */
-		if (delta_us >= 0 && delta_us < (1 * USEC_PER_MSEC))
-			fsleep((1 * USEC_PER_MSEC) - delta_us);
+		if (delta_us >= 0 && delta_us < max34417->update_delay)
+			fsleep(max34417->update_delay - delta_us);
 
 		/*
 		 * When not in CAM mode, we use the default mode where each
@@ -1022,7 +1095,7 @@ static irqreturn_t max34417_trigger_handler(int irq, void *p)
 			 * for the measurement to finish before moving the data in the SMbus
 			 * registers.
 			 */
-			fsleep(1 * USEC_PER_MSEC);
+			fsleep(max34417->update_delay);
 		}
 
 		rc = regmap_write(map, MAX34417_UPDATE_REG, 1);
@@ -1261,7 +1334,8 @@ static int max34417_probe(struct i2c_client *client)
 			max34417_calc_input_correction(MAX34417_DEFAULT_RSENSE);
 
 	/* Default SPS for CAM mode */
-	max34417->sps = MAX34417_FAST_SPS_CAM;
+	max34417->sps = MAX34417_NORMAL_SPS;
+	max34417_set_update_delay(max34417);
 
 	device_for_each_child_node_scoped(dev, node) {
 		rc = max34417_probe_channel_node(dev, max34417, node);
