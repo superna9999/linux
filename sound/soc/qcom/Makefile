@@ -8,6 +8,7 @@ snd-soc-lpass-ipq806x-y := lpass-ipq806x.o
 snd-soc-lpass-apq8016-y := lpass-apq8016.o
 snd-soc-lpass-sc7180-y := lpass-sc7180.o
 snd-soc-lpass-sc7280-y := lpass-sc7280.o
+snd-soc-lpass-sm8650-y := lpass-sm8650.o
 
 obj-$(CONFIG_SND_SOC_LPASS_CPU) += snd-soc-lpass-cpu.o
 obj-$(CONFIG_SND_SOC_LPASS_CDC_DMA) += snd-soc-lpass-cdc-dma.o
@@ -17,6 +18,7 @@ obj-$(CONFIG_SND_SOC_LPASS_IPQ806X) += snd-soc-lpass-ipq806x.o
 obj-$(CONFIG_SND_SOC_LPASS_APQ8016) += snd-soc-lpass-apq8016.o
 obj-$(CONFIG_SND_SOC_LPASS_SC7180) += snd-soc-lpass-sc7180.o
 obj-$(CONFIG_SND_SOC_LPASS_SC7280) += snd-soc-lpass-sc7280.o
+obj-$(CONFIG_SND_SOC_LPASS_SM8650) += snd-soc-lpass-sm8650.o
 
 # Machine
 snd-soc-storm-y := storm.o
