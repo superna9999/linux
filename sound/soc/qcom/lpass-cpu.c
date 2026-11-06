@@ -1128,6 +1128,33 @@ static int lpass_cpu_init_lpaif(struct platform_device *pdev, int idx,
 	return ret;
 }
 
+/* Check the codec LPM blocks holding the DMA buffers of the MI2S ports */
+static int lpass_cpu_init_mi2s_lpm(struct platform_device *pdev)
+{
+	struct lpass_data *drvdata = platform_get_drvdata(pdev);
+	struct device *dev = &pdev->dev;
+	int i;
+
+	for (i = 0; i < LPASS_MAX_MI2S_PORTS; i++) {
+		if (drvdata->mi2s_lpm[i] != LPASS_LPM_CODEC)
+			continue;
+
+		/* Codec LPM address & clocks come with the codec DMA */
+		if (!drvdata->codec_dma_enable) {
+			dev_err(dev, "MI2S %d codec LPM needs codec DMA\n", i);
+			return -EINVAL;
+		}
+		if (drvdata->mi2s_lpm_block[i] < 1 ||
+		    drvdata->mi2s_lpm_block[i] > 3) {
+			dev_err(dev, "MI2S %d invalid codec LPM block %d\n",
+				i, drvdata->mi2s_lpm_block[i]);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 {
 	struct lpass_data *drvdata;
@@ -1255,6 +1282,15 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 			drvdata->mi2s_lpaif[dai_id] =
 				&drvdata->lpaif[variant->dai_intf[i].lpaif];
 			drvdata->mi2s_intf[dai_id] = variant->dai_intf[i].intf;
+			drvdata->mi2s_lpm[dai_id] = variant->dai_intf[i].lpm;
+			drvdata->mi2s_lpm_block[dai_id] = variant->dai_intf[i].lpm_block;
+			if (drvdata->mi2s_lpm[dai_id] &&
+			    variant->dai_driver[i].playback.channels_min &&
+			    variant->dai_driver[i].capture.channels_min) {
+				dev_err(dev, "MI2S %d LPM DMA buffer can't be full duplex\n",
+					dai_id);
+				return -EINVAL;
+			}
 		} else {
 			drvdata->mi2s_lpaif[dai_id] = &drvdata->lpaif[0];
 			drvdata->mi2s_intf[dai_id] = dai_id;
@@ -1277,6 +1313,10 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 			variant->dai_driver[i].playback.channels_max = 4;
 		}
 	}
+
+	ret = lpass_cpu_init_mi2s_lpm(pdev);
+	if (ret)
+		return ret;
 
 	if (drvdata->hdmi_port_enable) {
 		ret = lpass_hdmi_init_bitfields(dev, drvdata->hdmiif_map);

@@ -25,6 +25,26 @@
 #define LPASS_VA_CDC_DMA_LPM_BUFF_SIZE (12 * 1024)
 #define LPASS_CDC_DMA_REGISTER_FIELDS_MAX 15
 
+static bool is_lpm_mi2s_port(struct lpass_data *drvdata, unsigned int dai_id)
+{
+	switch (dai_id) {
+	case MI2S_PRIMARY ... MI2S_QUINARY:
+	case MI2S_SENARY ... MI2S_SEPTENARY:
+		return drvdata->mi2s_lpm[dai_id] != LPASS_LPM_NONE;
+	}
+	return false;
+}
+
+/* Clock gating the codec LPM block holding the DMA buffer of a MI2S port */
+static struct clk *lpass_platform_lpm_mi2s_clk(struct lpass_data *drvdata,
+					       unsigned int dai_id)
+{
+	struct clk *codec_mem[] = { drvdata->codec_mem0, drvdata->codec_mem1,
+				    drvdata->codec_mem2, drvdata->codec_mem3 };
+
+	return codec_mem[drvdata->mi2s_lpm_block[dai_id]];
+}
+
 static const struct snd_pcm_hardware lpass_platform_pcm_hardware = {
 	.info			=	SNDRV_PCM_INFO_MMAP |
 					SNDRV_PCM_INFO_MMAP_VALID |
@@ -43,6 +63,31 @@ static const struct snd_pcm_hardware lpass_platform_pcm_hardware = {
 	.period_bytes_max	=	LPASS_PLATFORM_BUFFER_SIZE /
 						LPASS_PLATFORM_PERIODS,
 	.period_bytes_min	=	LPASS_PLATFORM_BUFFER_SIZE /
+						LPASS_PLATFORM_PERIODS,
+	.periods_min		=	LPASS_PLATFORM_PERIODS,
+	.periods_max		=	LPASS_PLATFORM_PERIODS,
+	.fifo_size		=	0,
+};
+
+/* MI2S ports with their DMA buffer in a LPM block */
+static const struct snd_pcm_hardware lpass_platform_lpm_mi2s_hardware = {
+	.info			=	SNDRV_PCM_INFO_MMAP |
+					SNDRV_PCM_INFO_MMAP_VALID |
+					SNDRV_PCM_INFO_INTERLEAVED |
+					SNDRV_PCM_INFO_PAUSE |
+					SNDRV_PCM_INFO_RESUME,
+	.formats		=	SNDRV_PCM_FMTBIT_S16 |
+					SNDRV_PCM_FMTBIT_S24 |
+					SNDRV_PCM_FMTBIT_S32,
+	.rates			=	SNDRV_PCM_RATE_8000_192000,
+	.rate_min		=	8000,
+	.rate_max		=	192000,
+	.channels_min		=	1,
+	.channels_max		=	8,
+	.buffer_bytes_max	=	LPASS_LPM_BLOCK_SIZE,
+	.period_bytes_max	=	LPASS_LPM_BLOCK_SIZE /
+						LPASS_PLATFORM_PERIODS,
+	.period_bytes_min	=	LPASS_LPM_BLOCK_SIZE /
 						LPASS_PLATFORM_PERIODS,
 	.periods_min		=	LPASS_PLATFORM_PERIODS,
 	.periods_max		=	LPASS_PLATFORM_PERIODS,
@@ -254,6 +299,19 @@ static int lpass_platform_pcmops_open(struct snd_soc_component *component,
 			dev_err(soc_runtime->dev, "error writing to rdmactl reg: %d\n", ret);
 			return ret;
 		}
+		if (is_lpm_mi2s_port(drvdata, dai_id)) {
+			ret = clk_prepare_enable(lpass_platform_lpm_mi2s_clk(drvdata, dai_id));
+			if (ret) {
+				kfree(data);
+				dev_err(soc_runtime->dev, "failed to enable LPM clock: %d\n", ret);
+				return ret;
+			}
+			snd_soc_set_runtime_hwparams(substream,
+						     &lpass_platform_lpm_mi2s_hardware);
+			runtime->dma_bytes = lpass_platform_lpm_mi2s_hardware.buffer_bytes_max;
+			snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
+			break;
+		}
 		snd_soc_set_runtime_hwparams(substream, &lpass_platform_pcm_hardware);
 		runtime->dma_bytes = lpass_platform_pcm_hardware.buffer_bytes_max;
 		break;
@@ -300,6 +358,8 @@ static int lpass_platform_pcmops_close(struct snd_soc_component *component,
 	case MI2S_PRIMARY ... MI2S_QUINARY:
 	case MI2S_SENARY ... MI2S_SEPTENARY:
 		lpass_get_lpaif(drvdata, dai_id)->substream[data->dma_ch] = NULL;
+		if (is_lpm_mi2s_port(drvdata, dai_id))
+			clk_disable_unprepare(lpass_platform_lpm_mi2s_clk(drvdata, dai_id));
 		break;
 	case LPASS_DP_RX:
 		drvdata->hdmi_substream[data->dma_ch] = NULL;
@@ -922,9 +982,10 @@ static int lpass_platform_pcmops_mmap(struct snd_soc_component *component,
 {
 	struct snd_soc_pcm_runtime *soc_runtime = snd_soc_substream_to_rtd(substream);
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(soc_runtime, 0);
+	struct lpass_data *drvdata = snd_soc_component_get_drvdata(component);
 	unsigned int dai_id = cpu_dai->driver->id;
 
-	if (is_cdc_dma_port(dai_id))
+	if (is_cdc_dma_port(dai_id) || is_lpm_mi2s_port(drvdata, dai_id))
 		return lpass_platform_cdc_dma_mmap(substream, vma);
 
 	return snd_pcm_lib_default_mmap(substream, vma);
@@ -1168,6 +1229,11 @@ static int lpass_platform_prealloc_cdc_dma_buffer(struct snd_soc_component *comp
 		buf->addr = drvdata->va_cdc_dma_lpm_buf;
 		break;
 	default:
+		if (!is_lpm_mi2s_port(drvdata, dai_id))
+			break;
+		buf->bytes = lpass_platform_lpm_mi2s_hardware.buffer_bytes_max;
+		buf->addr = drvdata->rxtx_cdc_dma_lpm_buf +
+			    drvdata->mi2s_lpm_block[dai_id] * LPASS_LPM_BLOCK_SIZE;
 		break;
 	}
 
@@ -1181,6 +1247,7 @@ static int lpass_platform_pcm_new(struct snd_soc_component *component,
 {
 	struct snd_pcm *pcm = soc_runtime->pcm;
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(soc_runtime, 0);
+	struct lpass_data *drvdata = snd_soc_component_get_drvdata(component);
 	unsigned int dai_id = cpu_dai->driver->id;
 
 	size_t size = lpass_platform_pcm_hardware.buffer_bytes_max;
@@ -1189,7 +1256,7 @@ static int lpass_platform_pcm_new(struct snd_soc_component *component,
 	 * Lpass codec dma can access only lpass lpm hardware memory.
 	 * ioremap is for HLOS to access hardware memory.
 	 */
-	if (is_cdc_dma_port(dai_id))
+	if (is_cdc_dma_port(dai_id) || is_lpm_mi2s_port(drvdata, dai_id))
 		return lpass_platform_prealloc_cdc_dma_buffer(component, pcm, dai_id);
 
 	return snd_pcm_set_fixed_buffer_all(pcm, SNDRV_DMA_TYPE_NONCOHERENT,

@@ -119,10 +119,25 @@ struct lpass_lpaif_desc {
 	const char *irq_name;
 };
 
-/* Location of a MI2S DAI: LPAIF instance (0 is the core one) & interface */
+/* Low-power memory (LPM) holding the DMA buffer of a MI2S DAI */
+enum lpass_lpm {
+	LPASS_LPM_NONE = 0,	/* DMA buffer in DDR */
+	LPASS_LPM_CODEC,	/* codec LPM, "lpass-rxtx-cdc-dma-lpm" */
+};
+
+/* Each MI2S DAI using a LPM gets one LPM block for its DMA buffer */
+#define LPASS_LPM_BLOCK_SIZE		(16 * 1024)
+
+/*
+ * Location of a MI2S DAI: LPAIF instance (0 is the core one) & interface,
+ * LPM and LPM block holding its DMA buffer. Codec LPM block N is gated by
+ * the codec_memN clock, block 0 is used by the RXTX codec DMA buffers.
+ */
 struct lpass_dai_intf {
 	u8 lpaif;
 	u8 intf;
+	u8 lpm;
+	u8 lpm_block;
 };
 
 /* Both the CPU DAI and platform drivers will access this data */
@@ -160,6 +175,10 @@ struct lpass_data {
 	/* LPAIF instance and interface index of each MI2S port */
 	struct lpass_lpaif *mi2s_lpaif[LPASS_MAX_MI2S_PORTS];
 	unsigned int mi2s_intf[LPASS_MAX_MI2S_PORTS];
+
+	/* LPM (enum lpass_lpm) & LPM block of the DMA buffer of each MI2S port */
+	u8 mi2s_lpm[LPASS_MAX_MI2S_PORTS];
+	u8 mi2s_lpm_block[LPASS_MAX_MI2S_PORTS];
 
 	/* low-power audio interface (LPAIF) registers */
 	void __iomem *hdmiif;
