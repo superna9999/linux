@@ -166,7 +166,7 @@ struct lpaif_mi2s_desc {
 	const char *reg_name;
 	const char *irq_name;
 	enum lpass_lpm lpm_type;
-	struct mi2s_port_desc *port_desc;
+	const struct mi2s_port_desc *port_desc;
 	unsigned int port_desc_count;
 };
 
