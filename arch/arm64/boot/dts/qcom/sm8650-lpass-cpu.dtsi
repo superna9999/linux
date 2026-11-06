@@ -1,0 +1,183 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2026, Linaro Limited
+ */
+
+#include <dt-bindings/clock/qcom,lpasscorecc-sm8650.h>
+#include <dt-bindings/clock/qcom,lpassaudiocc-sm8650.h>
+#include <dt-bindings/sound/qcom,lpass.h>
+
+&lpass_rxmacro {
+	clocks = <&lpass_audiocc LPASS_AUDIO_CC_RX_MCLK_CLK>,	//LPASS_CLK_ID_RX_CORE_TX_MCLK
+	         <&lpass_audiocc LPASS_AUDIO_CC_TX_MCLK_RX_CLK>,
+		 <&lpass_vamacro>;
+	clock-names = "mclk", "macro", "fsgen";
+
+	power-domains = <&lpass_hm LPASS_CORE_HM_GDSC>,
+			<&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+	power-domain-names = "macro", "dcodec";
+};
+
+&lpass_tlmm {
+	clocks = <&lpass_core LPASS_CORE_CC_CORE_CLK>;
+	clock-names = "core";
+
+	power-domains = <&lpass_hm LPASS_CORE_HM_GDSC>,
+			<&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+	power-domain-names = "core", "audio";
+
+	status = "okay";
+};
+
+&lpass_txmacro {
+	clocks = <&lpass_aon LPASS_AON_CC_TX_MCLK_CLK>,	//LPASS_CLK_ID_TX_CORE_MCLK
+		 <&lpass_vamacro>;
+	clock-names = "mclk", "fsgen";
+
+	power-domains = <&lpass_hm LPASS_CORE_HM_GDSC>,
+			<&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+	power-domain-names = "macro", "dcodec";
+};
+
+&lpass_vamacro {
+	clocks = <&lpass_aon LPASS_AON_CC_TX_MCLK_CLK>;	//LPASS_CLK_ID_TX_CORE_MCLK
+	clock-names = "mclk";
+
+	power-domains = <&lpass_hm LPASS_CORE_HM_GDSC>,
+			<&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+	power-domain-names = "macro", "dcodec";
+};
+
+&lpass_wsa2macro {
+	clocks = <&lpass_audiocc LPASS_AUDIO_CC_WSA2_MCLK_CLK>,
+	         <&lpass_audiocc LPASS_AUDIO_CC_TX_MCLK_WSA2_CLK>,
+		 <&lpass_vamacro>;
+	clock-names = "mclk", "macro", "fsgen";
+
+	power-domains = <&lpass_hm LPASS_CORE_HM_GDSC>,
+			<&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+	power-domain-names = "macro", "dcodec";
+};
+
+&lpass_wsamacro {
+	clocks = <&lpass_audiocc LPASS_AUDIO_CC_WSA_MCLK_CLK>,	//LPASS_CLK_ID_WSA_CORE_TX_MCLK
+	         <&lpass_audiocc LPASS_AUDIO_CC_TX_MCLK_WSA_CLK>,
+		 <&lpass_vamacro>;
+	clock-names = "mclk", "macro", "fsgen";
+
+	power-domains = <&lpass_hm LPASS_CORE_HM_GDSC>,
+			<&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+	power-domain-names = "macro", "dcodec";
+};
+
+&soc {
+	lpass_audiocc: clock-controller@6bc0000 {
+		reg = <0 0x06bc0000 0 0x38000>;
+		compatible = "qcom,sm8650-lpassaudiocc";
+		clocks = <&bi_tcxo_div2>,
+		       	 <&lpass_aon LPASS_AON_CC_MAIN_RCG_CLK_SRC>;
+		clock-names = "bi_tcxo",
+			      "iface";
+		power-domains = <&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+		#clock-cells = <1>;
+	};
+
+	lpass_aon: clock-controller@6e08000 {
+		reg = <0 0x06e00000 0 0x30000>;
+		compatible = "qcom,sm8650-lpassaoncc";
+		clocks = <&bi_tcxo_div2>,
+			 <&lpass_core LPASS_CORE_CC_CORE_CLK>;
+		clock-names = "bi_tcxo",
+			      "iface";
+		#clock-cells = <1>;
+		#power-domain-cells = <1>;
+	};
+
+	lpass_core: clock-controller@7b08000 {
+		compatible = "qcom,sm8650-lpasscorecc";
+		reg = <0 0x07b00000 0 0x4f000>;
+		clocks = <&bi_tcxo_div2>;
+		clock-names = "bi_tcxo";
+		power-domains = <&lpass_hm LPASS_CORE_HM_GDSC>;
+		#clock-cells = <1>;
+	};
+
+	lpass_hm: clock-controller@7e00000 {
+		compatible = "qcom,sm8650-lpasshm";
+		reg = <0 0x07e00000 0 0xa000>;
+		clocks = <&bi_tcxo_div2>;
+		clock-names = "bi_tcxo";
+		#clock-cells = <1>;
+		#power-domain-cells = <1>;
+		required-opps = <&rpmhpd_opp_nom>;
+		power-domains = <&rpmhpd RPMHPD_LCX>;
+	};
+
+	lpass_cpu: audio@3987000 {
+		compatible = "qcom,sm8650-lpass-cpu";
+
+		reg = <0 0x07b87000 0 0x61000>,
+		      <0 0x07d00000 0 0x2b000>,
+		      <0 0x06c80000 0 0x10000>,
+		      <0 0x06b40000 0 0x2b000>,
+		      <0 0x06d00000 0 0x2b000>,
+		      <0 0x06d40000 0 0x3000>;
+		reg-names = "lpass-hdmiif",
+			    "lpass-lpaif",
+			    "lpass-rxtx-cdc-dma-lpm",
+			    "lpass-rxtx-lpaif",
+			    "lpass-va-lpaif",
+			    "lpass-va-cdc-dma-lpm";
+
+		iommus = <&apps_smmu 0x1100 0>,
+			 <&apps_smmu 0x1101 0>,
+			 <&apps_smmu 0x1102 0>;
+
+		dma-coherent;
+
+		power-domains = <&lpass_aon LPASS_AON_CC_LPASS_AUDIO_HM_GDSC>;
+
+		clocks = <&lpass_aon LPASS_AON_CC_AUDIO_HM_H_CLK>, // 'AUDIO_HM_H_CBCR' Address: 0x06e11014
+			 <&lpass_core LPASS_CORE_CC_EXT_MCLK0_CLK>, // 'EXT_MCLK0_BCR' Address: 0x07b28018
+			 <&lpass_core LPASS_CORE_CC_SYSNOC_MPORT_CORE_CLK>, // 'SYSNOC_MPORT_CORE_CBCR' Address: 0x07b2b000
+			 <&lpass_core LPASS_CORE_CC_EXT_IF0_IBIT_CLK>, //'EXT_IF0_IBIT_CBCR' Address: 0x07b18018
+			 <&lpass_core LPASS_CORE_CC_EXT_IF1_IBIT_CLK>, //'EXT_IF1_IBIT_CBCR' Address: 0x07b19018
+			 <&lpass_core LPASS_CORE_CC_EXT_IF2_IBIT_CLK>, //'EXT_IF1_IBIT_CBCR' Address: 0x07b19018
+			 <&lpass_audiocc LPASS_AUDIO_CC_EXT_IF2_IBI_CLK>,
+			 <&lpass_audiocc LPASS_AUDIO_CC_CODEC_MEM_CLK>, //'CODEC_MEM_CBCR' Address: 0x06bee000
+			 <&lpass_audiocc LPASS_AUDIO_CC_CODEC_MEM0_CLK>, //'CODEC_MEM0_CBCR' Address: 0x06bee004
+			 <&lpass_audiocc LPASS_AUDIO_CC_CODEC_MEM1_CLK>,//'CODEC_MEM1_CBCR' Address: 0x06bee010
+			 <&lpass_audiocc LPASS_AUDIO_CC_CODEC_MEM2_CLK>,//'CODEC_MEM2_CBCR' Address: 0x06bee01c
+			 <&lpass_audiocc LPASS_AUDIO_CC_CODEC_MEM3_CLK>,//'CODEC_MEM3_CBCR' Address: 0x06bee028
+			 <&lpass_aon LPASS_AON_CC_VA_MEM0_CLK>;	// 'VA_MEM0_CBCR' Address: 0x06e11060
+		clock-names = "aon_cc_audio_hm_h",
+			      "audio_cc_ext_mclk0",
+			      "core_cc_sysnoc_mport_core",
+			      "core_cc_ext_if0_ibit",
+			      "core_cc_ext_if1_ibit",
+			      "core_cc_ext_if2_ibit",
+			      "core_audio_ext_if2_ibit",
+			      "audio_cc_codec_mem",
+			      "audio_cc_codec_mem0",
+			      "audio_cc_codec_mem1",
+			      "audio_cc_codec_mem2",
+			      "audio_cc_codec_mem3",
+			      "aon_cc_va_mem0";
+
+		#sound-dai-cells = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		interrupts = <GIC_SPI 160 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 268 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 180 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "lpass-irq-lpaif",
+				  "lpass-irq-hdmi",
+				  "lpass-irq-vaif",
+				  "lpass-irq-rxtxif";
+
+		status = "disabled";
+	};
+};
+

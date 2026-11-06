@@ -47,6 +47,13 @@ config SND_SOC_LPASS_SC7280
 	select SND_SOC_LPASS_HDMI
 	select SND_SOC_LPASS_CDC_DMA
 
+config SND_SOC_LPASS_SM8650
+	tristate
+	select SND_SOC_LPASS_CPU
+	select SND_SOC_LPASS_PLATFORM
+	select SND_SOC_LPASS_HDMI
+	select SND_SOC_LPASS_CDC_DMA
+
 config SND_SOC_STORM
 	tristate "ASoC I2S support for Storm boards"
 	depends on GPIOLIB
@@ -249,6 +256,19 @@ config SND_SOC_SC7280
 	help
 	  Add support for audio on Qualcomm Technologies Inc.
 	  SC7280 SoC-based systems.
+	  Say Y or M if you want to use audio device on this SoCs.
+
+config SND_SOC_SM8650
+	tristate "SoC Machine driver for SM8650 boards"
+	depends on I2C
+	select SND_SOC_QCOM_COMMON
+	select SND_SOC_LPASS_SM8650
+	select SND_SOC_LPASS_MACRO_COMMON
+	imply SND_SOC_LPASS_RX_MACRO
+	imply SND_SOC_LPASS_TX_MACRO
+	help
+	  Add support for audio on Qualcomm Technologies Inc.
+	  SM8650 SoC-based systems.
 	  Say Y or M if you want to use audio device on this SoCs.
 
 config SND_SOC_X1E80100

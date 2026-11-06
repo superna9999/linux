@@ -637,6 +637,8 @@ static int lpass_platform_pcmops_prepare(struct snd_soc_component *component,
 			ret);
 		return ret;
 	}
+	
+	dev_info(soc_runtime->dev, "dma base %x buff %d per %d\n", runtime->dma_addr, (snd_pcm_lib_buffer_bytes(substream) >> 2) - 1, (snd_pcm_lib_period_bytes(substream) >> 2) - 1);
 
 	if (is_cdc_dma_port(dai_id)) {
 		ret = regmap_fields_write(dmactl->fifowm, id, LPAIF_DMACTL_FIFOWM_8);
@@ -888,6 +890,9 @@ static snd_pcm_uframes_t lpass_platform_pcmops_pointer(
 			"error reading from rdmacurr reg: %d\n", ret);
 		return ret;
 	}
+
+	dev_info(soc_runtime->dev, "dma reg ch %d dir %d dai_id %d off base %x curr %x\n", ch, dir, dai_id, LPAIF_DMABASE_REG(v, ch, dir, dai_id), LPAIF_DMACURR_REG(v, ch, dir, dai_id));
+	dev_info(soc_runtime->dev, "dma base %x curr %x\n", base_addr, curr_addr);
 
 	return bytes_to_frames(substream->runtime, curr_addr - base_addr);
 }

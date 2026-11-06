@@ -3780,17 +3780,25 @@ static int rx_macro_probe(struct platform_device *pdev)
 	if (!rx)
 		return -ENOMEM;
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	rx->macro = devm_clk_get_optional(dev, "macro");
 	if (IS_ERR(rx->macro))
 		return dev_err_probe(dev, PTR_ERR(rx->macro), "unable to get macro clock\n");
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	rx->dcodec = devm_clk_get_optional(dev, "dcodec");
 	if (IS_ERR(rx->dcodec))
 		return dev_err_probe(dev, PTR_ERR(rx->dcodec), "unable to get dcodec clock\n");
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	rx->mclk = devm_clk_get(dev, "mclk");
 	if (IS_ERR(rx->mclk))
 		return dev_err_probe(dev, PTR_ERR(rx->mclk), "unable to get mclk clock\n");
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	if (flags & LPASS_MACRO_FLAG_HAS_NPL_CLOCK) {
 		rx->npl = devm_clk_get(dev, "npl");
@@ -3798,24 +3806,36 @@ static int rx_macro_probe(struct platform_device *pdev)
 			return dev_err_probe(dev, PTR_ERR(rx->npl), "unable to get npl clock\n");
 	}
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	rx->fsgen = devm_clk_get(dev, "fsgen");
 	if (IS_ERR(rx->fsgen))
 		return dev_err_probe(dev, PTR_ERR(rx->fsgen), "unable to get fsgen clock\n");
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	rx->pds = lpass_macro_pds_init(dev);
 	if (IS_ERR(rx->pds))
 		return PTR_ERR(rx->pds);
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	ret = devm_add_action_or_reset(dev, lpass_macro_pds_exit_action, rx->pds);
 	if (ret)
 		return ret;
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	rx->codec_version = lpass_macro_get_codec_version();
 	struct reg_default *reg_defaults __free(kfree) = NULL;
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	switch (rx->codec_version) {
 	case LPASS_CODEC_VERSION_1_0:
@@ -3852,7 +3872,11 @@ static int rx_macro_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	regcache_sort_defaults(reg_defaults, def_count);
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	struct regmap_config *reg_config __free(kfree) = kmemdup(&rx_regmap_config,
 								 sizeof(*reg_config),
@@ -3863,30 +3887,42 @@ static int rx_macro_probe(struct platform_device *pdev)
 	reg_config->reg_defaults = reg_defaults;
 	reg_config->num_reg_defaults = def_count;
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	rx->regmap = devm_regmap_init_mmio(dev, base, reg_config);
 	if (IS_ERR(rx->regmap))
 		return PTR_ERR(rx->regmap);
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	dev_set_drvdata(dev, rx);
 
 	rx->dev = dev;
 
 	/* set MCLK and NPL rates */
-	ret = clk_set_rate(rx->mclk, MCLK_FREQ);
-	if (ret)
-		return ret;
+	//ret = clk_set_rate(rx->mclk, MCLK_FREQ);
+	//if (ret)
+	//	return ret;
 
-	ret = clk_set_rate(rx->npl, MCLK_FREQ);
-	if (ret)
-		return ret;
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
+	//ret = clk_set_rate(rx->npl, MCLK_FREQ);
+	//if (ret)
+	//	return ret;
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	ret = devm_pm_clk_create(dev);
 	if (ret)
 		return ret;
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	ret = of_pm_clk_add_clks(dev);
 	if (ret < 0)
 		return ret;
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	pm_runtime_set_autosuspend_delay(dev, 100);
 	pm_runtime_use_autosuspend(dev);
@@ -3894,9 +3930,13 @@ static int rx_macro_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	ret = pm_runtime_resume_and_get(dev);
 	if (ret)
 		return ret;
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	/* reset swr block  */
 	regmap_update_bits(rx->regmap, CDC_RX_CLK_RST_CTRL_SWR_CONTROL,
@@ -3915,13 +3955,19 @@ static int rx_macro_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_rpm_put;
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	ret = rx_macro_register_mclk_output(rx);
 	if (ret)
 		goto err_rpm_put;
 
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
+
 	ret = pm_runtime_put_autosuspend(dev);
 	if (ret < 0)
 		dev_warn(dev, "runtime PM put failed after probe: %d\n", ret);
+
+	dev_err(dev, "%s:%d\n", __func__ , __LINE__);
 
 	return 0;
 

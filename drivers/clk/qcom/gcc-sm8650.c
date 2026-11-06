@@ -3785,6 +3785,7 @@ static const u32 gcc_sm8650_critical_cbcrs[] = {
 	0x71004, /* GCC_GPU_CFG_AHB_CLK */
 	0x32004, /* GCC_VIDEO_AHB_CLK */
 	0x32030, /* GCC_VIDEO_XO_CLK */
+	0x47000, /* GCC_CFG_NOC_SWAY_CLK */
 };
 
 static void gcc_sm8650_regs_configure(struct device *dev, struct regmap *regmap)

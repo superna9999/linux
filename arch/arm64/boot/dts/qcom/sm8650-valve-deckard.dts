@@ -16,27 +16,7 @@
 #include "pm8550ve.dtsi"
 #include "pm8550vs.dtsi"
 #include "pmk8550.dtsi"
-
-/* Remove nodes */
-/delete-node/ &ipa;
-/delete-node/ &gpu_zap_shader;
-/delete-node/ &lpass_wsa2macro;
-/delete-node/ &lpass_rxmacro;
-/delete-node/ &lpass_txmacro;
-/delete-node/ &lpass_wsamacro;
-/delete-node/ &lpass_vamacro;
-/delete-node/ &lpass_tlmm;
-/delete-node/ &remoteproc_adsp;
-/delete-node/ &remoteproc_cdsp;
-/delete-node/ &remoteproc_mpss;
-/delete-node/ &reserved_memory;
-/delete-node/ &smp2p_adsp;
-/delete-node/ &smp2p_cdsp;
-/delete-node/ &smp2p_modem;
-/delete-node/ &swr0;
-/delete-node/ &swr1;
-/delete-node/ &swr2;
-/delete-node/ &swr3;
+#include "sm8650-lpass-cpu.dtsi"
 
 / {
 	model = "Valve Deckard";
@@ -178,6 +158,42 @@
 		framebuffer_mem: framebuffer-region@af400000 {
 			reg = <0 0xaf400000 0 0x03000000>;
 			no-map;
+		};
+	};
+
+	sound: sound {
+		compatible = "valve,deckard-snd-card";
+		model = "VALVE-DECKARD";
+
+		audio-routing = "VA DMIC0", "vdd-micb";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dai-link@0 {
+			link-name = "SPKR Playback";
+			reg = <0>;
+
+			cpu {
+				sound-dai = <&lpass_cpu MI2S_TERNARY>;
+			};
+
+			codec {
+				sound-dai = <&left_spkr_i2s>, <&right_spkr_i2s>;
+			};
+		};
+
+		dai-link@1 {
+			link-name = "VA Capture";
+			reg = <1>;
+
+			cpu {
+				sound-dai = <&lpass_cpu LPASS_CDC_DMA_VA_TX0>;
+			};
+
+			codec {
+				sound-dai = <&lpass_vamacro 0>;
+			};
 		};
 	};
 
@@ -795,6 +811,38 @@
 		address-width = <16>;
 		wp-gpios = <&tlmm 78 GPIO_ACTIVE_HIGH>;
 	};
+};
+
+&lpass_cpu {
+	status = "okay";
+
+	pinctrl-0 = <&i2s2_active>;
+	pinctrl-names = "default";
+
+	dai-link@2 {
+		reg = <MI2S_SENARY>;
+		qcom,playback-sd-lines = <0>;
+	};
+
+	dai-link@25 {
+		reg = <LPASS_CDC_DMA_VA_TX0>;
+	};
+
+};
+
+&lpass_rxmacro {
+	status = "okay";
+};
+
+&lpass_txmacro {
+	status = "okay";
+};
+
+&lpass_vamacro {                                                                                    
+	pinctrl-0 = <&dmic01_default>;
+	pinctrl-names = "default";
+	vdd-micb-supply = <&vreg_l10b_1p8>;
+	qcom,dmic-sample-rate = <2400000>;
 };
 
 &pcie0 {
