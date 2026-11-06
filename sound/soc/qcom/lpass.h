@@ -19,7 +19,8 @@
 
 #define LPASS_AHBIX_CLOCK_FREQUENCY		131072000
 #define LPASS_MAX_PORTS			(LPASS_MAX_PORT)
-#define LPASS_MAX_MI2S_PORTS			(8)
+#define LPASS_MAX_MI2S_PORTS			(MI2S_SEPTENARY + 1)
+#define LPASS_MAX_LPAIF			(6)
 #define LPASS_MAX_DMA_CHANNELS			(8)
 #define LPASS_MAX_HDMI_DMA_CHANNELS		(4)
 #define LPASS_MAX_CDC_DMA_CHANNELS		(8)
@@ -92,6 +93,38 @@ struct lpaif_dmactl {
 	struct regmap_field *codec_fs_delay;
 };
 
+struct lpass_data;
+
+/* LPAIF instance hosting MI2S interfaces with their own DMAs and interrupt */
+struct lpass_lpaif {
+	struct lpass_data *drvdata;
+	struct regmap *map;
+	int irq;
+
+	/* Regmap fields of I2SCTL & DMACTL registers bitfields */
+	struct lpaif_i2sctl *i2sctl;
+	struct lpaif_dmactl *rd_dmactl;
+	struct lpaif_dmactl *wr_dmactl;
+
+	/* bit map to keep track of static channel allocations */
+	unsigned long dma_ch_bit_map;
+
+	/* used it for handling interrupt per dma channel */
+	struct snd_pcm_substream *substream[LPASS_MAX_DMA_CHANNELS];
+};
+
+/* Additional LPAIF instance, beside the core "lpass-lpaif" one */
+struct lpass_lpaif_desc {
+	const char *reg_name;
+	const char *irq_name;
+};
+
+/* Location of a MI2S DAI: LPAIF instance (0 is the core one) & interface */
+struct lpass_dai_intf {
+	u8 lpaif;
+	u8 intf;
+};
+
 /* Both the CPU DAI and platform drivers will access this data */
 struct lpass_data {
 
@@ -119,8 +152,15 @@ struct lpass_data {
 	int hdmi_port_enable;
 	int codec_dma_enable;
 
+	/* LPAIF instances, 0 is the core "lpass-lpaif" one */
+	struct lpass_lpaif lpaif[LPASS_MAX_LPAIF];
+	int num_lpaif;
+
+	/* LPAIF instance and interface index of each MI2S port */
+	struct lpass_lpaif *mi2s_lpaif[LPASS_MAX_MI2S_PORTS];
+	unsigned int mi2s_intf[LPASS_MAX_MI2S_PORTS];
+
 	/* low-power audio interface (LPAIF) registers */
-	void __iomem *lpaif;
 	void __iomem *hdmiif;
 	void __iomem *rxtx_lpaif;
 	void __iomem *va_lpaif;
@@ -129,13 +169,11 @@ struct lpass_data {
 	u32 va_cdc_dma_lpm_buf;
 
 	/* regmap backed by the low-power audio interface (LPAIF) registers */
-	struct regmap *lpaif_map;
 	struct regmap *hdmiif_map;
 	struct regmap *rxtx_lpaif_map;
 	struct regmap *va_lpaif_map;
 
 	/* interrupts from the low-power audio interface (LPAIF) */
-	int lpaif_irq;
 	int hdmiif_irq;
 	int rxtxif_irq;
 	int vaif_irq;
@@ -144,13 +182,11 @@ struct lpass_data {
 	const struct lpass_variant *variant;
 
 	/* bit map to keep track of static channel allocations */
-	unsigned long dma_ch_bit_map;
 	unsigned long hdmi_dma_ch_bit_map;
 	unsigned long rxtx_dma_ch_bit_map;
 	unsigned long va_dma_ch_bit_map;
 
 	/* used it for handling interrupt per dma channel */
-	struct snd_pcm_substream *substream[LPASS_MAX_DMA_CHANNELS];
 	struct snd_pcm_substream *hdmi_substream[LPASS_MAX_HDMI_DMA_CHANNELS];
 	struct snd_pcm_substream *rxtx_substream[LPASS_MAX_CDC_DMA_CHANNELS];
 	struct snd_pcm_substream *va_substream[LPASS_MAX_CDC_DMA_CHANNELS];
@@ -159,10 +195,7 @@ struct lpass_data {
 	struct clk_bulk_data *clks;
 	int num_clks;
 
-	/* Regmap fields of I2SCTL & DMACTL registers bitfields */
-	struct lpaif_i2sctl *i2sctl;
-	struct lpaif_dmactl *rd_dmactl;
-	struct lpaif_dmactl *wr_dmactl;
+	/* Regmap fields of HDMI DMACTL registers bitfields */
 	struct lpaif_dmactl *hdmi_rd_dmactl;
 
 	/* Regmap fields of CODEC DMA CTRL registers */
@@ -389,10 +422,25 @@ struct lpass_variant {
 	const char * const *dai_osr_clk_names;
 	const char * const *dai_bit_clk_names;
 
+	/*
+	 * Optional LPAIF instances beside the core one, and location of each
+	 * MI2S DAI (indexed like dai_driver). Without dai_intf, all MI2S DAIs
+	 * are on the core LPAIF with the DAI id as interface index.
+	 */
+	const struct lpass_lpaif_desc *ext_lpaif;
+	int num_ext_lpaif;
+	const struct lpass_dai_intf *dai_intf;
+
 	/* SOC specific clocks configuration */
 	const char **clk_name;
 	int num_clks;
 };
+
+static inline struct lpass_lpaif *lpass_get_lpaif(struct lpass_data *drvdata,
+						  unsigned int dai_id)
+{
+	return drvdata->mi2s_lpaif[dai_id];
+}
 
 struct lpass_pcm_data {
 	int dma_ch;

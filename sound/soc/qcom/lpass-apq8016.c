@@ -124,16 +124,17 @@ static int apq8016_lpass_alloc_dma_channel(struct lpass_data *drvdata,
 					   int direction, unsigned int dai_id)
 {
 	const struct lpass_variant *v = drvdata->variant;
+	unsigned long *ch_map = &lpass_get_lpaif(drvdata, dai_id)->dma_ch_bit_map;
 	int chan = 0;
 
 	if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
-		chan = find_first_zero_bit(&drvdata->dma_ch_bit_map,
+		chan = find_first_zero_bit(ch_map,
 					v->rdma_channels);
 
 		if (chan >= v->rdma_channels)
 			return -EBUSY;
 	} else {
-		chan = find_next_zero_bit(&drvdata->dma_ch_bit_map,
+		chan = find_next_zero_bit(ch_map,
 					v->wrdma_channel_start +
 					v->wrdma_channels,
 					v->wrdma_channel_start);
@@ -142,14 +143,14 @@ static int apq8016_lpass_alloc_dma_channel(struct lpass_data *drvdata,
 			return -EBUSY;
 	}
 
-	set_bit(chan, &drvdata->dma_ch_bit_map);
+	set_bit(chan, ch_map);
 
 	return chan;
 }
 
 static int apq8016_lpass_free_dma_channel(struct lpass_data *drvdata, int chan, unsigned int dai_id)
 {
-	clear_bit(chan, &drvdata->dma_ch_bit_map);
+	clear_bit(chan, &lpass_get_lpaif(drvdata, dai_id)->dma_ch_bit_map);
 
 	return 0;
 }
