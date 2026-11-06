@@ -47,6 +47,18 @@ config SND_SOC_LPASS_SC7280
 	select SND_SOC_LPASS_HDMI
 	select SND_SOC_LPASS_CDC_DMA
 
+config SND_SOC_LPASS_SM8650
+	tristate "Qualcomm SM8650 LPASS CPU DAI support"
+	depends on COMMON_CLK
+	select SND_SOC_LPASS_CPU
+	select SND_SOC_LPASS_PLATFORM
+	select SND_SOC_LPASS_HDMI
+	select SND_SOC_LPASS_CDC_DMA
+	help
+	  Support for the MI2S, codec DMA & DP interfaces of the Qualcomm
+	  SM8650 LPASS, when driven by Linux instead of the ADSP firmware.
+	  Say Y or M if you want to use audio on such SM8650 based boards.
+
 config SND_SOC_STORM
 	tristate "ASoC I2S support for Storm boards"
 	depends on GPIOLIB
