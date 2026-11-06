@@ -1792,6 +1792,24 @@ static struct clk_branch gcc_gpu_snoc_dvm_gfx_clk = {
 	},
 };
 
+/*
+ * Config NoC path to the LPASS registers: used by the LPASS blocks driven by
+ * Linux, but left as set by the firmware when the ADSP owns LPASS.
+ */
+static struct clk_branch gcc_lpass_cfg_noc_sway_clk = {
+	.halt_reg = 0x47000,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x47000,
+		.enable_mask = BIT(0),
+		.hw.init = &(const struct clk_init_data) {
+			.name = "gcc_lpass_cfg_noc_sway_clk",
+			.flags = CLK_IGNORE_UNUSED,
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
 static struct clk_branch gcc_pcie_0_aux_clk = {
 	.halt_reg = 0x6b03c,
 	.halt_check = BRANCH_HALT_VOTED,
@@ -3697,6 +3715,7 @@ static struct clk_regmap *gcc_sm8650_clocks[] = {
 	[GCC_GPLL3_AO] = &gcc_gpll3_ao.clkr,
 	[GCC_GPLL4_AO] = &gcc_gpll4_ao.clkr,
 	[GCC_GPLL6_AO] = &gcc_gpll6_ao.clkr,
+	[GCC_LPASS_CFG_NOC_SWAY_CLK] = &gcc_lpass_cfg_noc_sway_clk.clkr,
 };
 
 static const struct qcom_reset_map gcc_sm8650_resets[] = {
