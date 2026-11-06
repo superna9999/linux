@@ -17,27 +17,6 @@
 #include "pm8550vs.dtsi"
 #include "pmk8550.dtsi"
 
-/* Remove nodes */
-/delete-node/ &ipa;
-/delete-node/ &gpu_zap_shader;
-/delete-node/ &lpass_wsa2macro;
-/delete-node/ &lpass_rxmacro;
-/delete-node/ &lpass_txmacro;
-/delete-node/ &lpass_wsamacro;
-/delete-node/ &lpass_vamacro;
-/delete-node/ &lpass_tlmm;
-/delete-node/ &remoteproc_adsp;
-/delete-node/ &remoteproc_cdsp;
-/delete-node/ &remoteproc_mpss;
-/delete-node/ &reserved_memory;
-/delete-node/ &smp2p_adsp;
-/delete-node/ &smp2p_cdsp;
-/delete-node/ &smp2p_modem;
-/delete-node/ &swr0;
-/delete-node/ &swr1;
-/delete-node/ &swr2;
-/delete-node/ &swr3;
-
 / {
 	model = "Valve Deckard";
 	compatible = "valve,deckard", "qcom,sm8650";
