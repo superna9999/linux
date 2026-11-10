@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2024, Linaro Limited
+ */
+
+/dts-v1/;
+
+#include "sm8650.dtsi"
+#include "sm8650-hdk.dtsi"
+
+/ {
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		aop_mem: aop-region@81c00000 {
+			no-map;
+			reg = <0 0x81c00000 0 0x60000>;
+		};
+
+		ramoops: ramoops-region@84a00000 {
+			compatible = "ramoops";
+			reg = <0 0x84a00000 0 0x100000>;
+			record-size = <0x40000>;
+			console-size = <0x40000>;
+			pmsg-size = <0x1000>;
+			ecc-size = <16>;
+		};
+
+		aop_cmd_db_mem: aop-cmd-db-region@81c60000 {
+			compatible = "qcom,cmd-db";
+			reg = <0 0x81c60000 0 0x20000>;
+			no-map;
+		};
+
+		/* merged aop_config, tme_crash_dump, tme_log */
+		aop_config_merged_mem: aop-config-merged-region@81c80000 {
+			reg = <0 0x81c80000 0 0x75000>;
+			no-map;
+		};
+
+		smem: smem-region@81d00000 {
+			compatible = "qcom,smem";
+			reg = <0 0x81d00000 0 0x200000>;
+			hwlocks = <&tcsr_mutex 3>;
+			no-map;
+		};
+
+		cpucp_fw_mem: cpucp-fw-region@d8040000 {
+			reg = <0 0xd8040000 0 0x1b2000>;
+			no-map;
+		};
+
+		video_mem: video-region@9bb00000 {
+			reg = <0 0x9bb00000 0 0x800000>;
+			no-map;
+		};
+
+		tz_stat_mem: tz-stat-region@82700000 {
+			reg = <0 0x82700000 0 0x100000>;
+			no-map;
+		};
+
+		/* 2MB, 8 clocks to power on each 256KB block */
+		lpass_lpi_tcm: lpm-region@6000000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x06000000 0 0x00200000>;
+			no-map;
+		};
+
+		/* 64KB, 4 clocks to power on each 16KB block */
+		lpass_audio_lpm: lpm-region@6c80000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x06c80000 0 0x10000>;
+			no-map;
+		};
+
+		/* 12KB, 1 clock */
+		lpass_va_lpm: lpm-region@6d40000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x06d40000 0 0x3000>;
+			no-map;
+		};
+
+		lpass_lpm: lpm-region@7c10000 {
+			compatible = "shared-dma-pool";
+			reg = <0 0x07c10000 0 0x8000>;
+			no-map;
+		};
+	};
+};
+
+&i2c_master_hub_0 {
+	firmware-name = "qcom/sm8650/qupv3fw.elf";
+};
+
+&gpu {
+	status = "okay";
+};
+
+&qupv3_id_0 {
+	firmware-name = "qcom/sm8650/qupv3fw.elf";
+};
+
+&qupv3_id_1 {
+	firmware-name = "qcom/sm8650/qupv3fw.elf";
+};
