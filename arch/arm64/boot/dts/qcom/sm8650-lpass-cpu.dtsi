@@ -188,8 +188,8 @@
 				  "lpass-irq-hdmi",
 				  "lpass-irq-vaif",
 				  "lpass-irq-rxtxif",
-				  "lpass-irq-wsa-lpaif",
-				  "lpass-irq-aud-lpaif";
+				  "lpass-irq-wsaif",
+				  "lpass-irq-audif";
 
 		status = "disabled";
 	};
