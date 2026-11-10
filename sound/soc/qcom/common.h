@@ -32,5 +32,14 @@ int qcom_snd_wcd_jack_setup(struct snd_soc_pcm_runtime *rtd,
 int qcom_snd_dp_jack_setup(struct snd_soc_pcm_runtime *rtd,
 			   struct snd_soc_jack *dp_jack, int id);
 
+/*
+ * DSP Bypass links (lpass-cpu) are neither DPCM frontends nor backends,
+ * their cpu dai ids overlap with the DSP dai ids.
+ */
+static inline bool qcom_snd_is_dsp_bypass_link(struct snd_soc_pcm_runtime *rtd)
+{
+	return !rtd->dai_link->no_pcm && !rtd->dai_link->dynamic;
+}
+
 
 #endif
