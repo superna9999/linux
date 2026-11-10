@@ -142,6 +142,30 @@ static const struct snd_pcm_hardware lpass_platform_va_hardware = {
 	.fifo_size		=	0,
 };
 
+static const struct snd_pcm_hardware lpass_platform_wsa_hardware = {
+	.info			=	SNDRV_PCM_INFO_MMAP |
+					SNDRV_PCM_INFO_MMAP_VALID |
+					SNDRV_PCM_INFO_INTERLEAVED |
+					SNDRV_PCM_INFO_PAUSE |
+					SNDRV_PCM_INFO_RESUME,
+	.formats		=	SNDRV_PCM_FMTBIT_S16 |
+					SNDRV_PCM_FMTBIT_S24 |
+					SNDRV_PCM_FMTBIT_S32,
+	.rates			=	SNDRV_PCM_RATE_8000_192000,
+	.rate_min		=	8000,
+	.rate_max		=	192000,
+	.channels_min		=	1,
+	.channels_max		=	8,
+	.buffer_bytes_max	=	LPASS_RXTX_CDC_DMA_LPM_BUFF_SIZE,
+	.period_bytes_max	=	LPASS_RXTX_CDC_DMA_LPM_BUFF_SIZE /
+						LPASS_PLATFORM_PERIODS,
+	.period_bytes_min	=	LPASS_RXTX_CDC_DMA_LPM_BUFF_SIZE /
+						LPASS_PLATFORM_PERIODS,
+	.periods_min		=	LPASS_PLATFORM_PERIODS,
+	.periods_max		=	LPASS_PLATFORM_PERIODS,
+	.fifo_size		=	0,
+};
+
 static int lpass_platform_alloc_rxtx_dmactl_fields(struct device *dev,
 					 struct regmap *map)
 {
@@ -186,6 +210,33 @@ static int lpass_platform_alloc_va_dmactl_fields(struct device *dev,
 					    &v->va_wrdma_intf, LPASS_CDC_DMA_REGISTER_FIELDS_MAX);
 }
 
+static int lpass_platform_alloc_wsa_dmactl_fields(struct device *dev,
+					 struct regmap *map)
+{
+	struct lpass_data *drvdata = dev_get_drvdata(dev);
+	const struct lpass_variant *v = drvdata->variant;
+	struct lpaif_dmactl *rd_dmactl, *wr_dmactl;
+	int rval;
+
+	rd_dmactl = devm_kzalloc(dev, sizeof(*rd_dmactl), GFP_KERNEL);
+	if (!rd_dmactl)
+		return -ENOMEM;
+
+	wr_dmactl = devm_kzalloc(dev, sizeof(*wr_dmactl), GFP_KERNEL);
+	if (!wr_dmactl)
+		return -ENOMEM;
+
+	drvdata->wsa_rd_dmactl = rd_dmactl;
+	drvdata->wsa_wr_dmactl = wr_dmactl;
+
+	rval = devm_regmap_field_bulk_alloc(dev, map, &rd_dmactl->intf,
+					    &v->wsa_rdma_intf, LPASS_CDC_DMA_REGISTER_FIELDS_MAX);
+	if (rval)
+		return rval;
+
+	return devm_regmap_field_bulk_alloc(dev, map, &wr_dmactl->intf,
+					    &v->wsa_wrdma_intf, LPASS_CDC_DMA_REGISTER_FIELDS_MAX);
+}
 
 static int lpass_platform_alloc_dmactl_fields(struct device *dev,
 					      struct lpass_lpaif *lpaif)
@@ -284,6 +335,11 @@ static int lpass_platform_pcmops_open(struct snd_soc_component *component,
 		map = drvdata->va_lpaif_map;
 		drvdata->va_substream[dma_ch] = substream;
 		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		map = drvdata->wsa_lpaif_map;
+		drvdata->wsa_substream[dma_ch] = substream;
+		break;
 	default:
 		break;
 	}
@@ -324,6 +380,12 @@ static int lpass_platform_pcmops_open(struct snd_soc_component *component,
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		snd_soc_set_runtime_hwparams(substream, &lpass_platform_va_hardware);
 		runtime->dma_bytes = lpass_platform_va_hardware.buffer_bytes_max;
+		snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
+		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		snd_soc_set_runtime_hwparams(substream, &lpass_platform_wsa_hardware);
+		runtime->dma_bytes = lpass_platform_wsa_hardware.buffer_bytes_max;
 		snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 		break;
 	default:
@@ -371,6 +433,10 @@ static int lpass_platform_pcmops_close(struct snd_soc_component *component,
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		drvdata->va_substream[data->dma_ch] = NULL;
 		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		drvdata->wsa_substream[data->dma_ch] = NULL;
+		break;
 	default:
 		break;
 	}
@@ -410,6 +476,12 @@ static struct lpaif_dmactl *__lpass_get_dmactl_handle(const struct snd_pcm_subst
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		dmactl = drvdata->va_wr_dmactl;
 		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+		dmactl = drvdata->wsa_rd_dmactl;
+		break;
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		dmactl = drvdata->wsa_wr_dmactl;
+		break;
 	}
 
 	return dmactl;
@@ -446,6 +518,12 @@ static int __lpass_get_id(const struct snd_pcm_substream *substream,
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		id = pcm_data->dma_ch - v->va_wrdma_channel_start;
 		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+		id = pcm_data->dma_ch;
+		break;
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		id = pcm_data->dma_ch - v->wsa_wrdma_channel_start;
+		break;
 	}
 
 	return id;
@@ -473,6 +551,10 @@ static struct regmap *__lpass_get_regmap_handle(const struct snd_pcm_substream *
 		break;
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		map = drvdata->va_lpaif_map;
+		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		map = drvdata->wsa_lpaif_map;
 		break;
 	}
 
@@ -558,6 +640,8 @@ static int lpass_platform_pcmops_hw_params(struct snd_soc_component *component,
 	case LPASS_CDC_DMA_RX0 ... LPASS_CDC_DMA_RX9:
 	case LPASS_CDC_DMA_TX0 ... LPASS_CDC_DMA_TX8:
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX0:
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
 		break;
 	default:
 		dev_err(soc_runtime->dev, "%s: invalid  interface: %d\n", __func__, dai_id);
@@ -826,6 +910,21 @@ static int lpass_platform_pcmops_trigger(struct snd_soc_component *component,
 			val_mask = LPAIF_IRQ_ALL(ch);
 			val_irqen = LPAIF_IRQ_ALL(ch);
 			break;
+		case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+		case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+			ret = regmap_fields_write(dmactl->dyncclk, id, LPAIF_DMACTL_DYNCLK_ON);
+			if (ret) {
+				dev_err(soc_runtime->dev,
+					"error writing to rdmactl reg field: %d\n", ret);
+				return ret;
+			}
+			reg_irqclr = LPAIF_WSA_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST);
+			val_irqclr = LPAIF_IRQ_ALL(ch);
+
+			reg_irqen = LPAIF_WSA_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST);
+			val_mask = LPAIF_IRQ_ALL(ch);
+			val_irqen = LPAIF_IRQ_ALL(ch);
+			break;
 		default:
 			dev_err(soc_runtime->dev, "%s: invalid %d interface\n", __func__, dai_id);
 			return -EINVAL;
@@ -906,6 +1005,22 @@ static int lpass_platform_pcmops_trigger(struct snd_soc_component *component,
 			val_irqclr = LPAIF_IRQ_ALL(ch);
 
 			reg_irqen = LPAIF_VA_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST);
+			val_mask = LPAIF_IRQ_ALL(ch);
+			val_irqen = LPAIF_IRQ_ALL(ch);
+			break;
+		case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+		case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+			ret = regmap_fields_write(dmactl->dyncclk, id, LPAIF_DMACTL_DYNCLK_OFF);
+			if (ret) {
+				dev_err(soc_runtime->dev,
+					"error writing to rdmactl reg field: %d\n", ret);
+				return ret;
+			}
+
+			reg_irqclr = LPAIF_WSA_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST);
+			val_irqclr = LPAIF_IRQ_ALL(ch);
+
+			reg_irqen = LPAIF_WSA_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST);
 			val_mask = LPAIF_IRQ_ALL(ch);
 			val_irqen = LPAIF_IRQ_ALL(ch);
 			break;
@@ -1038,6 +1153,12 @@ static irqreturn_t lpass_dma_interrupt_handler(
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		map = drvdata->va_lpaif_map;
 		reg = LPAIF_VA_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST);
+		val = 0;
+	break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		map = drvdata->wsa_lpaif_map;
+		reg = LPAIF_WSA_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST);
 		val = 0;
 	break;
 	default:
@@ -1201,6 +1322,31 @@ static irqreturn_t lpass_platform_vaif_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t lpass_platform_wsaif_irq(int irq, void *data)
+{
+	struct lpass_data *drvdata = data;
+	const struct lpass_variant *v = drvdata->variant;
+	unsigned int irqs;
+	irqreturn_t rv;
+	int chan;
+
+	rv = regmap_read(drvdata->wsa_lpaif_map,
+			LPAIF_WSA_IRQSTAT_REG(v, LPAIF_IRQ_PORT_HOST), &irqs);
+
+	/* Handle per channel interrupts */
+	for (chan = 0; chan < LPASS_MAX_CDC_DMA_CHANNELS; chan++) {
+		if (irqs & LPAIF_IRQ_ALL(chan) && drvdata->wsa_substream[chan]) {
+			rv = lpass_dma_interrupt_handler(
+						drvdata->wsa_substream[chan],
+						drvdata, chan, irqs);
+			if (rv != IRQ_HANDLED)
+				return rv;
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
 static int lpass_platform_prealloc_cdc_dma_buffer(struct snd_soc_component *component,
 						  struct snd_pcm *pcm, int dai_id)
 {
@@ -1232,6 +1378,14 @@ static int lpass_platform_prealloc_cdc_dma_buffer(struct snd_soc_component *comp
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		buf->bytes = lpass_platform_va_hardware.buffer_bytes_max;
 		buf->addr = drvdata->va_cdc_dma_lpm_buf;
+		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+		buf->bytes = lpass_platform_wsa_hardware.buffer_bytes_max;
+		buf->addr = drvdata->rxtx_cdc_dma_lpm_buf + LPASS_RXTX_CDC_DMA_LPM_BUFF_SIZE * 2;
+		break;
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		buf->bytes = lpass_platform_wsa_hardware.buffer_bytes_max;
+		buf->addr = drvdata->rxtx_cdc_dma_lpm_buf + LPASS_RXTX_CDC_DMA_LPM_BUFF_SIZE * 3;
 		break;
 	default:
 		if (!is_lpm_mi2s_port(drvdata, dai_id))
@@ -1468,6 +1622,33 @@ int asoc_qcom_lpass_platform_register(struct platform_device *pdev)
 			dev_err(&pdev->dev,
 				"error initializing va dmactl fields: %d\n", ret);
 			return ret;
+		}
+
+		if (drvdata->wsa_enable) {
+			ret = regmap_write(drvdata->wsa_lpaif_map,
+				LPAIF_WSA_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST), 0x0);
+			if (ret) {
+				dev_err(&pdev->dev, "error writing to wsa irqen reg: %d\n", ret);
+				return ret;
+			}
+			drvdata->wsaif_irq = platform_get_irq_byname(pdev, "lpass-irq-wsaif");
+			if (drvdata->wsaif_irq < 0)
+				return -ENODEV;
+
+			ret = devm_request_irq(&pdev->dev, drvdata->wsaif_irq,
+					lpass_platform_wsaif_irq, 0, "lpass-irq-wsaif", drvdata);
+			if (ret) {
+				dev_err(&pdev->dev, "wsa irq request failed: %d\n", ret);
+				return ret;
+			}
+
+			ret = lpass_platform_alloc_wsa_dmactl_fields(&pdev->dev,
+							 drvdata->wsa_lpaif_map);
+			if (ret) {
+				dev_err(&pdev->dev,
+					"error initializing wsa dmactl fields: %d\n", ret);
+				return ret;
+			}
 		}
 	}
 

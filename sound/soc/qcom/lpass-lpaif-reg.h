@@ -82,6 +82,14 @@
 #define LPAIF_RXTX_IRQSTAT_REG(v, port) LPAIF_RXTX_IRQ_REG_ADDR(v, 0x4, port)
 #define LPAIF_RXTX_IRQCLEAR_REG(v, port) LPAIF_RXTX_IRQ_REG_ADDR(v, 0xC, port)
 
+/* LPAIF WSA IRQ */
+#define LPAIF_WSA_IRQ_REG_ADDR(v, addr, port) \
+		(v->wsa_irq_reg_base + (addr) + v->wsa_irq_reg_stride * (port))
+
+#define LPAIF_WSA_IRQEN_REG(v, port) LPAIF_WSA_IRQ_REG_ADDR(v, 0x0, port)
+#define LPAIF_WSA_IRQSTAT_REG(v, port) LPAIF_WSA_IRQ_REG_ADDR(v, 0x4, port)
+#define LPAIF_WSA_IRQCLEAR_REG(v, port) LPAIF_WSA_IRQ_REG_ADDR(v, 0xC, port)
+
 /* LPAIF VA IRQ */
 #define LPAIF_VA_IRQ_REG_ADDR(v, addr, port) \
 		(v->va_irq_reg_base + (addr) + v->va_irq_reg_stride * (port))
@@ -182,7 +190,9 @@
 #define LPAIF_CDC_RDMA_REG_ADDR(v, addr, chan, dai_id) \
 	(is_rxtx_cdc_dma_port(dai_id) ? \
 	(v->rxtx_rdma_reg_base + (addr) + v->rxtx_rdma_reg_stride * (chan)) : \
-	(v->va_rdma_reg_base + (addr) + v->va_rdma_reg_stride * (chan)))
+	(is_wsa_cdc_dma_port(dai_id) ? \
+	 (v->wsa_rdma_reg_base + (addr) + v->wsa_rdma_reg_stride * (chan)) : \
+	 (v->va_rdma_reg_base + (addr) + v->va_rdma_reg_stride * (chan))))
 
 #define LPAIF_CDC_RXTX_RDMACTL_REG(v, chan, dai_id) \
 		LPAIF_CDC_RDMA_REG_ADDR(v, 0x00, (chan), dai_id)
@@ -205,12 +215,28 @@
 #define LPAIF_CDC_VA_RDMA_INTF_REG(v, chan, dai_id) \
 	LPAIF_CDC_RDMA_REG_ADDR(v, 0x50, (chan), dai_id)
 
+#define LPAIF_CDC_WSA_RDMACTL_REG(v, chan, dai_id) \
+		LPAIF_CDC_RDMA_REG_ADDR(v, 0x00, (chan), dai_id)
+#define LPAIF_CDC_WSA_RDMABASE_REG(v, chan, dai_id) \
+		LPAIF_CDC_RDMA_REG_ADDR(v, 0x04, (chan), dai_id)
+#define LPAIF_CDC_WSA_RDMABUFF_REG(v, chan, dai_id) \
+		LPAIF_CDC_RDMA_REG_ADDR(v, 0x08, (chan), dai_id)
+#define LPAIF_CDC_WSA_RDMACURR_REG(v, chan, dai_id) \
+		LPAIF_CDC_RDMA_REG_ADDR(v, 0x0C, (chan), dai_id)
+#define LPAIF_CDC_WSA_RDMAPER_REG(v, chan, dai_id) \
+		LPAIF_CDC_RDMA_REG_ADDR(v, 0x10, (chan), dai_id)
+#define LPAIF_CDC_WSA_RDMA_INTF_REG(v, chan, dai_id) \
+	LPAIF_CDC_RDMA_REG_ADDR(v, 0x50, (chan), dai_id)
+
 #define LPAIF_CDC_WRDMA_REG_ADDR(v, addr, chan, dai_id) \
 	(is_rxtx_cdc_dma_port(dai_id) ? \
 	(v->rxtx_wrdma_reg_base + (addr) + \
 		v->rxtx_wrdma_reg_stride * (chan - v->rxtx_wrdma_channel_start)) : \
-	(v->va_wrdma_reg_base + (addr) + \
-		v->va_wrdma_reg_stride * (chan - v->va_wrdma_channel_start)))
+	(is_wsa_cdc_dma_port(dai_id) ? \
+	 (v->wsa_wrdma_reg_base + (addr) + \
+		v->wsa_wrdma_reg_stride * (chan - v->wsa_wrdma_channel_start)) : \
+	 (v->va_wrdma_reg_base + (addr) + \
+		v->va_wrdma_reg_stride * (chan - v->va_wrdma_channel_start))))
 
 #define LPAIF_CDC_RXTX_WRDMACTL_REG(v, chan, dai_id) \
 	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x00, (chan), dai_id)
@@ -238,13 +264,28 @@
 #define LPAIF_CDC_VA_WRDMA_INTF_REG(v, chan, dai_id) \
 	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x50, (chan), dai_id)
 
+#define LPAIF_CDC_WSA_WRDMACTL_REG(v, chan, dai_id) \
+	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x00, (chan), dai_id)
+#define LPAIF_CDC_WSA_WRDMABASE_REG(v, chan, dai_id) \
+	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x04, (chan), dai_id)
+#define LPAIF_CDC_WSA_WRDMABUFF_REG(v, chan, dai_id) \
+	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x08, (chan), dai_id)
+#define LPAIF_CDC_WSA_WRDMACURR_REG(v, chan, dai_id) \
+	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x0C, (chan), dai_id)
+#define LPAIF_CDC_WSA_WRDMAPER_REG(v, chan, dai_id) \
+	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x10, (chan), dai_id)
+#define LPAIF_CDC_WSA_WRDMA_INTF_REG(v, chan, dai_id) \
+	LPAIF_CDC_WRDMA_REG_ADDR(v, 0x50, (chan), dai_id)
+
 #define __LPAIF_CDC_RDDMA_REG(v, chan, dir, reg, dai_id) \
 		(is_rxtx_cdc_dma_port(dai_id) ? LPAIF_CDC_RXTX_RDMA##reg##_REG(v, chan, dai_id) : \
-			LPAIF_CDC_VA_RDMA##reg##_REG(v, chan, dai_id))
+		 (is_wsa_cdc_dma_port(dai_id) ? LPAIF_CDC_WSA_RDMA##reg##_REG(v, chan, dai_id) : \
+			LPAIF_CDC_VA_RDMA##reg##_REG(v, chan, dai_id)))
 
 #define __LPAIF_CDC_WRDMA_REG(v, chan, dir, reg, dai_id) \
 		(is_rxtx_cdc_dma_port(dai_id) ? LPAIF_CDC_RXTX_WRDMA##reg##_REG(v, chan, dai_id) : \
-			LPAIF_CDC_VA_WRDMA##reg##_REG(v, chan, dai_id))
+		 (is_wsa_cdc_dma_port(dai_id) ? LPAIF_CDC_WSA_WRDMA##reg##_REG(v, chan, dai_id) : \
+			LPAIF_CDC_VA_WRDMA##reg##_REG(v, chan, dai_id)))
 
 #define __LPAIF_CDC_DMA_REG(v, chan, dir, reg, dai_id) \
 		((dir ==  SNDRV_PCM_STREAM_PLAYBACK) ? \
