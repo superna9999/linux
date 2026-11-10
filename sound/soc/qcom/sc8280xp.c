@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 // Copyright (c) 2022, Linaro Limited
 
+#include <dt-bindings/sound/qcom,lpass.h>
 #include <dt-bindings/sound/qcom,q6afe.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -377,6 +378,37 @@ static int nord_snd_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int sc8280xp_lpass_snd_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct sc8280xp_snd_data *data = snd_soc_card_get_drvdata(rtd->card);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+	struct snd_soc_card *card = rtd->card;
+
+	switch (cpu_dai->id) {
+	case LPASS_CDC_DMA_WSA_RX0:
+	case LPASS_CDC_DMA_WSA_RX1:
+		/*
+		 * Set limit of -3 dB on Digital Volume and 0 dB on PA Volume
+		 * to reduce the risk of speaker damage until we have active
+		 * speaker protection in place.
+		 */
+		snd_soc_limit_volume(card, "WSA_RX0 Digital Volume", 81);
+		snd_soc_limit_volume(card, "WSA_RX1 Digital Volume", 81);
+		snd_soc_limit_volume(card, "SpkrLeft PA Volume", 17);
+		snd_soc_limit_volume(card, "SpkrRight PA Volume", 17);
+		break;
+	case LPASS_DP_RX:
+		return qcom_snd_dp_jack_setup(rtd, &data->dp_jack[0], 0);
+	default:
+		break;
+	}
+
+	if (data->priv->wcd_jack)
+		return qcom_snd_wcd_jack_setup(rtd, &data->jack, &data->jack_setup);
+
+	return 0;
+}
+
 static int sc8280xp_snd_hw_params(struct snd_pcm_substream *substream,
 				  struct snd_pcm_hw_params *params)
 {
@@ -538,6 +570,58 @@ static const struct snd_soc_ops sc8280xp_be_ops = {
 	.prepare = sc8280xp_snd_prepare,
 };
 
+static int sc8280xp_lpass_snd_hw_params(struct snd_pcm_substream *substream,
+					struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+	struct sc8280xp_snd_data *data = snd_soc_card_get_drvdata(rtd->card);
+	int mclk_freq = sc8280xp_get_mclk_freq(params);
+	struct snd_soc_dai *codec_dai;
+	int ret, i;
+
+	switch (cpu_dai->id) {
+	case MI2S_PRIMARY ... MI2S_QUINARY:
+	case MI2S_SENARY ... MI2S_SEPTENARY:
+		for_each_rtd_codec_dais(rtd, i, codec_dai) {
+			if (data->priv->codec_dai_fmt) {
+				ret = snd_soc_dai_set_fmt(codec_dai,
+							  data->priv->codec_dai_fmt);
+				if (ret && ret != -ENOTSUPP)
+					return ret;
+			}
+
+			if (data->priv->codec_sysclk_set) {
+				ret = snd_soc_dai_set_sysclk(codec_dai, 0, mclk_freq,
+							     SND_SOC_CLOCK_IN);
+				if (ret && ret != -ENOTSUPP)
+					return ret;
+			}
+		}
+
+		/* The LPASS CPU dai sets its bit clock from the hw params */
+		if (data->priv->mi2s_mclk_enable) {
+			ret = snd_soc_dai_set_sysclk(cpu_dai, LPASS_MCLK0, mclk_freq,
+						     SND_SOC_CLOCK_OUT);
+			if (ret)
+				return ret;
+		}
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static const struct snd_soc_ops sc8280xp_lpass_ops = {
+	.startup = qcom_snd_sdw_startup,
+	.shutdown = qcom_snd_sdw_shutdown,
+	.hw_params = sc8280xp_lpass_snd_hw_params,
+	.hw_free = sc8280xp_snd_hw_free,
+	.prepare = sc8280xp_snd_prepare,
+};
+
 static void sc8280xp_add_be_ops(struct snd_soc_card *card)
 {
 	struct snd_soc_dai_link *link;
@@ -549,6 +633,10 @@ static void sc8280xp_add_be_ops(struct snd_soc_card *card)
 			link->exit = sc8280xp_snd_exit;
 			link->be_hw_params_fixup = sc8280xp_be_hw_params_fixup;
 			link->ops = &sc8280xp_be_ops;
+		} else if (!link->dynamic) {
+			/* DSP Bypass link, neither a DPCM frontend nor a backend */
+			link->init = sc8280xp_lpass_snd_init;
+			link->ops = &sc8280xp_lpass_ops;
 		}
 	}
 }
