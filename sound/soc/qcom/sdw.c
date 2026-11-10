@@ -6,10 +6,25 @@
 #include <dt-bindings/sound/qcom,q6afe.h>
 #include <linux/module.h>
 #include <sound/soc.h>
+#include "common.h"
 #include "sdw.h"
 
-static bool qcom_snd_is_sdw_dai(int id)
+static bool qcom_snd_is_sdw_dai(struct snd_soc_pcm_runtime *rtd)
 {
+	int id = snd_soc_rtd_to_cpu(rtd, 0)->id;
+
+	/* DSP Bypass usecase, cpu dai ids overlap with DSP dai ids */
+	if (qcom_snd_is_dsp_bypass_link(rtd)) {
+		switch (id) {
+		case LPASS_CDC_DMA_TX3:
+		case LPASS_CDC_DMA_RX0:
+		case LPASS_CDC_DMA_WSA_RX0:
+			return true;
+		default:
+			return false;
+		}
+	}
+
 	switch (id) {
 	case WSA_CODEC_DMA_RX_0:
 	case WSA_CODEC_DMA_TX_0:
@@ -33,20 +48,8 @@ static bool qcom_snd_is_sdw_dai(int id)
 	case SLIMBUS_0_RX...SLIMBUS_6_TX:
 		return true;
 	default:
-		break;
+		return false;
 	}
-
-	/* DSP Bypass usecase, cpu dai index overlaps with DSP dai ids,
-	 * DO NOT MERGE into top switch case */
-	switch (id) {
-	case LPASS_CDC_DMA_TX3:
-	case LPASS_CDC_DMA_RX0:
-		return true;
-	default:
-		break;
-	}
-
-	return false;
 }
 
 /**
@@ -71,7 +74,7 @@ int qcom_snd_sdw_startup(struct snd_pcm_substream *substream)
 	u32 rx_ch_cnt = 0, tx_ch_cnt = 0;
 	int ret, i, j;
 
-	if (!qcom_snd_is_sdw_dai(cpu_dai->id))
+	if (!qcom_snd_is_sdw_dai(rtd))
 		return 0;
 
 	sruntime = sdw_alloc_stream(cpu_dai->name, SDW_STREAM_PCM);
@@ -127,12 +130,11 @@ int qcom_snd_sdw_prepare(struct snd_pcm_substream *substream,
 			 bool *stream_prepared)
 {
 	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
-	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct sdw_stream_runtime *sruntime;
 	int ret;
 
 
-	if (!qcom_snd_is_sdw_dai(cpu_dai->id))
+	if (!qcom_snd_is_sdw_dai(rtd))
 		return 0;
 
 	sruntime = qcom_snd_sdw_get_stream(substream);
@@ -169,11 +171,10 @@ struct sdw_stream_runtime *qcom_snd_sdw_get_stream(struct snd_pcm_substream *sub
 {
 	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
 	struct snd_soc_dai *codec_dai;
-	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct sdw_stream_runtime *sruntime;
 	int i;
 
-	if (!qcom_snd_is_sdw_dai(cpu_dai->id))
+	if (!qcom_snd_is_sdw_dai(rtd))
 		return NULL;
 
 	for_each_rtd_codec_dais(rtd, i, codec_dai) {
@@ -196,10 +197,9 @@ EXPORT_SYMBOL_GPL(qcom_snd_sdw_shutdown);
 int qcom_snd_sdw_hw_free(struct snd_pcm_substream *substream, bool *stream_prepared)
 {
 	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
-	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	struct sdw_stream_runtime *sruntime;
 
-	if (!qcom_snd_is_sdw_dai(cpu_dai->id))
+	if (!qcom_snd_is_sdw_dai(rtd))
 		return 0;
 
 	sruntime = qcom_snd_sdw_get_stream(substream);
