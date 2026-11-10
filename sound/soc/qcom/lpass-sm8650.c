@@ -159,6 +159,19 @@ static struct snd_soc_dai_driver sm8650_lpass_cpu_dai_driver[] = {
 			.channels_max	= 4,
 		},
 		.ops	= &asoc_qcom_lpass_cdc_dma_dai_ops,
+	}, {
+		.id = LPASS_CDC_DMA_WSA_RX0,
+		.name = "CDC DMA WSA RX",
+		.playback = {
+			.stream_name = "WSA Playback",
+			.formats = SNDRV_PCM_FMTBIT_S16,
+			.rates = SNDRV_PCM_RATE_48000,
+			.rate_min	= 48000,
+			.rate_max	= 48000,
+			.channels_min	= 2,
+			.channels_max	= 2,
+		},
+		.ops	= &asoc_qcom_lpass_cdc_dma_dai_ops,
 	},
 };
 
@@ -222,6 +235,21 @@ static int sm8650_lpass_alloc_dma_channel(struct lpass_data *drvdata,
 			return -EBUSY;
 		set_bit(chan, &drvdata->va_dma_ch_bit_map);
 		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+		chan = find_first_zero_bit(&drvdata->wsa_dma_ch_bit_map,
+					   v->wsa_rdma_channels);
+		if (chan >= v->wsa_rdma_channels)
+			return -EBUSY;
+		break;
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		chan = find_next_zero_bit(&drvdata->wsa_dma_ch_bit_map,
+					  v->wsa_wrdma_channel_start +
+					  v->wsa_wrdma_channels,
+					  v->wsa_wrdma_channel_start);
+		if (chan >= v->wsa_wrdma_channel_start + v->wsa_wrdma_channels)
+			return -EBUSY;
+		set_bit(chan, &drvdata->wsa_dma_ch_bit_map);
+		break;
 	default:
 		break;
 	}
@@ -248,6 +276,10 @@ static int sm8650_lpass_free_dma_channel(struct lpass_data *drvdata, int chan, u
 		break;
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
 		clear_bit(chan, &drvdata->va_dma_ch_bit_map);
+		break;
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
+		clear_bit(chan, &drvdata->wsa_dma_ch_bit_map);
 		break;
 	default:
 		break;
@@ -379,6 +411,9 @@ static const struct lpass_variant sm8650_data = {
 	.rxtx_rdma_reg_base		= 0xe000,
 	.rxtx_rdma_reg_stride		= 0x1000,
 	.rxtx_rdma_channels		= 10,
+	.wsa_rdma_reg_base		= 0xe000,
+	.wsa_rdma_reg_stride		= 0x1000,
+	.wsa_rdma_channels		= 10,
 	.hdmi_rdma_reg_base		= 0x64000,
 	.hdmi_rdma_reg_stride		= 0x1000,
 	.hdmi_rdma_channels		= 1,
@@ -401,6 +436,13 @@ static const struct lpass_variant sm8650_data = {
 	.va_irq_reg_base		= 0x9000,
 	.va_irq_reg_stride		= 0x1000,
 	.va_irq_ports			= 5,
+	.wsa_irq_reg_base		= 0x9000,
+	.wsa_irq_reg_stride		= 0x1000,
+	.wsa_irq_ports			= 5,
+	.wsa_wrdma_reg_base		= 0x1a000,
+	.wsa_wrdma_reg_stride		= 0x1000,
+	.wsa_wrdma_channel_start	= 5,
+	.wsa_wrdma_channels		= 7,
 
 	.loopback			= REG_FIELD_ID(0x1000, 17, 17, 3, 0x1000),
 	.spken				= REG_FIELD_ID(0x1000, 16, 16, 3, 0x1000),
@@ -467,6 +509,34 @@ static const struct lpass_variant sm8650_data = {
 	.va_wrdma_codec_fs_delay	= REG_FIELD_ID(0x1a050, 21, 24, 3, 0x1000),
 	.va_wrdma_codec_intf		= REG_FIELD_ID(0x1a050, 16, 19, 3, 0x1000),
 	.va_wrdma_codec_ch		= REG_FIELD_ID(0x1a050, 0, 7, 3, 0x1000),
+
+	.wsa_rdma_dyncclk		= REG_FIELD_ID(0xe000, 21, 21, 10, 0x1000),
+	.wsa_rdma_bursten		= REG_FIELD_ID(0xe000, 20, 20, 10, 0x1000),
+	.wsa_rdma_wpscnt		= REG_FIELD_ID(0xe000, 16, 19, 10, 0x1000),
+	.wsa_rdma_intf			= REG_FIELD_ID(0xe000, 12, 15, 10, 0x1000),
+	.wsa_rdma_fifowm		= REG_FIELD_ID(0xe000, 1, 11, 10, 0x1000),
+	.wsa_rdma_enable		= REG_FIELD_ID(0xe000, 0, 0, 10, 0x1000),
+
+	.wsa_rdma_codec_enable		= REG_FIELD_ID(0xe050, 30, 30, 10, 0x1000),
+	.wsa_rdma_codec_pack		= REG_FIELD_ID(0xe050, 29, 29, 10, 0x1000),
+	.wsa_rdma_codec_fs_sel		= REG_FIELD_ID(0xe050, 25, 27, 10, 0x1000),
+	.wsa_rdma_codec_fs_delay	= REG_FIELD_ID(0xe050, 21, 24, 10, 0x1000),
+	.wsa_rdma_codec_intf		= REG_FIELD_ID(0xe050, 16, 19, 10, 0x1000),
+	.wsa_rdma_codec_ch		= REG_FIELD_ID(0xe050, 0, 7, 10, 0x1000),
+
+	.wsa_wrdma_dyncclk		= REG_FIELD_ID(0x1a000, 22, 22, 7, 0x1000),
+	.wsa_wrdma_bursten		= REG_FIELD_ID(0x1a000, 21, 21, 7, 0x1000),
+	.wsa_wrdma_wpscnt		= REG_FIELD_ID(0x1a000, 17, 20, 7, 0x1000),
+	.wsa_wrdma_intf			= REG_FIELD_ID(0x1a000, 12, 16, 7, 0x1000),
+	.wsa_wrdma_fifowm		= REG_FIELD_ID(0x1a000, 1, 11, 7, 0x1000),
+	.wsa_wrdma_enable		= REG_FIELD_ID(0x1a000, 0, 0, 7, 0x1000),
+
+	.wsa_wrdma_codec_enable		= REG_FIELD_ID(0x1a050, 30, 30, 7, 0x1000),
+	.wsa_wrdma_codec_pack		= REG_FIELD_ID(0x1a050, 29, 29, 7, 0x1000),
+	.wsa_wrdma_codec_fs_sel		= REG_FIELD_ID(0x1a050, 25, 27, 7, 0x1000),
+	.wsa_wrdma_codec_fs_delay	= REG_FIELD_ID(0x1a050, 21, 24, 7, 0x1000),
+	.wsa_wrdma_codec_intf		= REG_FIELD_ID(0x1a050, 16, 19, 7, 0x1000),
+	.wsa_wrdma_codec_ch		= REG_FIELD_ID(0x1a050, 0, 7, 7, 0x1000),
 
 	.hdmi_tx_ctl_addr		= 0x1000,
 	.hdmi_legacy_addr		= 0x1008,
