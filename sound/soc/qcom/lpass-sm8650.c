@@ -55,6 +55,7 @@ static struct snd_soc_dai_driver sm8650_lpass_cpu_dai_driver[] = {
 			.channels_max	= 2,
 		},
 		.ops	= &asoc_qcom_lpass_cpu_dai_ops,
+#if 0
 	}, {
 		.id = MI2S_SENARY,
 		.name = "Senary MI2S",
@@ -68,6 +69,7 @@ static struct snd_soc_dai_driver sm8650_lpass_cpu_dai_driver[] = {
 			.channels_max	= 2,
 		},
 		.ops	= &asoc_qcom_lpass_cpu_dai_ops,
+#endif
 	}, {
 		.id = MI2S_SEPTENARY,
 		.name = "Septenary MI2S",
@@ -324,17 +326,20 @@ static const struct dev_pm_ops sm8650_lpass_pm_ops = {
  * supported.
  */
 #define SM8650_LPAIF_CORE	0
-#define SM8650_LPAIF_WSA	1
-#define SM8650_LPAIF_AUD	2
+//#define SM8650_LPAIF_WSA	1
+//#define SM8650_LPAIF_AUD	2
+#define SM8650_LPAIF_AUD	1
 
 static const struct lpass_lpaif_desc sm8650_ext_lpaif[] = {
+#if 0
 	[SM8650_LPAIF_WSA - 1] = {
 		.reg_name = "lpass-wsa-lpaif",
-		.irq_name = "lpass-irq-wsa-lpaif",
+		.irq_name = "lpass-irq-wsaif",
 	},
+#endif
 	[SM8650_LPAIF_AUD - 1] = {
 		.reg_name = "lpass-aud-lpaif",
-		.irq_name = "lpass-irq-aud-lpaif",
+		.irq_name = "lpass-irq-audif",
 	},
 };
 
@@ -352,7 +357,7 @@ static const struct lpass_dai_intf sm8650_dai_intf[] = {
 	/* Tertiary MI2S */
 	{ .lpaif = SM8650_LPAIF_AUD, .intf = 1, .lpm = LPASS_LPM_CODEC, .lpm_block = 1 },
 	/* Senary MI2S */
-	{ .lpaif = SM8650_LPAIF_WSA, .intf = 0, .lpm = LPASS_LPM_CODEC, .lpm_block = 2 },
+	//{ .lpaif = SM8650_LPAIF_WSA, .intf = 0, .lpm = LPASS_LPM_CODEC, .lpm_block = 2 },
 	/* Septenary MI2S */
 	{ .lpaif = SM8650_LPAIF_AUD, .intf = 0, .lpm = LPASS_LPM_CODEC, .lpm_block = 3 },
 	{ }, { }, { }, { },		/* DP & codec DMA, unused */
