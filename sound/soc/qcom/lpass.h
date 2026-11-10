@@ -46,6 +46,8 @@ static inline bool is_cdc_dma_port(int dai_id)
 	case LPASS_CDC_DMA_RX0 ... LPASS_CDC_DMA_RX9:
 	case LPASS_CDC_DMA_TX0 ... LPASS_CDC_DMA_TX8:
 	case LPASS_CDC_DMA_VA_TX0 ... LPASS_CDC_DMA_VA_TX8:
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
 		return true;
 	}
 	return false;
@@ -56,6 +58,16 @@ static inline bool is_rxtx_cdc_dma_port(int dai_id)
 	switch (dai_id) {
 	case LPASS_CDC_DMA_RX0 ... LPASS_CDC_DMA_RX9:
 	case LPASS_CDC_DMA_TX0 ... LPASS_CDC_DMA_TX8:
+		return true;
+	}
+	return false;
+}
+
+static inline bool is_wsa_cdc_dma_port(int dai_id)
+{
+	switch (dai_id) {
+	case LPASS_CDC_DMA_WSA_RX0 ... LPASS_CDC_DMA_WSA_RX9:
+	case LPASS_CDC_DMA_WSA_TX0 ... LPASS_CDC_DMA_WSA_TX8:
 		return true;
 	}
 	return false;
@@ -119,12 +131,14 @@ struct lpass_data {
 
 	int hdmi_port_enable;
 	int codec_dma_enable;
+	int wsa_enable;
 
 	/* low-power audio interface (LPAIF) registers */
 	void __iomem *lpaif;
 	void __iomem *hdmiif;
 	void __iomem *rxtx_lpaif;
 	void __iomem *va_lpaif;
+	void __iomem *wsa_lpaif;
 
 	u32 rxtx_cdc_dma_lpm_buf;
 	u32 va_cdc_dma_lpm_buf;
@@ -134,12 +148,14 @@ struct lpass_data {
 	struct regmap *hdmiif_map;
 	struct regmap *rxtx_lpaif_map;
 	struct regmap *va_lpaif_map;
+	struct regmap *wsa_lpaif_map;
 
 	/* interrupts from the low-power audio interface (LPAIF) */
 	int lpaif_irq;
 	int hdmiif_irq;
 	int rxtxif_irq;
 	int vaif_irq;
+	int wsaif_irq;
 
 	/* SOC specific variations in the LPASS IP integration */
 	const struct lpass_variant *variant;
@@ -149,12 +165,14 @@ struct lpass_data {
 	unsigned long hdmi_dma_ch_bit_map;
 	unsigned long rxtx_dma_ch_bit_map;
 	unsigned long va_dma_ch_bit_map;
+	unsigned long wsa_dma_ch_bit_map;
 
 	/* used it for handling interrupt per dma channel */
 	struct snd_pcm_substream *substream[LPASS_MAX_DMA_CHANNELS];
 	struct snd_pcm_substream *hdmi_substream[LPASS_MAX_HDMI_DMA_CHANNELS];
 	struct snd_pcm_substream *rxtx_substream[LPASS_MAX_CDC_DMA_CHANNELS];
 	struct snd_pcm_substream *va_substream[LPASS_MAX_CDC_DMA_CHANNELS];
+	struct snd_pcm_substream *wsa_substream[LPASS_MAX_CDC_DMA_CHANNELS];
 
 	/* SOC specific clock list */
 	struct clk_bulk_data *clks;
@@ -170,6 +188,8 @@ struct lpass_data {
 	struct lpaif_dmactl *rxtx_rd_dmactl;
 	struct lpaif_dmactl *rxtx_wr_dmactl;
 	struct lpaif_dmactl *va_wr_dmactl;
+	struct lpaif_dmactl *wsa_rd_dmactl;
+	struct lpaif_dmactl *wsa_wr_dmactl;
 
 	/* Regmap fields of HDMI_CTRL registers*/
 	struct regmap_field *hdmitx_legacy_en;
@@ -215,6 +235,15 @@ struct lpass_variant {
 	u32	va_wrdma_reg_base;
 	u32	va_wrdma_reg_stride;
 	u32	va_wrdma_channels;
+	u32	wsa_irq_reg_base;
+	u32	wsa_irq_reg_stride;
+	u32	wsa_irq_ports;
+	u32	wsa_rdma_reg_base;
+	u32	wsa_rdma_reg_stride;
+	u32	wsa_rdma_channels;
+	u32	wsa_wrdma_reg_base;
+	u32	wsa_wrdma_reg_stride;
+	u32	wsa_wrdma_channels;
 	u32	i2sctrl_reg_base;
 	u32	i2sctrl_reg_stride;
 	u32	i2s_ports;
@@ -369,6 +398,40 @@ struct lpass_variant {
 	struct reg_field va_wrdma_codec_ch;
 	struct reg_field va_wrdma_codec_fs_delay;
 
+	/* CDC WSA RD_DMA */
+	struct reg_field wsa_rdma_intf;
+	struct reg_field wsa_rdma_bursten;
+	struct reg_field wsa_rdma_wpscnt;
+	struct reg_field wsa_rdma_fifowm;
+	struct reg_field wsa_rdma_enable;
+	struct reg_field wsa_rdma_dyncclk;
+	struct reg_field wsa_rdma_burst8;
+	struct reg_field wsa_rdma_burst16;
+	struct reg_field wsa_rdma_dynburst;
+	struct reg_field wsa_rdma_codec_enable;
+	struct reg_field wsa_rdma_codec_pack;
+	struct reg_field wsa_rdma_codec_intf;
+	struct reg_field wsa_rdma_codec_fs_sel;
+	struct reg_field wsa_rdma_codec_ch;
+	struct reg_field wsa_rdma_codec_fs_delay;
+
+	/* CDC WSA WR_DMA */
+	struct reg_field wsa_wrdma_intf;
+	struct reg_field wsa_wrdma_bursten;
+	struct reg_field wsa_wrdma_wpscnt;
+	struct reg_field wsa_wrdma_fifowm;
+	struct reg_field wsa_wrdma_enable;
+	struct reg_field wsa_wrdma_dyncclk;
+	struct reg_field wsa_wrdma_burst8;
+	struct reg_field wsa_wrdma_burst16;
+	struct reg_field wsa_wrdma_dynburst;
+	struct reg_field wsa_wrdma_codec_enable;
+	struct reg_field wsa_wrdma_codec_pack;
+	struct reg_field wsa_wrdma_codec_intf;
+	struct reg_field wsa_wrdma_codec_fs_sel;
+	struct reg_field wsa_wrdma_codec_ch;
+	struct reg_field wsa_wrdma_codec_fs_delay;
+
 	/**
 	 * on SOCs like APQ8016 the channel control bits start
 	 * at different offset to ipq806x
@@ -377,6 +440,7 @@ struct lpass_variant {
 	u32	wrdma_channel_start;
 	u32	rxtx_wrdma_channel_start;
 	u32	va_wrdma_channel_start;
+	u32	wsa_wrdma_channel_start;
 
 	/* SOC specific initialization like clocks */
 	int (*init)(struct platform_device *pdev);

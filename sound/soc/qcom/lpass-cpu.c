@@ -983,6 +983,16 @@ static struct regmap_config lpass_va_regmap_config = {
 	.cache_type = REGCACHE_FLAT,
 };
 
+static struct regmap_config lpass_wsa_regmap_config = {
+	.reg_bits = 32,
+	.reg_stride = 4,
+	.val_bits = 32,
+	.writeable_reg = lpass_rxtx_regmap_writeable,
+	.readable_reg = lpass_rxtx_regmap_readable,
+	.volatile_reg = lpass_rxtx_regmap_volatile,
+	.cache_type = REGCACHE_FLAT,
+};
+
 static unsigned int of_lpass_cpu_parse_sd_lines(struct device *dev,
 						struct device_node *node,
 						const char *name)
@@ -1045,6 +1055,8 @@ static void of_lpass_cpu_parse_dai_data(struct device *dev,
 			data->hdmi_port_enable = 1;
 		} else if (is_cdc_dma_port(id)) {
 			data->codec_dma_enable = 1;
+			if (is_wsa_cdc_dma_port(id))
+				data->wsa_enable = 1;
 		} else {
 			data->mi2s_playback_sd_mode[id] =
 				of_lpass_cpu_parse_sd_lines(dev, node,
@@ -1124,6 +1136,12 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 		if (IS_ERR(drvdata->va_lpaif))
 			return PTR_ERR(drvdata->va_lpaif);
 
+		if (drvdata->wsa_enable) {
+			drvdata->wsa_lpaif = devm_platform_ioremap_resource_byname(pdev, "lpass-wsa-lpaif");
+			if (IS_ERR(drvdata->wsa_lpaif))
+				return PTR_ERR(drvdata->wsa_lpaif);
+		}
+
 		lpass_rxtx_regmap_config.max_register = LPAIF_CDC_RXTX_WRDMAPER_REG(variant,
 					variant->rxtx_wrdma_channels +
 					variant->rxtx_wrdma_channel_start, LPASS_CDC_DMA_TX3);
@@ -1141,6 +1159,17 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 					&lpass_va_regmap_config);
 		if (IS_ERR(drvdata->va_lpaif_map))
 			return PTR_ERR(drvdata->va_lpaif_map);
+
+		if (drvdata->wsa_enable) {
+			lpass_wsa_regmap_config.max_register = LPAIF_CDC_RXTX_WRDMAPER_REG(variant,
+						variant->wsa_wrdma_channels +
+						variant->wsa_wrdma_channel_start, LPASS_CDC_DMA_WSA_TX0);
+
+			drvdata->wsa_lpaif_map = devm_regmap_init_mmio(dev, drvdata->wsa_lpaif,
+						&lpass_wsa_regmap_config);
+			if (IS_ERR(drvdata->wsa_lpaif_map))
+				return PTR_ERR(drvdata->wsa_lpaif_map);
+		}
 
 		ret = of_lpass_cdc_dma_clks_parse(dev, drvdata);
 		if (ret) {
