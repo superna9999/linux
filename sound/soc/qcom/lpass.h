@@ -20,6 +20,7 @@
 #define LPASS_AHBIX_CLOCK_FREQUENCY		131072000
 #define LPASS_MAX_PORTS			(LPASS_MAX_PORT)
 #define LPASS_MAX_MI2S_PORTS			(8)
+#define LPASS_MAX_LPAIF				(7)
 #define LPASS_MAX_DMA_CHANNELS			(8)
 #define LPASS_MAX_HDMI_DMA_CHANNELS		(4)
 #define LPASS_MAX_CDC_DMA_CHANNELS		(8)
@@ -39,6 +40,29 @@
 		if (IS_ERR(mf))                \
 			return -EINVAL;         \
 	} while (0)
+
+static inline bool is_mi2s_port_id(int dai_id)
+{
+	switch (dai_id) {
+	case MI2S_PRIMARY ... MI2S_QUINARY:
+	case MI2S_SENARY ... MI2S_SEPTENARY:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static inline int mi2s_port_id(int dai_id)
+{
+	switch (dai_id) {
+	case MI2S_PRIMARY ... MI2S_QUINARY:
+		return dai_id;
+	case MI2S_SENARY ... MI2S_SEPTENARY:
+		return MI2S_QUINARY + (dai_id - MI2S_SENARY) + 1;
+	default:
+		return 0;
+	}
+}
 
 static inline bool is_cdc_dma_port(int dai_id)
 {
@@ -104,6 +128,39 @@ struct lpaif_dmactl {
 	struct regmap_field *codec_fs_delay;
 };
 
+struct lpass_data;
+
+/* LPAIF instance hosting MI2S interfaces with their own DMAs and interrupt */
+struct lpass_lpaif {
+	struct lpass_data *drvdata;
+	struct regmap *map;
+	int irq;
+
+	/* Regmap fields of I2SCTL & DMACTL registers bitfields */
+	struct lpaif_i2sctl *i2sctl;
+	struct lpaif_dmactl *rd_dmactl;
+	struct lpaif_dmactl *wr_dmactl;
+
+	/* bit map to keep track of static channel allocations */
+	unsigned long dma_ch_bit_map;
+
+	/* used it for handling interrupt per dma channel */
+	struct snd_pcm_substream *substream[LPASS_MAX_DMA_CHANNELS];
+};
+
+struct mi2s_port_desc {
+	unsigned int port_id;
+	unsigned int intf;
+};
+
+/* Extended LPAIF MI2S layout */
+struct lpaif_mi2s_desc {
+	const char *reg_name;
+	const char *irq_name;
+	struct mi2s_port_desc *port_desc;
+	unsigned int port_desc_count;
+};
+
 /* Both the CPU DAI and platform drivers will access this data */
 struct lpass_data {
 
@@ -133,8 +190,16 @@ struct lpass_data {
 	int codec_dma_enable;
 	int wsa_enable;
 
+	/* LPAIF instances, 0 is the core "lpass-lpaif" one */
+	struct lpass_lpaif lpaif[LPASS_MAX_LPAIF];
+	int num_lpaif;
+
+	/* LPAIF instance and interface index of each MI2S port */
+	struct lpass_lpaif *mi2s_lpaif[LPASS_MAX_MI2S_PORTS];
+	unsigned int mi2s_intf[LPASS_MAX_MI2S_PORTS];
+	unsigned long lpaif_port_enable;
+
 	/* low-power audio interface (LPAIF) registers */
-	void __iomem *lpaif;
 	void __iomem *hdmiif;
 	void __iomem *rxtx_lpaif;
 	void __iomem *va_lpaif;
@@ -144,14 +209,12 @@ struct lpass_data {
 	u32 va_cdc_dma_lpm_buf;
 
 	/* regmap backed by the low-power audio interface (LPAIF) registers */
-	struct regmap *lpaif_map;
 	struct regmap *hdmiif_map;
 	struct regmap *rxtx_lpaif_map;
 	struct regmap *va_lpaif_map;
 	struct regmap *wsa_lpaif_map;
 
 	/* interrupts from the low-power audio interface (LPAIF) */
-	int lpaif_irq;
 	int hdmiif_irq;
 	int rxtxif_irq;
 	int vaif_irq;
@@ -161,14 +224,12 @@ struct lpass_data {
 	const struct lpass_variant *variant;
 
 	/* bit map to keep track of static channel allocations */
-	unsigned long dma_ch_bit_map;
 	unsigned long hdmi_dma_ch_bit_map;
 	unsigned long rxtx_dma_ch_bit_map;
 	unsigned long va_dma_ch_bit_map;
 	unsigned long wsa_dma_ch_bit_map;
 
 	/* used it for handling interrupt per dma channel */
-	struct snd_pcm_substream *substream[LPASS_MAX_DMA_CHANNELS];
 	struct snd_pcm_substream *hdmi_substream[LPASS_MAX_HDMI_DMA_CHANNELS];
 	struct snd_pcm_substream *rxtx_substream[LPASS_MAX_CDC_DMA_CHANNELS];
 	struct snd_pcm_substream *va_substream[LPASS_MAX_CDC_DMA_CHANNELS];
@@ -178,10 +239,7 @@ struct lpass_data {
 	struct clk_bulk_data *clks;
 	int num_clks;
 
-	/* Regmap fields of I2SCTL & DMACTL registers bitfields */
-	struct lpaif_i2sctl *i2sctl;
-	struct lpaif_dmactl *rd_dmactl;
-	struct lpaif_dmactl *wr_dmactl;
+	/* Regmap fields of HDMI DMACTL registers bitfields */
 	struct lpaif_dmactl *hdmi_rd_dmactl;
 
 	/* Regmap fields of CODEC DMA CTRL registers */
@@ -453,6 +511,13 @@ struct lpass_variant {
 	int num_dai;
 	const char * const *dai_osr_clk_names;
 	const char * const *dai_bit_clk_names;
+
+	/*
+	 * Optional LPAIF MI2S instances layout when all the MI2S
+	 * ports are not available on the core LPAIF.
+	 */
+	const struct lpaif_mi2s_desc *mi2s_desc;
+	int num_mi2s_desc;
 
 	/* SOC specific clocks configuration */
 	const char **clk_name;
