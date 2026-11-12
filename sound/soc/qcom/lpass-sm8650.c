@@ -56,6 +56,32 @@ static struct snd_soc_dai_driver sm8650_lpass_cpu_dai_driver[] = {
 		},
 		.ops	= &asoc_qcom_lpass_cpu_dai_ops,
 	}, {
+		.id = MI2S_QUATERNARY,
+		.name = "Quaternary MI2S",
+		.playback = {
+			.stream_name = "Quaternary MI2S Playback",
+			.formats = SNDRV_PCM_FMTBIT_S16,
+			.rates = SNDRV_PCM_RATE_48000,
+			.rate_min	= 48000,
+			.rate_max	= 48000,
+			.channels_min	= 2,
+			.channels_max	= 2,
+		},
+		.ops	= &asoc_qcom_lpass_cpu_dai_ops,
+	}, {
+		.id = MI2S_QUINARY,
+		.name = "Quinary MI2S",
+		.playback = {
+			.stream_name = "Quinary MI2S Playback",
+			.formats = SNDRV_PCM_FMTBIT_S16,
+			.rates = SNDRV_PCM_RATE_48000,
+			.rate_min	= 48000,
+			.rate_max	= 48000,
+			.channels_min	= 2,
+			.channels_max	= 2,
+		},
+		.ops	= &asoc_qcom_lpass_cpu_dai_ops,
+	}, {
 		.id = MI2S_SENARY,
 		.name = "Senary MI2S",
 		.playback = {
@@ -141,12 +167,14 @@ static int sm8650_lpass_alloc_dma_channel(struct lpass_data *drvdata,
 {
 	const struct lpass_variant *v = drvdata->variant;
 	unsigned long *ch_map;
+	unsigned int port_id;
 	int chan = 0;
 
 	switch (dai_id) {
 	case MI2S_PRIMARY ... MI2S_QUINARY:
 	case MI2S_SENARY ... MI2S_SEPTENARY:
-		ch_map = &lpass_get_lpaif(drvdata, dai_id)->dma_ch_bit_map;
+		port_id = mi2s_port_id(dai_id);
+		ch_map = &drvdata->mi2s_lpaif[port_id]->dma_ch_bit_map;
 		if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
 			chan = find_first_zero_bit(ch_map, v->rdma_channels);
 
@@ -203,10 +231,13 @@ static int sm8650_lpass_alloc_dma_channel(struct lpass_data *drvdata,
 
 static int sm8650_lpass_free_dma_channel(struct lpass_data *drvdata, int chan, unsigned int dai_id)
 {
+	unsigned int port_id;
+
 	switch (dai_id) {
 	case MI2S_PRIMARY ... MI2S_QUINARY:
 	case MI2S_SENARY ... MI2S_SEPTENARY:
-		clear_bit(chan, &lpass_get_lpaif(drvdata, dai_id)->dma_ch_bit_map);
+		port_id = mi2s_port_id(dai_id);
+		clear_bit(chan, &drvdata->mi2s_lpaif[port_id]->dma_ch_bit_map);
 		break;
 	case LPASS_DP_RX:
 		clear_bit(chan, &drvdata->hdmi_dma_ch_bit_map);
@@ -284,46 +315,55 @@ static const struct dev_pm_ops sm8650_lpass_pm_ops = {
 	SYSTEM_SLEEP_PM_OPS(sm8650_lpass_dev_suspend, sm8650_lpass_dev_resume)
 };
 
-/*
- * LPAIF instances beside the core one, index 1 and up in sm8650_dai_intf.
- *
- * Quaternary and Quinary MI2S are on the RXTX and VA LPAIFs, whose registers,
- * interrupt and DMA channels are owned by the codec DMA: they are not
- * supported.
- */
-#define SM8650_LPAIF_CORE	0
-#define SM8650_LPAIF_WSA	1
-#define SM8650_LPAIF_AUD	2
-
-static const struct lpass_lpaif_desc sm8650_ext_lpaif[] = {
-	[SM8650_LPAIF_WSA - 1] = {
+/* MI2S mapping over LPAIF instances */
+static const struct lpaif_mi2s_desc sm8650_lpaif_mi2s_desc[] = {
+	{
+		.reg_name = "lpass-lpaif",
+		.irq_name = "lpass-irq-lpaif",
+		.lpm_type = LPASS_LPM_NONE,
+		.port_desc = (const struct mi2s_port_desc[]) {
+			{ .intf = 0, .port_id = MI2S_PRIMARY, },
+			{ .intf = 1, .port_id = MI2S_SECONDARY, },
+		},
+		.port_desc_count = 2,
+	},
+	{
+		.reg_name = "lpass-rxtx-lpaif",
+		.irq_name = "lpass-irq-rxtxif",
+		.lpm_type = LPASS_VA_CDC_LPM,
+		.port_desc = (const struct mi2s_port_desc[]) {
+			{ .intf = 0, .port_id = MI2S_QUATERNARY, },
+		},
+		.port_desc_count = 1,
+	},
+	{
+		.reg_name = "lpass-va-lpaif",
+		.irq_name = "lpass-irq-vaif",
+		.lpm_type = LPASS_VA_CDC_LPM,
+		.port_desc = (const struct mi2s_port_desc[]) {
+			{ .intf = 0, .port_id = MI2S_QUINARY, },
+		},
+		.port_desc_count = 1,
+	},
+	{
 		.reg_name = "lpass-wsa-lpaif",
-		.irq_name = "lpass-irq-wsa-lpaif",
+		.irq_name = "lpass-irq-wsaif",
+		.lpm_type = LPASS_RXTX_CDC_LPM,
+		.port_desc = (const struct mi2s_port_desc[]) {
+			{ .intf = 0, .port_id = MI2S_SENARY, },
+		},
+		.port_desc_count = 1,
 	},
-	[SM8650_LPAIF_AUD - 1] = {
+	{
 		.reg_name = "lpass-aud-lpaif",
-		.irq_name = "lpass-irq-aud-lpaif",
+		.irq_name = "lpass-irq-audif",
+		.lpm_type = LPASS_RXTX_CDC_LPM,
+		.port_desc = (const struct mi2s_port_desc[]) {
+			{ .intf = 0, .port_id = MI2S_SEPTENARY, },
+			{ .intf = 1, .port_id = MI2S_TERTIARY, },
+		},
+		.port_desc_count = 2,
 	},
-};
-
-/*
- * LPAIF instance, interface and LPM block of each DAI, indexed like the DAI
- * driver. The core LPAIF DMAs access DDR through the SMMU, but the other
- * LPAIFs can only access LPM: their DMA buffers are in the codec LPM, whose
- * block 0 holds the RXTX codec DMA buffers.
- */
-static const struct lpass_dai_intf sm8650_dai_intf[] = {
-	/* Primary MI2S */
-	{ .lpaif = SM8650_LPAIF_CORE, .intf = 0 },
-	/* Secondary MI2S */
-	{ .lpaif = SM8650_LPAIF_CORE, .intf = 1 },
-	/* Tertiary MI2S */
-	{ .lpaif = SM8650_LPAIF_AUD, .intf = 1, .lpm = LPASS_LPM_CODEC, .lpm_block = 1 },
-	/* Senary MI2S */
-	{ .lpaif = SM8650_LPAIF_WSA, .intf = 0, .lpm = LPASS_LPM_CODEC, .lpm_block = 2 },
-	/* Septenary MI2S */
-	{ .lpaif = SM8650_LPAIF_AUD, .intf = 0, .lpm = LPASS_LPM_CODEC, .lpm_block = 3 },
-	{ }, { }, { }, { },		/* DP & codec DMA, unused */
 };
 
 static const struct lpass_variant sm8650_data = {
@@ -499,17 +539,20 @@ static const struct lpass_variant sm8650_data = {
 							"core_cc_ext_mclk0",
 							"core_cc_ext_mclk0",
 							"core_cc_ext_mclk0",
+							"core_cc_ext_mclk0",
+							"core_cc_ext_mclk0",
 							},
 	.dai_bit_clk_names		= (const char *[]) {
 							"core_cc_ext_if0_ibit",
 							"core_cc_ext_if1_ibit",
 							"audio_cc_ext_if5_ibit",
+							"audio_cc_ext_if1_ibit",
+							"aon_cc_ext_if1_ibit",
 							"audio_cc_ext_if2_ibit",
 							"audio_cc_ext_if4_ibit",
 							},
-	.ext_lpaif			= sm8650_ext_lpaif,
-	.num_ext_lpaif			= ARRAY_SIZE(sm8650_ext_lpaif),
-	.dai_intf			= sm8650_dai_intf,
+	.mi2s_desc			= sm8650_lpaif_mi2s_desc,
+	.num_mi2s_desc			= ARRAY_SIZE(sm8650_lpaif_mi2s_desc),
 	.init				= sm8650_lpass_init,
 	.exit				= sm8650_lpass_exit,
 	.alloc_dma_channel		= sm8650_lpass_alloc_dma_channel,
