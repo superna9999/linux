@@ -52,6 +52,30 @@ static const struct freq_tbl ftbl_lpass_mclk_clk_src[] = {
 	{ }
 };
 
+/* XO only for now: the ADSP plan feeds these from the audio CC DIG PLL */
+static const struct freq_tbl ftbl_lpass_cc_ext_clk_src[] = {
+	F(1536000, P_BI_TCXO, 1, 2, 25),
+	F(2304000, P_BI_TCXO, 1, 3, 25),
+	F(3072000, P_BI_TCXO, 1, 4, 25),
+	F(9600000, P_BI_TCXO, 2, 0, 0),
+	F(19200000, P_BI_TCXO, 1, 0, 0),
+	{ }
+};
+
+static struct clk_rcg2 lpass_aon_cc_ext_if1_clk_src = {
+	.cmd_rcgr = 0xb004,
+	.mnd_width = 16,
+	.hid_width = 5,
+	.parent_map = lpass_audio_cc_parent_map_0,
+	.freq_tbl = ftbl_lpass_cc_ext_clk_src,
+	.clkr.hw.init = &(const struct clk_init_data){
+		.name = "lpass_aon_cc_ext_if1_clk_src",
+		.parent_data = lpass_aon_cc_parent_data_0,
+		.num_parents = ARRAY_SIZE(lpass_aon_cc_parent_data_0),
+		.ops = &clk_rcg2_ops,
+	},
+};
+
 static struct clk_rcg2 lpass_aon_cc_main_rcg_clk_src = {
 	.cmd_rcgr = 0x19000,
 	.mnd_width = 0,
@@ -61,7 +85,6 @@ static struct clk_rcg2 lpass_aon_cc_main_rcg_clk_src = {
 		.name = "lpass_aon_cc_main_rcg_clk_src",
 		.parent_data = lpass_aon_cc_parent_data_0,
 		.num_parents = ARRAY_SIZE(lpass_aon_cc_parent_data_0),
-		//.flags = CLK_OPS_PARENT_ENABLE,
 		.ops = &clk_rcg2_ops,
 	},
 };
@@ -81,14 +104,18 @@ static struct clk_rcg2 lpass_aon_cc_tx_mclk_clk_src = {
 	},
 };
 
-/* XO only for now: the ADSP plan feeds these from the audio CC DIG PLL */
-static const struct freq_tbl ftbl_lpass_audio_cc_ext_if2_clk_src[] = {
-	F(1536000, P_BI_TCXO, 1, 2, 25),
-	F(2304000, P_BI_TCXO, 1, 3, 25),
-	F(3072000, P_BI_TCXO, 1, 4, 25),
-	F(9600000, P_BI_TCXO, 2, 0, 0),
-	F(19200000, P_BI_TCXO, 1, 0, 0),
-	{ }
+static struct clk_rcg2 lpass_audio_cc_ext_if1_clk_src = {
+	.cmd_rcgr = 0x18004,
+	.mnd_width = 16,
+	.hid_width = 5,
+	.parent_map = lpass_audio_cc_parent_map_0,
+	.freq_tbl = ftbl_lpass_cc_ext_clk_src,
+	.clkr.hw.init = &(const struct clk_init_data){
+		.name = "lpass_audio_cc_ext_if1_clk_src",
+		.parent_data = lpass_audio_cc_parent_data_0,
+		.num_parents = ARRAY_SIZE(lpass_audio_cc_parent_data_0),
+		.ops = &clk_rcg2_ops,
+	},
 };
 
 static struct clk_rcg2 lpass_audio_cc_ext_if2_clk_src = {
@@ -96,7 +123,7 @@ static struct clk_rcg2 lpass_audio_cc_ext_if2_clk_src = {
 	.mnd_width = 16,
 	.hid_width = 5,
 	.parent_map = lpass_audio_cc_parent_map_0,
-	.freq_tbl = ftbl_lpass_audio_cc_ext_if2_clk_src,
+	.freq_tbl = ftbl_lpass_cc_ext_clk_src,
 	.clkr.hw.init = &(const struct clk_init_data){
 		.name = "lpass_audio_cc_ext_if2_clk_src",
 		.parent_data = lpass_audio_cc_parent_data_0,
@@ -110,7 +137,7 @@ static struct clk_rcg2 lpass_audio_cc_ext_if4_clk_src = {
 	.mnd_width = 16,
 	.hid_width = 5,
 	.parent_map = lpass_audio_cc_parent_map_0,
-	.freq_tbl = ftbl_lpass_audio_cc_ext_if2_clk_src,
+	.freq_tbl = ftbl_lpass_cc_ext_clk_src,
 	.clkr.hw.init = &(const struct clk_init_data){
 		.name = "lpass_audio_cc_ext_if4_clk_src",
 		.parent_data = lpass_audio_cc_parent_data_0,
@@ -124,7 +151,7 @@ static struct clk_rcg2 lpass_audio_cc_ext_if5_clk_src = {
 	.mnd_width = 16,
 	.hid_width = 5,
 	.parent_map = lpass_audio_cc_parent_map_0,
-	.freq_tbl = ftbl_lpass_audio_cc_ext_if2_clk_src,
+	.freq_tbl = ftbl_lpass_cc_ext_clk_src,
 	.clkr.hw.init = &(const struct clk_init_data){
 		.name = "lpass_audio_cc_ext_if5_clk_src",
 		.parent_data = lpass_audio_cc_parent_data_0,
@@ -317,6 +344,24 @@ static struct clk_branch lpass_audio_cc_rx_mclk_clk = {
 	},
 };
 
+static struct clk_branch lpass_audio_cc_ext_if1_ibit_clk = {
+	.halt_reg = 0x1801c,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0x1801c,
+		.enable_mask = BIT(0),
+		.hw.init = &(const struct clk_init_data){
+			.name = "lpass_audio_cc_ext_if1_ibit_clk",
+			.parent_hws = (const struct clk_hw*[]){
+				&lpass_audio_cc_ext_if1_clk_src.clkr.hw,
+			},
+			.num_parents = 1,
+			.flags = CLK_SET_RATE_PARENT,
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
 static struct clk_branch lpass_audio_cc_ext_if2_ibit_clk = {
 	.halt_reg = 0x1901c,
 	.halt_check = BRANCH_HALT,
@@ -463,6 +508,24 @@ static struct clk_branch lpass_audio_cc_tx_mclk_wsa2_clk = {
 	},
 };
 
+static struct clk_branch lpass_aon_cc_ext_if1_ibit_clk = {
+	.halt_reg = 0xb01c,
+	.halt_check = BRANCH_HALT,
+	.clkr = {
+		.enable_reg = 0xb01c,
+		.enable_mask = BIT(0),
+		.hw.init = &(const struct clk_init_data){
+			.name = "lpass_aon_cc_ext_if1_ibit_clk",
+			.parent_hws = (const struct clk_hw*[]){
+				&lpass_aon_cc_ext_if1_clk_src.clkr.hw,
+			},
+			.num_parents = 1,
+			.flags = CLK_SET_RATE_PARENT,
+			.ops = &clk_branch2_ops,
+		},
+	},
+};
+
 static struct clk_branch lpass_aon_cc_audio_hm_h_clk = {
 	.halt_reg = 0x11014,
 	.halt_check = BRANCH_HALT,
@@ -533,6 +596,8 @@ static struct clk_regmap *lpass_aon_cc_sm8650_clocks[] = {
 	[LPASS_AON_CC_TX_MCLK_CLK_SRC] = &lpass_aon_cc_tx_mclk_clk_src.clkr,
 	[LPASS_AON_CC_TX_MCLK_CLK] = &lpass_aon_cc_tx_mclk_clk.clkr,
 	[LPASS_AON_CC_CDIV_TX_MCLK_DIV_CLK_SRC] = &lpass_aon_cc_cdiv_tx_mclk_div_clk_src.clkr,
+	[LPASS_AON_CC_EXT_IF1_CLK_SRC] = &lpass_aon_cc_ext_if1_clk_src.clkr,
+	[LPASS_AON_CC_EXT_IF1_IBIT_CLK] = &lpass_aon_cc_ext_if1_ibit_clk.clkr,
 };
 
 static struct gdsc *lpass_aon_cc_sm8650_gdscs[] = {
@@ -553,10 +618,12 @@ static struct clk_regmap *lpass_audio_cc_sm8650_clocks[] = {
 	[LPASS_AUDIO_CC_TX_MCLK_WSA_CLK] = &lpass_audio_cc_tx_mclk_wsa_clk.clkr,
 	[LPASS_AUDIO_CC_TX_MCLK_RX_CLK] = &lpass_audio_cc_tx_mclk_rx_clk.clkr,	
 	[LPASS_AUDIO_CC_TX_MCLK_WSA2_CLK] = &lpass_audio_cc_tx_mclk_wsa2_clk.clkr,
-	[LPASS_AUDIO_CC_EXT_IF2_CLK_SRC] = &lpass_audio_cc_ext_if2_clk_src.clkr,
-	[LPASS_AUDIO_CC_EXT_IF2_IBI_CLK] = &lpass_audio_cc_ext_if2_ibit_clk.clkr,
 	[LPASS_AUDIO_CC_CDIV_RX_MCLK_DIV_CLK_SRC] = &lpass_audio_cc_cdiv_rx_mclk_div_clk_src.clkr,
 	[LPASS_AUDIO_CC_CDIV_WSA_MCLK_DIV_CLK_SRC] = &lpass_audio_cc_cdiv_wsa_mclk_div_clk_src.clkr,
+	[LPASS_AUDIO_CC_EXT_IF1_CLK_SRC] = &lpass_audio_cc_ext_if1_clk_src.clkr,
+	[LPASS_AUDIO_CC_EXT_IF1_IBIT_CLK] = &lpass_audio_cc_ext_if1_ibit_clk.clkr,
+	[LPASS_AUDIO_CC_EXT_IF2_CLK_SRC] = &lpass_audio_cc_ext_if2_clk_src.clkr,
+	[LPASS_AUDIO_CC_EXT_IF2_IBIT_CLK] = &lpass_audio_cc_ext_if2_ibit_clk.clkr,
 	[LPASS_AUDIO_CC_EXT_IF4_CLK_SRC] = &lpass_audio_cc_ext_if4_clk_src.clkr,
 	[LPASS_AUDIO_CC_EXT_IF4_IBIT_CLK] = &lpass_audio_cc_ext_if4_ibit_clk.clkr,
 	[LPASS_AUDIO_CC_EXT_IF5_CLK_SRC] = &lpass_audio_cc_ext_if5_clk_src.clkr,

@@ -453,6 +453,8 @@ static int lpass_cpu_daiops_probe(struct snd_soc_dai *dai)
 	struct lpass_lpaif *lpaif = drvdata->mi2s_lpaif[port_id];
 	int ret;
 
+	pr_info("%s:%d %d dai %d\n", __func__, __LINE__, port_id, dai->driver->id);
+
 	/* ensure audio hardware is disabled */
 	ret = regmap_write(lpaif->map,
 			LPAIF_I2SCTL_REG(drvdata->variant, drvdata->mi2s_intf[port_id]), 0);
@@ -1065,6 +1067,8 @@ static void of_lpass_cpu_parse_dai_data(struct device *dev,
 	struct device_node *node;
 	int ret, i, id;
 
+	pr_info("%s:%d\n", __func__, __LINE__);
+
 	/* Allow all channels by default for backwards compatibility */
 	for (i = 0; i < data->variant->num_dai; i++) {
 		if (is_mi2s_port_id(data->variant->dai_driver[i].id)) {
@@ -1076,6 +1080,8 @@ static void of_lpass_cpu_parse_dai_data(struct device *dev,
 	}
 
 	for_each_child_of_node(dev->of_node, node) {
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 		ret = of_property_read_u32(node, "reg", &id);
 		if (ret || id < 0) {
 			dev_err(dev, "valid dai id not found: %d\n", ret);
@@ -1088,7 +1094,11 @@ static void of_lpass_cpu_parse_dai_data(struct device *dev,
 			if (is_wsa_cdc_dma_port(id))
 				data->wsa_enable = 1;
 		} else if (is_mi2s_port_id(id)) {
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 			unsigned int port_id = mi2s_port_id(id);
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 			data->mi2s_playback_sd_mode[port_id] =
 				of_lpass_cpu_parse_sd_lines(dev, node,
@@ -1096,6 +1106,8 @@ static void of_lpass_cpu_parse_dai_data(struct device *dev,
 			data->mi2s_capture_sd_mode[port_id] =
 				of_lpass_cpu_parse_sd_lines(dev, node,
 						    "qcom,capture-sd-lines");
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 			set_bit(port_id, &data->lpaif_port_enable);
 		} else {
@@ -1141,20 +1153,26 @@ static int lpass_cpu_init_lpaif(struct platform_device *pdev, int idx,
 	struct device *dev = &pdev->dev;
 	void __iomem *base;
 	int ret, i;
+	pr_info("%s:%d %d\n", __func__, __LINE__, idx);
 
 	/* Only probe an LPAIF if one of the port is described in DT */
 	if (v->mi2s_desc) {
 		const struct lpaif_mi2s_desc *desc = &v->mi2s_desc[idx];
 		bool enabled = false;
 
-		for (i = 0; i < desc->port_desc_count; ++i)
-			if (test_bit(desc->port_desc[i].port_id,
-				     &drvdata->lpaif_port_enable))
+		for (i = 0; i < desc->port_desc_count; ++i) {
+			unsigned int port_id = mi2s_port_id(desc->port_desc[i].id);
+
+			if (test_bit(port_id, &drvdata->lpaif_port_enable)) {
 				enabled = true;
+				break;
+			}
+		}
 
 		if (!enabled)
 			return 0;
 	}
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	base = devm_platform_ioremap_resource_byname(pdev, reg_name);
 	if (IS_ERR(base))
@@ -1217,7 +1235,11 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 
 	drvdata->variant = variant;
 
+	pr_info("%s:%d\n", __func__, __LINE__);
+
 	of_lpass_cpu_parse_dai_data(dev, drvdata);
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 	if (drvdata->codec_dma_enable) {
 		drvdata->rxtx_lpaif =
@@ -1272,16 +1294,24 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 	}
 
 	if (variant->mi2s_desc) {
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 		if (variant->num_mi2s_desc > LPASS_MAX_LPAIF)
 			return -EINVAL;
 
+	pr_info("%s:%d\n", __func__, __LINE__);
+
 		drvdata->num_lpaif = variant->num_mi2s_desc;
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 		for (i = 0; i < variant->num_mi2s_desc; i++) {
 			ret = lpass_cpu_init_lpaif(pdev, i,
 						   variant->mi2s_desc[i].reg_name);
 			if (ret)
 				return ret;
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 			if (variant->mi2s_desc[i].lpm_type != LPASS_LPM_NONE)
 				drvdata->mi2s_lpm_enable = true;
@@ -1294,7 +1324,11 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 			return ret;
 	}
 
+	pr_info("%s:%d\n", __func__, __LINE__);
+
 	if (drvdata->codec_dma_enable || drvdata->mi2s_lpm_enable) {
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "lpass-rxtx-cdc-dma-lpm");
 		if (!res)
 			return -EINVAL;
@@ -1325,6 +1359,8 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 	}
 
 	if (variant->init) {
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 		ret = variant->init(pdev);
 		if (ret) {
 			dev_err(dev, "error initializing variant: %d\n", ret);
@@ -1333,21 +1369,35 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 	}
 
 	for (i = 0; i < variant->num_dai; i++) {
+
+	pr_info("%s:%d %s\n", __func__, __LINE__, variant->dai_driver[i].name );
 		if (!is_mi2s_port_id(variant->dai_driver[i].id))
 			continue;
 
 		port_id = mi2s_port_id(variant->dai_driver[i].id);
+	pr_info("%s:%d %d\n", __func__, __LINE__, port_id);
+
+		if (!test_bit(port_id, &drvdata->lpaif_port_enable))
+			continue;
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 
 		if (variant->mi2s_desc) {
 			unsigned int lpaif_idx, lpaif_port;
 			const struct lpaif_mi2s_desc *desc;
 
+	pr_info("%s:%d\n", __func__, __LINE__);
+
 			for (lpaif_idx = 0; lpaif_idx < variant->num_mi2s_desc; ++lpaif_idx) {
 				desc = &variant->mi2s_desc[lpaif_idx];
 
-				for (lpaif_port = 0; i < desc->port_desc_count; ++lpaif_port) {
-					if (desc->port_desc[lpaif_port].port_id != port_id)
+	pr_info("%s:%d %d\n", __func__, __LINE__, lpaif_idx);
+
+				for (lpaif_port = 0; lpaif_port < desc->port_desc_count; ++lpaif_port) {
+					if (desc->port_desc[lpaif_port].id != variant->dai_driver[i].id)
 						continue;
+
+	pr_info("%s:%d %d\n", __func__, __LINE__, lpaif_port);
 
 					drvdata->mi2s_lpaif[port_id] =
 						&drvdata->lpaif[lpaif_idx];
@@ -1356,6 +1406,8 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 					drvdata->mi2s_lpm[port_id] = desc->lpm_type;
 				}
 			}
+
+	pr_info("%s:%d\n", __func__, __LINE__);
 		} else {
 			drvdata->mi2s_lpaif[port_id] = &drvdata->lpaif[0];
 			drvdata->mi2s_intf[port_id] = port_id;
@@ -1367,9 +1419,10 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 						variant->dai_bit_clk_names[i]);
 		if (IS_ERR(drvdata->mi2s_bit_clk[port_id])) {
 			dev_err(dev,
-				"error getting %s: %ld\n",
+				"error getting %s: %ld for %s\n",
 				variant->dai_bit_clk_names[i],
-				PTR_ERR(drvdata->mi2s_bit_clk[port_id]));
+				PTR_ERR(drvdata->mi2s_bit_clk[port_id]),
+				variant->dai_driver[i].name);
 			return PTR_ERR(drvdata->mi2s_bit_clk[port_id]);
 		}
 		if (drvdata->mi2s_playback_sd_mode[port_id] ==

@@ -1592,10 +1592,14 @@ static int lpass_platform_init_lpaif(struct platform_device *pdev, int idx,
 		const struct lpaif_mi2s_desc *desc = &v->mi2s_desc[idx];
 		bool enabled = false;
 
-		for (i = 0; i < desc->port_desc_count; ++i)
-			if (test_bit(desc->port_desc[i].port_id,
-				     &drvdata->lpaif_port_enable))
+		for (i = 0; i < desc->port_desc_count; ++i) {
+			unsigned int port_id = mi2s_port_id(desc->port_desc[i].id);
+
+			if (test_bit(port_id, &drvdata->lpaif_port_enable)) {
 				enabled = true;
+				break;
+			}
+		}
 
 		if (!enabled)
 			return 0;

@@ -354,8 +354,8 @@ static const struct lpaif_mi2s_desc sm8650_lpaif_mi2s_desc[] = {
 		.irq_name = "lpass-irq-lpaif",
 		.lpm_type = LPASS_LPM_NONE,
 		.port_desc = (const struct mi2s_port_desc[]) {
-			{ .intf = 0, .port_id = MI2S_PRIMARY, },
-			{ .intf = 1, .port_id = MI2S_SECONDARY, },
+			{ .intf = 0, .id = MI2S_PRIMARY, },
+			{ .intf = 1, .id = MI2S_SECONDARY, },
 		},
 		.port_desc_count = 2,
 	},
@@ -364,7 +364,7 @@ static const struct lpaif_mi2s_desc sm8650_lpaif_mi2s_desc[] = {
 		.irq_name = "lpass-irq-rxtxif",
 		.lpm_type = LPASS_VA_CDC_LPM,
 		.port_desc = (const struct mi2s_port_desc[]) {
-			{ .intf = 0, .port_id = MI2S_QUATERNARY, },
+			{ .intf = 0, .id = MI2S_QUATERNARY, },
 		},
 		.port_desc_count = 1,
 	},
@@ -373,7 +373,7 @@ static const struct lpaif_mi2s_desc sm8650_lpaif_mi2s_desc[] = {
 		.irq_name = "lpass-irq-vaif",
 		.lpm_type = LPASS_VA_CDC_LPM,
 		.port_desc = (const struct mi2s_port_desc[]) {
-			{ .intf = 0, .port_id = MI2S_QUINARY, },
+			{ .intf = 0, .id = MI2S_QUINARY, },
 		},
 		.port_desc_count = 1,
 	},
@@ -382,7 +382,7 @@ static const struct lpaif_mi2s_desc sm8650_lpaif_mi2s_desc[] = {
 		.irq_name = "lpass-irq-wsaif",
 		.lpm_type = LPASS_RXTX_CDC_LPM,
 		.port_desc = (const struct mi2s_port_desc[]) {
-			{ .intf = 0, .port_id = MI2S_SENARY, },
+			{ .intf = 0, .id = MI2S_SENARY, },
 		},
 		.port_desc_count = 1,
 	},
@@ -391,8 +391,8 @@ static const struct lpaif_mi2s_desc sm8650_lpaif_mi2s_desc[] = {
 		.irq_name = "lpass-irq-audif",
 		.lpm_type = LPASS_RXTX_CDC_LPM,
 		.port_desc = (const struct mi2s_port_desc[]) {
-			{ .intf = 0, .port_id = MI2S_SEPTENARY, },
-			{ .intf = 1, .port_id = MI2S_TERTIARY, },
+			{ .intf = 0, .id = MI2S_SEPTENARY, },
+			{ .intf = 1, .id = MI2S_TERTIARY, },
 		},
 		.port_desc_count = 2,
 	},

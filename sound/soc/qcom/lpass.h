@@ -151,8 +151,8 @@ struct lpass_lpaif {
 };
 
 struct mi2s_port_desc {
-	unsigned int port_id;
-	unsigned int intf;
+	unsigned int intf;	/* LPAIF Interface */
+	unsigned int id;	/* DAI ID */
 };
 
 enum lpass_lpm {

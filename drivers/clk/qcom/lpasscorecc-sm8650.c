@@ -464,21 +464,6 @@ static struct platform_driver lpass_core_cc_sm8650_driver = {
 
 static int lpass_hm_core_probe(struct platform_device *pdev)
 {
-	int ret;
-
-	/*
-	 * The GCC config NoC clock to LPASS gates the access to all the LPASS
-	 * registers: keep it enabled while LPASS HM, on which all the other
-	 * LPASS blocks depend, is in use.
-	 */
-	ret = devm_pm_clk_create(&pdev->dev);
-	if (ret)
-		return ret;
-
-	ret = pm_clk_add(&pdev->dev, "iface");
-	if (ret)
-		return dev_err_probe(&pdev->dev, ret, "failed to get iface clock\n");
-
 	return qcom_cc_probe(pdev, &lpass_core_hm_sm8650_desc);
 }
 
