@@ -82,25 +82,57 @@ static int lpass_cpu_daiops_set_sysclk(struct snd_soc_dai *dai, int clk_id,
 	return ret;
 }
 
+/* LPM memory clock of the MI2S ports using a non-core LPAIF, NULL otherwise */
+static struct clk *lpass_cpu_mi2s_mem_clk(struct lpass_data *drvdata, unsigned int dai_id)
+{
+	unsigned int port_id = mi2s_port_id(dai_id);
+
+	if (!is_lpm_mi2s_port(drvdata, dai_id))
+		return NULL;
+
+	if (drvdata->mi2s_lpm[port_id] == LPASS_RXTX_CDC_LPM)
+		return lpass_cdc_dma_mem_clk(drvdata, drvdata->mi2s_lpm_offset[port_id]);
+
+	return drvdata->va_mem0;
+}
+
 static int lpass_cpu_daiops_startup(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
 	struct lpass_data *drvdata = snd_soc_dai_get_drvdata(dai);
 	unsigned int port_id = mi2s_port_id(dai->driver->id);
+	struct clk *mem_clk = lpass_cpu_mi2s_mem_clk(drvdata, dai->driver->id);
 	int ret;
+
+	if (mem_clk) {
+		ret = clk_set_rate(mem_clk, LPASS_CODEC_MEM_HZ_NORMAL);
+		if (ret) {
+			dev_err(dai->dev, "error setting lpm mem clk rate: %d\n", ret);
+			return ret;
+		}
+		ret = clk_prepare_enable(mem_clk);
+		if (ret) {
+			dev_err(dai->dev, "error in enabling lpm mem clk: %d\n", ret);
+			return ret;
+		}
+	}
 
 	ret = clk_prepare_enable(drvdata->mi2s_osr_clk[port_id]);
 	if (ret) {
 		dev_err(dai->dev, "error in enabling mi2s osr clk: %d\n", ret);
-		return ret;
+		goto err_mem_clk;
 	}
 	ret = clk_prepare(drvdata->mi2s_bit_clk[port_id]);
 	if (ret) {
 		dev_err(dai->dev, "error in enabling mi2s bit clk: %d\n", ret);
 		clk_disable_unprepare(drvdata->mi2s_osr_clk[port_id]);
-		return ret;
+		goto err_mem_clk;
 	}
 	return 0;
+
+err_mem_clk:
+	clk_disable_unprepare(mem_clk);
+	return ret;
 }
 
 static void lpass_cpu_daiops_shutdown(struct snd_pcm_substream *substream,
@@ -133,6 +165,8 @@ static void lpass_cpu_daiops_shutdown(struct snd_pcm_substream *substream,
 	}
 
 	clk_unprepare(drvdata->mi2s_bit_clk[port_id]);
+
+	clk_disable_unprepare(lpass_cpu_mi2s_mem_clk(drvdata, dai->driver->id));
 }
 
 static int lpass_cpu_daiops_hw_params(struct snd_pcm_substream *substream,
