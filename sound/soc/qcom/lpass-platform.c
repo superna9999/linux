@@ -194,25 +194,26 @@ static int lpass_platform_alloc_wsa_dmactl_fields(struct device *dev,
 }
 
 static int lpass_platform_alloc_dmactl_fields(struct device *dev,
-					 struct regmap *map)
+					      struct lpass_lpaif *lpaif)
 {
 	struct lpass_data *drvdata = dev_get_drvdata(dev);
 	const struct lpass_variant *v = drvdata->variant;
+	struct regmap *map = lpaif->map;
 	struct lpaif_dmactl *rd_dmactl, *wr_dmactl;
 	int rval;
 
-	drvdata->rd_dmactl = devm_kzalloc(dev, sizeof(struct lpaif_dmactl),
-					  GFP_KERNEL);
-	if (drvdata->rd_dmactl == NULL)
+	lpaif->rd_dmactl = devm_kzalloc(dev, sizeof(struct lpaif_dmactl),
+					GFP_KERNEL);
+	if (!lpaif->rd_dmactl)
 		return -ENOMEM;
 
-	drvdata->wr_dmactl = devm_kzalloc(dev, sizeof(struct lpaif_dmactl),
-					  GFP_KERNEL);
-	if (drvdata->wr_dmactl == NULL)
+	lpaif->wr_dmactl = devm_kzalloc(dev, sizeof(struct lpaif_dmactl),
+					GFP_KERNEL);
+	if (!lpaif->wr_dmactl)
 		return -ENOMEM;
 
-	rd_dmactl = drvdata->rd_dmactl;
-	wr_dmactl = drvdata->wr_dmactl;
+	rd_dmactl = lpaif->rd_dmactl;
+	wr_dmactl = lpaif->wr_dmactl;
 
 	rval = devm_regmap_field_bulk_alloc(dev, map, &rd_dmactl->intf,
 					    &v->rdma_intf, 6);
@@ -252,6 +253,7 @@ static int lpass_platform_pcmops_open(struct snd_soc_component *component,
 	struct lpass_pcm_data *data;
 	struct regmap *map;
 	unsigned int dai_id = cpu_dai->driver->id;
+	unsigned int port_id;
 
 	data = kzalloc_obj(*data);
 	if (!data)
@@ -272,8 +274,9 @@ static int lpass_platform_pcmops_open(struct snd_soc_component *component,
 
 	switch (dai_id) {
 	case MI2S_PRIMARY ... MI2S_QUINARY:
-		map = drvdata->lpaif_map;
-		drvdata->substream[dma_ch] = substream;
+		port_id = mi2s_port_id(dai_id);
+		map = drvdata->mi2s_lpaif[port_id]->map;
+		drvdata->mi2s_lpaif[port_id]->substream[dma_ch] = substream;
 		break;
 	case LPASS_DP_RX:
 		map = drvdata->hdmiif_map;
@@ -352,12 +355,14 @@ static int lpass_platform_pcmops_close(struct snd_soc_component *component,
 	const struct lpass_variant *v = drvdata->variant;
 	struct lpass_pcm_data *data;
 	unsigned int dai_id = cpu_dai->driver->id;
+	unsigned int port_id;
 
 	data = runtime->private_data;
 
 	switch (dai_id) {
 	case MI2S_PRIMARY ... MI2S_QUINARY:
-		drvdata->substream[data->dma_ch] = NULL;
+		port_id = mi2s_port_id(dai_id);
+		drvdata->mi2s_lpaif[port_id]->substream[data->dma_ch] = NULL;
 		break;
 	case LPASS_DP_RX:
 		drvdata->hdmi_substream[data->dma_ch] = NULL;
@@ -391,13 +396,15 @@ static struct lpaif_dmactl *__lpass_get_dmactl_handle(const struct snd_pcm_subst
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(soc_runtime, 0);
 	struct lpass_data *drvdata = snd_soc_component_get_drvdata(component);
 	struct lpaif_dmactl *dmactl = NULL;
+	unsigned int port_id;
 
 	switch (cpu_dai->driver->id) {
 	case MI2S_PRIMARY ... MI2S_QUINARY:
+		port_id = mi2s_port_id(cpu_dai->driver->id);
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-			dmactl = drvdata->rd_dmactl;
+			dmactl = drvdata->mi2s_lpaif[port_id]->rd_dmactl;
 		else
-			dmactl = drvdata->wr_dmactl;
+			dmactl = drvdata->mi2s_lpaif[port_id]->wr_dmactl;
 		break;
 	case LPASS_DP_RX:
 		dmactl = drvdata->hdmi_rd_dmactl;
@@ -470,10 +477,12 @@ static struct regmap *__lpass_get_regmap_handle(const struct snd_pcm_substream *
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(soc_runtime, 0);
 	struct lpass_data *drvdata = snd_soc_component_get_drvdata(component);
 	struct regmap *map = NULL;
+	unsigned int port_id;
 
 	switch (cpu_dai->driver->id) {
 	case MI2S_PRIMARY ... MI2S_QUINARY:
-		map = drvdata->lpaif_map;
+		port_id = mi2s_port_id(cpu_dai->driver->id);
+		map = drvdata->mi2s_lpaif[port_id]->map;
 		break;
 	case LPASS_DP_RX:
 		map = drvdata->hdmiif_map;
@@ -501,8 +510,6 @@ static int lpass_platform_pcmops_hw_params(struct snd_soc_component *component,
 	struct snd_soc_pcm_runtime *soc_runtime = snd_soc_substream_to_rtd(substream);
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(soc_runtime, 0);
 	struct lpass_data *drvdata = snd_soc_component_get_drvdata(component);
-	struct snd_pcm_runtime *rt = substream->runtime;
-	struct lpass_pcm_data *pcm_data = rt->private_data;
 	const struct lpass_variant *v = drvdata->variant;
 	snd_pcm_format_t format = params_format(params);
 	unsigned int channels = params_channels(params);
@@ -510,8 +517,8 @@ static int lpass_platform_pcmops_hw_params(struct snd_soc_component *component,
 	struct lpaif_dmactl *dmactl;
 	int id;
 	int bitwidth;
-	int ret, dma_port = pcm_data->i2s_port + v->dmactl_audif_start;
 	unsigned int dai_id = cpu_dai->driver->id;
+	int ret, dma_port;
 
 	dmactl = __lpass_get_dmactl_handle(substream, component);
 	id = __lpass_get_id(substream, component);
@@ -561,6 +568,7 @@ static int lpass_platform_pcmops_hw_params(struct snd_soc_component *component,
 	case MI2S_TERTIARY:
 	case MI2S_QUATERNARY:
 	case MI2S_QUINARY:
+		dma_port = drvdata->mi2s_intf[dai_id] + v->dmactl_audif_start;
 		ret = regmap_fields_write(dmactl->intf, id,
 						LPAIF_DMACTL_AUDINTF(dma_port));
 		if (ret) {
@@ -1049,6 +1057,7 @@ static irqreturn_t lpass_dma_interrupt_handler(
 	unsigned int reg, val, mask;
 	struct regmap *map;
 	unsigned int dai_id = cpu_dai->driver->id;
+	unsigned int port_id;
 
 	mask = LPAIF_IRQ_ALL(chan);
 	switch (dai_id) {
@@ -1064,7 +1073,8 @@ static irqreturn_t lpass_dma_interrupt_handler(
 	case MI2S_TERTIARY:
 	case MI2S_QUATERNARY:
 	case MI2S_QUINARY:
-		map = drvdata->lpaif_map;
+		port_id = mi2s_port_id(dai_id);
+		map = drvdata->mi2s_lpaif[port_id]->map;
 		reg = LPAIF_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST);
 		val = 0;
 	break;
@@ -1140,12 +1150,13 @@ static irqreturn_t lpass_dma_interrupt_handler(
 
 static irqreturn_t lpass_platform_lpaif_irq(int irq, void *data)
 {
-	struct lpass_data *drvdata = data;
+	struct lpass_lpaif *lpaif = data;
+	struct lpass_data *drvdata = lpaif->drvdata;
 	const struct lpass_variant *v = drvdata->variant;
 	unsigned int irqs;
 	int rv, chan;
 
-	rv = regmap_read(drvdata->lpaif_map,
+	rv = regmap_read(lpaif->map,
 			LPAIF_IRQSTAT_REG(v, LPAIF_IRQ_PORT_HOST), &irqs);
 	if (rv) {
 		pr_err("error reading from irqstat reg: %d\n", rv);
@@ -1154,9 +1165,9 @@ static irqreturn_t lpass_platform_lpaif_irq(int irq, void *data)
 
 	/* Handle per channel interrupts */
 	for (chan = 0; chan < LPASS_MAX_DMA_CHANNELS; chan++) {
-		if (irqs & LPAIF_IRQ_ALL(chan) && drvdata->substream[chan]) {
+		if (irqs & LPAIF_IRQ_ALL(chan) && lpaif->substream[chan]) {
 			rv = lpass_dma_interrupt_handler(
-						drvdata->substream[chan],
+						lpaif->substream[chan],
 						drvdata, chan, irqs);
 			if (rv != IRQ_HANDLED)
 				return rv;
@@ -1343,6 +1354,7 @@ static int lpass_platform_pcmops_suspend(struct snd_soc_component *component)
 {
 	struct lpass_data *drvdata = snd_soc_component_get_drvdata(component);
 	struct regmap *map;
+	int i;
 
 	if (drvdata->hdmi_port_enable) {
 		map = drvdata->hdmiif_map;
@@ -1350,9 +1362,11 @@ static int lpass_platform_pcmops_suspend(struct snd_soc_component *component)
 		regcache_mark_dirty(map);
 	}
 
-	map = drvdata->lpaif_map;
-	regcache_cache_only(map, true);
-	regcache_mark_dirty(map);
+	for (i = 0; i < drvdata->num_lpaif; i++) {
+		map = drvdata->lpaif[i].map;
+		regcache_cache_only(map, true);
+		regcache_mark_dirty(map);
+	}
 
 	return 0;
 }
@@ -1361,7 +1375,7 @@ static int lpass_platform_pcmops_resume(struct snd_soc_component *component)
 {
 	struct lpass_data *drvdata = snd_soc_component_get_drvdata(component);
 	struct regmap *map;
-	int ret;
+	int i, ret;
 
 	if (drvdata->hdmi_port_enable) {
 		map = drvdata->hdmiif_map;
@@ -1371,10 +1385,15 @@ static int lpass_platform_pcmops_resume(struct snd_soc_component *component)
 			return ret;
 	}
 
-	map = drvdata->lpaif_map;
-	regcache_cache_only(map, false);
+	for (i = 0; i < drvdata->num_lpaif; i++) {
+		map = drvdata->lpaif[i].map;
+		regcache_cache_only(map, false);
+		ret = regcache_sync(map);
+		if (ret)
+			return ret;
+	}
 
-	return regcache_sync(map);
+	return 0;
 }
 
 static int lpass_platform_copy(struct snd_soc_component *component,
@@ -1429,39 +1448,51 @@ static const struct snd_soc_component_driver lpass_component_driver = {
 
 };
 
+static int lpass_platform_init_lpaif(struct platform_device *pdev, int idx,
+				     const char *irq_name, unsigned long irqflags)
+{
+	struct lpass_data *drvdata = platform_get_drvdata(pdev);
+	struct lpass_lpaif *lpaif = &drvdata->lpaif[idx];
+	const struct lpass_variant *v = drvdata->variant;
+	int ret;
+
+	lpaif->irq = platform_get_irq_byname(pdev, irq_name);
+	if (lpaif->irq < 0)
+		return -ENODEV;
+
+	/* ensure audio hardware is disabled */
+	ret = regmap_write(lpaif->map, LPAIF_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST), 0);
+	if (ret) {
+		dev_err(&pdev->dev, "error writing to %s irqen reg: %d\n",
+			irq_name, ret);
+		return ret;
+	}
+
+	ret = devm_request_irq(&pdev->dev, lpaif->irq, lpass_platform_lpaif_irq,
+			       irqflags, irq_name, lpaif);
+	if (ret) {
+		dev_err(&pdev->dev, "%s irq request failed: %d\n", irq_name, ret);
+		return ret;
+	}
+
+	ret = lpass_platform_alloc_dmactl_fields(&pdev->dev, lpaif);
+	if (ret)
+		dev_err(&pdev->dev, "error initializing %s dmactl fields: %d\n",
+			irq_name, ret);
+
+	return ret;
+}
+
 int asoc_qcom_lpass_platform_register(struct platform_device *pdev)
 {
 	struct lpass_data *drvdata = platform_get_drvdata(pdev);
 	const struct lpass_variant *v = drvdata->variant;
 	int ret;
 
-	drvdata->lpaif_irq = platform_get_irq_byname(pdev, "lpass-irq-lpaif");
-	if (drvdata->lpaif_irq < 0)
-		return -ENODEV;
-
-	/* ensure audio hardware is disabled */
-	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST), 0);
-	if (ret) {
-		dev_err(&pdev->dev, "error writing to irqen reg: %d\n", ret);
+	ret = lpass_platform_init_lpaif(pdev, 0, "lpass-irq-lpaif",
+			IRQF_TRIGGER_RISING);
+	if (ret)
 		return ret;
-	}
-
-	ret = devm_request_irq(&pdev->dev, drvdata->lpaif_irq,
-			lpass_platform_lpaif_irq, IRQF_TRIGGER_RISING,
-			"lpass-irq-lpaif", drvdata);
-	if (ret) {
-		dev_err(&pdev->dev, "irq request failed: %d\n", ret);
-		return ret;
-	}
-
-	ret = lpass_platform_alloc_dmactl_fields(&pdev->dev,
-						 drvdata->lpaif_map);
-	if (ret) {
-		dev_err(&pdev->dev,
-			"error initializing dmactl fields: %d\n", ret);
-		return ret;
-	}
 
 	if (drvdata->codec_dma_enable) {
 		ret = regmap_write(drvdata->rxtx_lpaif_map,
