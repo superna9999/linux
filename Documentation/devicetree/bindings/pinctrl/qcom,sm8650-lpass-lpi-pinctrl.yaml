@@ -29,11 +29,21 @@ properties:
       - description: LPASS LPI TLMM Control and Status registers
 
   clocks:
+    minItems: 1
     items:
       - description: LPASS Core voting clock
-      - description: LPASS Audio voting clock
+      - description: LPASS Audio voting clock, only for ADSP based platforms
 
   clock-names:
+    minItems: 1
+    items:
+      - const: core
+      - const: audio
+
+  power-domains:
+    maxItems: 2
+
+  power-domain-names:
     items:
       - const: core
       - const: audio
