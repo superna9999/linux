@@ -89,6 +89,15 @@ static int lpass_cpu_daiops_startup(struct snd_pcm_substream *substream,
 	unsigned int port_id = mi2s_port_id(dai->driver->id);
 	int ret;
 
+	if (is_lpm_mi2s_port(drvdata, dai->driver->id)) {
+		struct clk *mem_clk =
+			lpass_cdc_dma_mem_clk(drvdata,
+					      drvdata->mi2s_lpm_offset[port_id]);
+
+		clk_set_rate(mem_clk, LPASS_CODEC_MEM_HZ_NORMAL);
+		clk_prepare_enable(mem_clk);
+	}
+
 	ret = clk_prepare_enable(drvdata->mi2s_osr_clk[port_id]);
 	if (ret) {
 		dev_err(dai->dev, "error in enabling mi2s osr clk: %d\n", ret);
@@ -133,6 +142,14 @@ static void lpass_cpu_daiops_shutdown(struct snd_pcm_substream *substream,
 	}
 
 	clk_unprepare(drvdata->mi2s_bit_clk[port_id]);
+
+	if (is_lpm_mi2s_port(drvdata, dai->driver->id)) {
+		struct clk *mem_clk =
+			lpass_cdc_dma_mem_clk(drvdata,
+					      drvdata->mi2s_lpm_offset[port_id]);
+
+		clk_disable_unprepare(mem_clk);
+	}
 }
 
 static int lpass_cpu_daiops_hw_params(struct snd_pcm_substream *substream,
