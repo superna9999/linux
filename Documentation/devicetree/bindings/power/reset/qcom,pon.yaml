@@ -42,6 +42,14 @@ properties:
     minItems: 1
     maxItems: 2
 
+
+  qcom,el2-reset-config:
+    type: boolean
+    description:
+      Specifies the PBS control registers should be set to indicate the
+      reboot type (Warm Reset, Power Off, Hard Reset) when booted the HLOS
+      in EL2 without an Hypervisor.
+
   pwrkey:
     type: object
     $ref: /schemas/input/qcom,pm8941-pwrkey.yaml#
