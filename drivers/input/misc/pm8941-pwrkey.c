@@ -60,6 +60,7 @@ struct pm8941_data {
 	unsigned int	pull_up_bit;
 	unsigned int	status_bit;
 	bool		supports_ps_hold_poff_config;
+	bool		allows_ps_hold_poff_config_in_el2;
 	bool		supports_debounce_config;
 	bool		has_pon_pbs;
 	bool		wakeup_source_default;
@@ -401,7 +402,8 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
 		return error;
 	}
 
-	if (pwrkey->data->supports_ps_hold_poff_config) {
+	if (pwrkey->data->supports_ps_hold_poff_config ||
+	    (pwrkey->data->allows_ps_hold_poff_config_in_el2 && is_kernel_in_hyp_mode())) {
 		pwrkey->reboot_notifier.notifier_call = pm8941_reboot_notify;
 		error = register_reboot_notifier(&pwrkey->reboot_notifier);
 		if (error) {
@@ -424,7 +426,8 @@ static void pm8941_pwrkey_remove(struct platform_device *pdev)
 {
 	struct pm8941_pwrkey *pwrkey = platform_get_drvdata(pdev);
 
-	if (pwrkey->data->supports_ps_hold_poff_config)
+	if (pwrkey->data->supports_ps_hold_poff_config &&
+	    (pwrkey->data->allows_ps_hold_poff_config_in_el2 && is_kernel_in_hyp_mode()))
 		unregister_reboot_notifier(&pwrkey->reboot_notifier);
 }
 
@@ -434,6 +437,7 @@ static const struct pm8941_data pwrkey_data = {
 	.name = "pm8941_pwrkey",
 	.phys = "pm8941_pwrkey/input0",
 	.supports_ps_hold_poff_config = true,
+	.allows_ps_hold_poff_config_in_el2 = false,
 	.supports_debounce_config = true,
 	.has_pon_pbs = false,
 	.wakeup_source_default = true,
@@ -445,6 +449,7 @@ static const struct pm8941_data resin_data = {
 	.name = "pm8941_resin",
 	.phys = "pm8941_resin/input0",
 	.supports_ps_hold_poff_config = true,
+	.allows_ps_hold_poff_config_in_el2 = false,
 	.supports_debounce_config = true,
 	.has_pon_pbs = false,
 	.wakeup_source_default = false,
@@ -455,6 +460,7 @@ static const struct pm8941_data pon_gen3_pwrkey_data = {
 	.name = "pmic_pwrkey",
 	.phys = "pmic_pwrkey/input0",
 	.supports_ps_hold_poff_config = false,
+	.allows_ps_hold_poff_config_in_el2 = true,
 	.supports_debounce_config = false,
 	.has_pon_pbs = true,
 	.wakeup_source_default = true,
@@ -465,6 +471,7 @@ static const struct pm8941_data pon_gen3_resin_data = {
 	.name = "pmic_resin",
 	.phys = "pmic_resin/input0",
 	.supports_ps_hold_poff_config = false,
+	.allows_ps_hold_poff_config_in_el2 = true,
 	.supports_debounce_config = false,
 	.has_pon_pbs = true,
 	.wakeup_source_default = false,
