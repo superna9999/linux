@@ -5078,8 +5078,8 @@ retry:
 static bool lru_gen_imbalanced(struct lruvec *lruvec, struct scan_control *sc,
 		int swappiness)
 {
-	unsigned long youngest[ANON_AND_FILE] = {0}, old[ANON_AND_FILE] = {0};
 	struct lru_gen_folio *lrugen = &lruvec->lrugen;
+	unsigned long youngest = 0, old = 0;
 	DEFINE_MAX_SEQ(lruvec);
 	DEFINE_MIN_SEQ(lruvec);
 	int type;
@@ -5099,14 +5099,13 @@ static bool lru_gen_imbalanced(struct lruvec *lruvec, struct scan_control *sc,
 	for_each_evictable_type(type, swappiness) {
 		unsigned long seq;
 
-		youngest[type] = lruvec_gen_size(lrugen, type, max_seq);
+		youngest += lruvec_gen_size(lrugen, type, max_seq);
 		for (seq = min_seq[type]; seq < max_seq; seq++)
-			old[type] += lruvec_gen_size(lrugen, type, seq);
+			old += lruvec_gen_size(lrugen, type, seq);
 	}
 
 	/* the vast majority of pages sit in the youngest gen */
-	return youngest[LRU_GEN_ANON] + youngest[LRU_GEN_FILE] >
-	       (old[LRU_GEN_ANON] + old[LRU_GEN_FILE]) * MAX_NR_GENS;
+	return youngest > old * MAX_NR_GENS;
 }
 
 static bool should_run_aging(struct lruvec *lruvec, unsigned long max_seq,
