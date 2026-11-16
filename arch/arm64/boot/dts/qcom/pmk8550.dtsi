@@ -10,7 +10,7 @@
 #include "qcom-adc5-gen3.h"
 
 / {
-	reboot-mode {
+	pmk8550_reboot_mode: reboot-mode {
 		compatible = "nvmem-reboot-mode";
 		nvmem-cells = <&reboot_reason>;
 		nvmem-cell-names = "reboot-mode";
