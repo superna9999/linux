@@ -36,6 +36,8 @@
 #define  PON_GEN3_RESIN_N_SET		BIT(6)
 #define  PON_GEN3_KPDPWR_N_SET		BIT(7)
 
+#define PON_PS_HOLD_SW_CTL_GEN3		0x51
+#define PON_PS_HOLD_RST_CTL2_GEN3	0x53
 #define PON_PS_HOLD_RST_CTL		0x5a
 #define PON_PS_HOLD_RST_CTL2		0x5b
 #define  PON_PS_HOLD_ENABLE		BIT(7)
@@ -89,15 +91,21 @@ static int pm8941_reboot_notify(struct notifier_block *nb,
 {
 	struct pm8941_pwrkey *pwrkey = container_of(nb, struct pm8941_pwrkey,
 						    reboot_notifier);
+	unsigned int reset_type_reg = PON_PS_HOLD_RST_CTL;
 	unsigned int enable_reg;
 	unsigned int reset_type;
 	int error;
 
 	/* PMICs with revision 0 have the enable bit in same register as ctrl */
-	if (pwrkey->revision == 0)
+	if (pwrkey->revision == 0) {
 		enable_reg = PON_PS_HOLD_RST_CTL;
-	else
+	} else if (pwrkey->subtype == PON_SUBTYPE_GEN3_PBS ||
+		   pwrkey->subtype == PON_SUBTYPE_GEN3_HLOS) {
+		enable_reg = PON_PS_HOLD_RST_CTL2_GEN3;
+		reset_type_reg = PON_PS_HOLD_SW_CTL_GEN3;
+	} else {
 		enable_reg = PON_PS_HOLD_RST_CTL2;
+	}
 
 	error = regmap_update_bits(pwrkey->regmap,
 				   pwrkey->baseaddr + enable_reg,
@@ -129,7 +137,7 @@ static int pm8941_reboot_notify(struct notifier_block *nb,
 	}
 
 	error = regmap_update_bits(pwrkey->regmap,
-				   pwrkey->baseaddr + PON_PS_HOLD_RST_CTL,
+				   pwrkey->baseaddr + reset_type_reg,
 				   PON_PS_HOLD_TYPE_MASK,
 				   reset_type);
 	if (error)
