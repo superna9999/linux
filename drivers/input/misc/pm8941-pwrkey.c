@@ -400,7 +400,8 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
 		return error;
 	}
 
-	if (pwrkey->data->supports_ps_hold_poff_config) {
+	if (pwrkey->data->supports_ps_hold_poff_config ||
+	    of_property_read_bool(regmap_node, "qcom,el2-reset-config")) {
 		pwrkey->reboot_notifier.notifier_call = pm8941_reboot_notify;
 		error = register_reboot_notifier(&pwrkey->reboot_notifier);
 		if (error) {
