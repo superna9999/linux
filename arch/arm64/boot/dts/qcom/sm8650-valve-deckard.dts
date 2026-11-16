@@ -1037,6 +1037,13 @@
 	io-channel-names = "thermal";
 };
 
+&pmk8550_reboot_mode {
+	mode-edl = <0x03>;
+	mode-fastboot = <0x04>;
+	mode-usb = <0x05>;
+	mode-initrd = <0x06>;
+};
+
 &pmk8550_rtc {
 	allow-set-time;
 
