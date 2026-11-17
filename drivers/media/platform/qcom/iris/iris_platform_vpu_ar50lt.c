@@ -80,7 +80,6 @@ static struct platform_inst_caps platform_inst_cap_ar50lt = {
 	.mb_cycles_fw = 733003,
 	.mb_cycles_fw_vpp = 225975,
 	.max_frame_rate = 120,
-	.max_operating_rate = 120,
 };
 
 const struct iris_platform_data qcm2290_data = {
