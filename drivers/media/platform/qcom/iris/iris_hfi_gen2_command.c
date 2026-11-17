@@ -478,26 +478,26 @@ static int iris_hfi_gen2_set_colorformat(struct iris_inst *inst, u32 plane)
 	u32 port = iris_hfi_gen2_get_port(inst, plane);
 	u32 hfi_colorformat, pixelformat;
 
-	if (inst->domain == DECODER) {
+	if (inst->domain == DECODER)
 		pixelformat = inst->fmt_dst->fmt.pix_mp.pixelformat;
-		switch (pixelformat) {
-		case V4L2_PIX_FMT_NV12:
-			hfi_colorformat = HFI_COLOR_FMT_NV12;
-			break;
-		case V4L2_PIX_FMT_QC08C:
-			hfi_colorformat = HFI_COLOR_FMT_NV12_UBWC;
-			break;
-		case V4L2_PIX_FMT_P010:
-			hfi_colorformat = HFI_COLOR_FMT_P010;
-			break;
-		case V4L2_PIX_FMT_QC10C:
-			hfi_colorformat = HFI_COLOR_FMT_TP10_UBWC;
-			break;
-		}
-	} else {
+	else
 		pixelformat = inst->fmt_src->fmt.pix_mp.pixelformat;
-		hfi_colorformat = pixelformat == V4L2_PIX_FMT_NV12 ?
-			HFI_COLOR_FMT_NV12 : HFI_COLOR_FMT_NV12_UBWC;
+
+	switch (pixelformat) {
+	case V4L2_PIX_FMT_NV12:
+		hfi_colorformat = HFI_COLOR_FMT_NV12;
+		break;
+	case V4L2_PIX_FMT_QC08C:
+		hfi_colorformat = HFI_COLOR_FMT_NV12_UBWC;
+		break;
+	case V4L2_PIX_FMT_P010:
+		hfi_colorformat = HFI_COLOR_FMT_P010;
+		break;
+	case V4L2_PIX_FMT_QC10C:
+		hfi_colorformat = HFI_COLOR_FMT_TP10_UBWC;
+		break;
+	default:
+		return -EINVAL;
 	}
 
 	return iris_hfi_gen2_session_set_property(inst,

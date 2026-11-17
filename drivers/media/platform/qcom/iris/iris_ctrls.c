@@ -566,6 +566,21 @@ int iris_set_pipe(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_id)
 					     &work_route, sizeof(u32));
 }
 
+static bool iris_venc_is_10bit(struct iris_inst *inst)
+{
+	return inst->domain == ENCODER &&
+		iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat);
+}
+
+/*
+ * The firmware expects 10bit QP values to be offset by the
+ * QpBdOffset (6 * (bit_depth - 8)) of the luma & chroma samples.
+ */
+static u32 iris_venc_qp_offset(struct iris_inst *inst)
+{
+	return iris_venc_is_10bit(inst) ? 12 : 0;
+}
+
 int iris_set_profile(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_id)
 {
 	const struct iris_hfi_session_ops *hfi_ops = inst->hfi_session_ops;
@@ -575,6 +590,10 @@ int iris_set_profile(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_
 		hfi_id = inst->fw_caps[PROFILE_H264].hfi_id;
 		hfi_value = inst->fw_caps[PROFILE_H264].value;
 	} else {
+		/* Encoding 10bit content requires the Main10 profile */
+		if (iris_venc_is_10bit(inst))
+			inst->fw_caps[PROFILE_HEVC].value = V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10;
+
 		hfi_id = inst->fw_caps[PROFILE_HEVC].hfi_id;
 		hfi_value = inst->fw_caps[PROFILE_HEVC].value;
 	}
@@ -883,6 +902,7 @@ int iris_set_min_qp(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_i
 	u32 i_frame_qp = 0, p_frame_qp = 0, b_frame_qp = 0;
 	u32 min_qp_enable = 0, client_qp_enable = 0;
 	u32 hfi_id = inst->fw_caps[cap_id].hfi_id;
+	u32 offset = iris_venc_qp_offset(inst);
 	u32 hfi_val;
 
 	if (inst->codec == V4L2_PIX_FMT_H264) {
@@ -924,11 +944,11 @@ int iris_set_min_qp(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_i
 				 inst->fw_caps[MIN_FRAME_QP_H264].value);
 	} else {
 		i_frame_qp = max(inst->fw_caps[I_FRAME_MIN_QP_HEVC].value,
-				 inst->fw_caps[MIN_FRAME_QP_HEVC].value);
+				 inst->fw_caps[MIN_FRAME_QP_HEVC].value) + offset;
 		p_frame_qp = max(inst->fw_caps[P_FRAME_MIN_QP_HEVC].value,
-				 inst->fw_caps[MIN_FRAME_QP_HEVC].value);
+				 inst->fw_caps[MIN_FRAME_QP_HEVC].value) + offset;
 		b_frame_qp = max(inst->fw_caps[B_FRAME_MIN_QP_HEVC].value,
-				 inst->fw_caps[MIN_FRAME_QP_HEVC].value);
+				 inst->fw_caps[MIN_FRAME_QP_HEVC].value) + offset;
 	}
 
 	hfi_val = i_frame_qp | p_frame_qp << 8 | b_frame_qp << 16 | client_qp_enable << 24;
@@ -947,6 +967,7 @@ int iris_set_max_qp(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_i
 	u32 max_qp_enable = 0, client_qp_enable;
 	u32 i_frame_qp, p_frame_qp, b_frame_qp;
 	u32 hfi_id = inst->fw_caps[cap_id].hfi_id;
+	u32 offset = iris_venc_qp_offset(inst);
 	u32 hfi_val;
 
 	if (inst->codec == V4L2_PIX_FMT_H264) {
@@ -988,11 +1009,11 @@ int iris_set_max_qp(struct iris_inst *inst, enum platform_inst_fw_cap_type cap_i
 				 inst->fw_caps[MAX_FRAME_QP_H264].value);
 	} else {
 		i_frame_qp = min(inst->fw_caps[I_FRAME_MAX_QP_HEVC].value,
-				 inst->fw_caps[MAX_FRAME_QP_HEVC].value);
+				 inst->fw_caps[MAX_FRAME_QP_HEVC].value) + offset;
 		p_frame_qp = min(inst->fw_caps[P_FRAME_MAX_QP_HEVC].value,
-				 inst->fw_caps[MAX_FRAME_QP_HEVC].value);
+				 inst->fw_caps[MAX_FRAME_QP_HEVC].value) + offset;
 		b_frame_qp = min(inst->fw_caps[B_FRAME_MAX_QP_HEVC].value,
-				 inst->fw_caps[MAX_FRAME_QP_HEVC].value);
+				 inst->fw_caps[MAX_FRAME_QP_HEVC].value) + offset;
 	}
 
 	hfi_val = i_frame_qp | p_frame_qp << 8 | b_frame_qp << 16 |
@@ -1011,6 +1032,7 @@ int iris_set_frame_qp(struct iris_inst *inst, enum platform_inst_fw_cap_type cap
 	u32 i_qp_enable = 0, p_qp_enable = 0, b_qp_enable = 0, client_qp_enable;
 	u32 i_frame_qp, p_frame_qp, b_frame_qp;
 	u32 hfi_id = inst->fw_caps[cap_id].hfi_id;
+	u32 offset = iris_venc_qp_offset(inst);
 	struct vb2_queue *q;
 	u32 hfi_val;
 
@@ -1051,9 +1073,9 @@ int iris_set_frame_qp(struct iris_inst *inst, enum platform_inst_fw_cap_type cap
 		p_frame_qp = inst->fw_caps[P_FRAME_QP_H264].value;
 		b_frame_qp = inst->fw_caps[B_FRAME_QP_H264].value;
 	} else {
-		i_frame_qp = inst->fw_caps[I_FRAME_QP_HEVC].value;
-		p_frame_qp = inst->fw_caps[P_FRAME_QP_HEVC].value;
-		b_frame_qp = inst->fw_caps[B_FRAME_QP_HEVC].value;
+		i_frame_qp = inst->fw_caps[I_FRAME_QP_HEVC].value + offset;
+		p_frame_qp = inst->fw_caps[P_FRAME_QP_HEVC].value + offset;
+		b_frame_qp = inst->fw_caps[B_FRAME_QP_HEVC].value + offset;
 	}
 
 	hfi_val = i_frame_qp | p_frame_qp << 8 | b_frame_qp << 16 |
