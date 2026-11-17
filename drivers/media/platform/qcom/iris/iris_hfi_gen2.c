@@ -1185,6 +1185,13 @@ static const struct platform_inst_fw_cap inst_fw_cap_sm8550_enc[] = {
 		.set = iris_set_level,
 	},
 	{
+		.cap_id = BIT_DEPTH,
+		.min = BIT_DEPTH_8,
+		.max = BIT_DEPTH_10,
+		.step_or_mask = 1,
+		.value = BIT_DEPTH_8,
+	},
+	{
 		.cap_id = STAGE,
 		.min = STAGE_1,
 		.max = STAGE_2,
