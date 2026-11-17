@@ -1695,8 +1695,9 @@ static u32 iris_vpu_enc_line_size(struct iris_inst *inst)
 	u32 lcu_size = 16;
 
 	if (inst->codec == V4L2_PIX_FMT_HEVC) {
+		bool ten_bit = iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat);
 		lcu_size = 32;
-		return hfi_buffer_line_enc(width, height, 0, num_vpp_pipes,
+		return hfi_buffer_line_enc(width, height, ten_bit, num_vpp_pipes,
 					   lcu_size, HFI_CODEC_ENCODE_HEVC);
 	}
 
@@ -1712,8 +1713,9 @@ static u32 iris_vpu33_enc_line_size(struct iris_inst *inst)
 	u32 lcu_size = 16;
 
 	if (inst->codec == V4L2_PIX_FMT_HEVC) {
+		bool ten_bit = iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat);
 		lcu_size = 32;
-		return hfi_buffer_line_enc_vpu33(width, height, 0, num_vpp_pipes,
+		return hfi_buffer_line_enc_vpu33(width, height, ten_bit, num_vpp_pipes,
 						 lcu_size, HFI_CODEC_ENCODE_HEVC);
 	}
 
@@ -2045,31 +2047,34 @@ static inline u32 hfi_buffer_scratch2_enc(u32 frame_width, u32 frame_height,
 
 static u32 iris_vpu_enc_scratch2_size(struct iris_inst *inst)
 {
+	bool ten_bit = iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat);
 	u32 frame_height = iris_vpu_enc_get_bitstream_height(inst);
 	u32 frame_width = iris_vpu_enc_get_bitstream_width(inst);
 	u32 num_ref = hfi_buffer_get_recon_count(inst);
 
-	return hfi_buffer_scratch2_enc(frame_width, frame_height, num_ref, false);
+	return hfi_buffer_scratch2_enc(frame_width, frame_height, num_ref, ten_bit);
 }
 
 static u32 iris_vpu_enc_vpss_size(struct iris_inst *inst)
 {
+	bool ten_bit = iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat);
 	u32 ds_enable = is_scaling_enabled(inst);
 	struct v4l2_format *f = inst->fmt_dst;
 	u32 height = f->fmt.pix_mp.height;
 	u32 width = f->fmt.pix_mp.width;
 
-	return hfi_buffer_vpss_enc(width, height, ds_enable, 0, 0);
+	return hfi_buffer_vpss_enc(width, height, ds_enable, 0, ten_bit);
 }
 
 static u32 iris_vpu_ar50lt_enc_vpss_size(struct iris_inst *inst)
 {
+	bool ten_bit = iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat);
 	u32 ds_enable = is_scaling_enabled(inst);
 	struct v4l2_format *f = inst->fmt_dst;
 	u32 height = f->fmt.pix_mp.height;
 	u32 width = f->fmt.pix_mp.width;
 
-	return hfi_buffer_vpss_enc_ar50lt(width, height, ds_enable, 0, 0);
+	return hfi_buffer_vpss_enc_ar50lt(width, height, ds_enable, 0, ten_bit);
 }
 
 static inline u32 size_dpb_opb(u32 height, u32 lcu_size)
@@ -2360,13 +2365,14 @@ static u32 hfi_vpu4x_buffer_line_enc(u32 frame_width, u32 frame_height,
 
 static u32 iris_vpu4x_enc_line_size(struct iris_inst *inst)
 {
+	bool ten_bit = iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat);
 	u32 num_vpp_pipes = inst->core->iris_platform_data->num_vpp_pipe;
 	u32 lcu_size = inst->codec == V4L2_PIX_FMT_HEVC ? 32 : 16;
 	struct v4l2_format *f = inst->fmt_dst;
 	u32 height = f->fmt.pix_mp.height;
 	u32 width = f->fmt.pix_mp.width;
 
-	return hfi_vpu4x_buffer_line_enc(width, height, 0, num_vpp_pipes,
+	return hfi_vpu4x_buffer_line_enc(width, height, ten_bit, num_vpp_pipes,
 					 lcu_size, inst->codec);
 }
 

@@ -441,6 +441,10 @@ static u32 iris_enc_bitstream_buffer_size(struct iris_inst *inst)
 	    bitstream_size < yuv_size)
 		bitstream_size = (bitstream_size << 1);
 
+	/* 10bit content requires 25% more space */
+	if (iris_fmt_is_10bit(inst->fmt_src->fmt.pix_mp.pixelformat))
+		bitstream_size += bitstream_size >> 2;
+
 	return ALIGN(bitstream_size, 4096);
 }
 
@@ -473,6 +477,10 @@ int iris_get_buffer_size(struct iris_inst *inst,
 		case BUF_INPUT:
 			if (inst->fmt_src->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_QC08C)
 				return iris_yuv_buffer_size_qc08c(inst);
+			else if (inst->fmt_src->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_QC10C)
+				return iris_yuv_buffer_size_qc10c(inst);
+			else if (inst->fmt_src->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_P010)
+				return iris_yuv_buffer_size_p010(inst);
 			else
 				return iris_yuv_buffer_size_nv12(inst);
 		case BUF_OUTPUT:
