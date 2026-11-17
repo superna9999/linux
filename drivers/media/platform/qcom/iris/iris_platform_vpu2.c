@@ -58,7 +58,6 @@ static struct platform_inst_caps platform_inst_cap_vpu2 = {
 	.mb_cycles_vsp = 25,
 	.mb_cycles_vpp = 200,
 	.max_frame_rate = MAXIMUM_FPS,
-	.max_operating_rate = MAXIMUM_FPS,
 };
 
 static const struct icc_info iris_icc_info_vpu2[] = {

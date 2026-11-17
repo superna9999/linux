@@ -128,13 +128,11 @@ int iris_check_core_mbps(struct iris_inst *inst)
 {
 	struct iris_core *core = inst->core;
 	struct iris_inst *instance;
-	u32 total_mbps = 0, fps = 0;
+	u32 total_mbps = 0;
 
 	mutex_lock(&core->lock);
-	list_for_each_entry(instance, &core->instances, list) {
-		fps = max(instance->frame_rate, instance->operating_rate);
-		total_mbps += iris_get_mbpf(instance) * fps;
-	}
+	list_for_each_entry(instance, &core->instances, list)
+		total_mbps += iris_get_mbpf(instance) * instance->frame_rate;
 	mutex_unlock(&core->lock);
 
 	if (total_mbps > core->iris_platform_data->max_core_mbps)
