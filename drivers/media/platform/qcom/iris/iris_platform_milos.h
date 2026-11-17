@@ -21,7 +21,6 @@ static struct platform_inst_caps platform_inst_cap_milos = {
 	.mb_cycles_vsp = 25,
 	.mb_cycles_vpp = 200,
 	.max_frame_rate = MILOS_MAXIMUM_FPS,
-	.max_operating_rate = MILOS_MAXIMUM_FPS,
 };
 
 #endif
