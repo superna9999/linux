@@ -115,7 +115,7 @@
 				reg = <0>;
 
 				wcd_usbss_sbu_mux: endpoint {
-					remote-endpoint = <&pmic_glink_sbu>;
+					remote-endpoint = <&pmic_typec_sbu>;
 				};
 			};
 		};
@@ -131,24 +131,30 @@
 };
 
 &pm8550b_typec {
-	status = "okay";
-
 	vdd-pdphy-supply = <&vreg_l5b_3p1>;
 
+	status = "okay";
+
 	connector {
+		compatible = "usb-c-connector";
+
 		power-role = "dual";
 		data-role = "dual";
 		try-power-role = "sink";
-		
-		source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
-		
-		sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>,
-                    <PDO_FIXED(9000, 3000, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>,
-                    <PDO_FIXED(12000, 3000, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>,
-                    <PDO_FIXED(15000, 3000, PDO_FIXED_DUAL_ROLE | PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
-
-		op-sink-microwatt = <15000000>;
 		self-powered;
+
+		vbus-supply = <&pm8550b_vbus>;
+
+		source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_DUAL_ROLE |
+					 PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
+
+		/*
+		 * Above 5V, the PMIC charger input over-voltage protection
+		 * must be configured first, which isn't supported yet.
+		 */
+		sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_DUAL_ROLE |
+				       PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <15000000>;
 
 		ports {
 			#address-cells = <1>;
@@ -157,7 +163,7 @@
 			port@0 {
 				reg = <0>;
 
-				pmic_glink_hs_in: endpoint {
+				pmic_typec_hs_in: endpoint {
 					remote-endpoint = <&usb_1_dwc3_hs>;
 				};
 			};
@@ -165,7 +171,7 @@
 			port@1 {
 				reg = <1>;
 
-				pmic_glink_ss_in: endpoint {
+				pmic_typec_ss_in: endpoint {
 					remote-endpoint = <&usb_dp_qmpphy_out>;
 				};
 			};
@@ -173,13 +179,12 @@
 			port@2 {
 				reg = <2>;
 
-				pmic_glink_sbu: endpoint {
+				pmic_typec_sbu: endpoint {
 					remote-endpoint = <&wcd_usbss_sbu_mux>;
 				};
 			};
 		};
 	};
-
 };
 
 &qupv3_id_0 {
@@ -191,9 +196,9 @@
 };
 
 &usb_1_dwc3_hs {
-	remote-endpoint = <&pmic_glink_hs_in>;
+	remote-endpoint = <&pmic_typec_hs_in>;
 };
 
 &usb_dp_qmpphy_out {
-	remote-endpoint = <&pmic_glink_ss_in>;
+	remote-endpoint = <&pmic_typec_ss_in>;
 };
