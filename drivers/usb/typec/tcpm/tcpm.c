@@ -3563,6 +3563,8 @@ static int tcpm_register_sink_caps(struct tcpm_port *port)
 	if (IS_ERR(cap))
 		return PTR_ERR(cap);
 
+	if (port->partner_sink_caps)
+		usb_power_delivery_unregister_capabilities(port->partner_sink_caps);
 	port->partner_sink_caps = cap;
 
 	return 0;
