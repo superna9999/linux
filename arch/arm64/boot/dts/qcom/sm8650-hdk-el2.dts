@@ -122,6 +122,10 @@
 	};
 };
 
+&gpu {
+	status = "okay";
+};
+
 &mdss_dp0 {
 	status = "okay";
 };
