@@ -7,6 +7,7 @@
 
 #include "sm8650.dtsi"
 #include "sm8650-hdk.dtsi"
+#include "sm8650-lpass-cpu.dtsi"
 #include <dt-bindings/usb/pd.h>
 
 / {
@@ -88,6 +89,81 @@
 			compatible = "shared-dma-pool";
 			reg = <0 0x07c10000 0 0x8000>;
 			no-map;
+		};
+	};
+
+	sound {
+		compatible = "qcom,sm8650-sndcard", "qcom,sm8450-sndcard";
+		model = "SM8650-HDK";
+		audio-routing = "SpkrLeft IN", "WSA_SPK1 OUT",
+				"SpkrRight IN", "WSA_SPK2 OUT",
+				"IN1_HPHL", "HPHL_OUT",
+				"IN2_HPHR", "HPHR_OUT",
+				"AMIC1", "MIC BIAS1",
+				"AMIC2", "MIC BIAS2",
+				"AMIC5", "MIC BIAS4",
+				"TX SWR_INPUT0", "ADC1_OUTPUT",
+				"TX SWR_INPUT1", "ADC2_OUTPUT",
+				"TX SWR_INPUT3", "ADC4_OUTPUT";
+
+		wcd-playback-dai-link {
+			link-name = "WCD Playback";
+
+			cpu {
+				sound-dai = <&lpass_cpu LPASS_CDC_DMA_RX0>;
+			};
+
+			codec {
+				sound-dai = <&wcd939x 0>, <&swr1 0>, <&lpass_rxmacro 0>;
+			};
+		};
+
+		wcd-capture-dai-link {
+			link-name = "WCD Capture";
+
+			cpu {
+				sound-dai = <&lpass_cpu LPASS_CDC_DMA_TX3>;
+			};
+
+			codec {
+				sound-dai = <&wcd939x 1>, <&swr2 0>, <&lpass_txmacro 0>;
+			};
+		};
+
+		wsa-dai-link {
+			link-name = "WSA Playback";
+
+			cpu {
+				sound-dai = <&lpass_cpu LPASS_CDC_DMA_WSA_RX0>;
+			};
+
+			codec {
+				sound-dai = <&north_spkr>, <&south_spkr>, <&swr0 0>, <&lpass_wsamacro 0>;
+			};
+		};
+
+		dp-dai-link {
+			link-name = "DisplayPort Playback";
+
+			cpu {
+				sound-dai = <&lpass_cpu LPASS_DP_RX>;
+			};
+
+			codec {
+				sound-dai = <&mdss_dp0>;
+			};
+		};
+
+		pri-mi2s-dai-link {
+			link-name = "HDMI Playback";
+
+			cpu {
+				sound-dai = <&lpass_cpu MI2S_PRIMARY>;
+			};
+
+			codec {
+				sound-dai = <&lt9611_codec 0>;
+			};
 		};
 	};
 };
@@ -191,6 +267,94 @@
 					remote-endpoint = <&wcd_usbss_sbu_mux>;
 				};
 			};
+		};
+	};
+};
+
+
+&lpass_cpu {
+	status = "okay";
+	
+	dai-link@0 {
+		reg = <MI2S_PRIMARY>;
+		qcom,playback-sd-lines = <0>;
+	};
+
+	dai-link@5 {
+		reg = <LPASS_DP_RX>;
+	};
+
+	dai-link@6 {
+		reg = <LPASS_CDC_DMA_RX0>;
+	};
+
+	dai-link@13 {
+		reg = <LPASS_CDC_DMA_TX3>;
+	};
+
+	dai-link@24 {
+		reg = <LPASS_CDC_DMA_WSA_RX0>;
+	};
+
+};
+
+&lpass_rxmacro {
+	status = "okay";
+};
+
+&lpass_txmacro {
+	status = "okay";
+};
+
+&lpass_wsamacro {
+	status = "okay";
+};
+
+&lt9611_codec {
+	pinctrl-0 = <&lt9611_irq_pin>,
+		    <&lt9611_rst_pin>,
+		    <&i2s0_default_state>,
+		    <&audio_mclk0_default_state>;
+};
+
+&tlmm {
+	audio_mclk0_default_state: audio-mclk0-default-state {
+		pins = "gpio125";
+		function = "audio_ext_mclk0";
+		drive-strength = <8>;
+		bias-disable;
+		output-high;
+	};
+
+	i2s0_default_state: i2s0-default-state {
+		sck-pins {
+			pins = "gpio126";
+			function = "i2s0_sck";
+			drive-strength = <8>;
+			bias-disable;
+			output-high;
+		};
+
+		data0-pins {
+			pins = "gpio127";
+			function = "i2s0_data0";
+			drive-strength = <8>;
+			bias-disable;
+		};
+
+		data1-pins {
+			pins = "gpio128";
+			function = "i2s0_data1";
+			drive-strength = <8>;
+			bias-disable;
+		};
+
+		ws-pins {
+			pins = "gpio129";
+			function = "i2s0_ws";
+			drive-strength = <8>;
+			bias-disable;
+			output-high;
 		};
 	};
 };
