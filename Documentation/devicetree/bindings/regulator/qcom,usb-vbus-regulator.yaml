@@ -17,6 +17,10 @@ description: |
   The pm8150b variant uses an OTG current-limit selector, supporting limits
   of 500 mA, 1000 mA, 1500 mA, 2000 mA, 2500 mA and 3000 mA.
 
+  The pm8550b variant uses a different register layout with an OTG
+  current-limit selector supporting limits of 1000 mA, 1250 mA, 1500 mA,
+  1750 mA, 2000 mA, 2500 mA, 3000 mA and 3500 mA.
+
   The pm4125 variant uses a different register layout with a 2-bit VBOOST
   voltage selector supporting output voltages of 4.25 V, 4.5 V, 4.75 V
   and 5.0 V.
@@ -26,6 +30,7 @@ properties:
     oneOf:
       - enum:
           - qcom,pm8150b-vbus-reg
+          - qcom,pm8550b-vbus-reg
           - qcom,pm4125-vbus-reg
       - items:
           - enum:
@@ -46,6 +51,7 @@ allOf:
           contains:
             enum:
               - qcom,pm8150b-vbus-reg
+              - qcom,pm8550b-vbus-reg
               - qcom,pm6150-vbus-reg
               - qcom,pm7250b-vbus-reg
               - qcom,pmi632-vbus-reg
