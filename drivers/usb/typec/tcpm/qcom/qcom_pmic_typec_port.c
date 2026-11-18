@@ -169,6 +169,7 @@ struct pmic_typec_port {
 	struct tcpm_port		*tcpm_port;
 	struct regmap			*regmap;
 	u32				base;
+	const struct pmic_typec_port_resources *res;
 	unsigned int			nr_irqs;
 	struct pmic_typec_port_irq_data	*irq_data;
 
@@ -569,6 +570,30 @@ done:
 	return ret;
 }
 
+/*
+ * On PM8550B, disabling the Type-C block straight from DRP mode can trigger
+ * a VBUS boost over-voltage fault: go through sink only mode first.
+ * May sleep, must not be called with pmic_typec_port->lock held.
+ */
+static int qcom_pmic_typec_port_disable_cc(struct pmic_typec_port *pmic_typec_port)
+{
+	int ret;
+
+	if (pmic_typec_port->res->disable_from_snk_only) {
+		ret = regmap_write(pmic_typec_port->regmap,
+				   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
+				   EN_SNK_ONLY);
+		if (ret)
+			return ret;
+
+		usleep_range(2000, 3000);
+	}
+
+	return regmap_write(pmic_typec_port->regmap,
+			    pmic_typec_port->base + TYPEC_MODE_CFG_REG,
+			    TYPEC_DISABLE_CMD);
+}
+
 static int qcom_pmic_typec_port_start_toggling(struct tcpc_dev *tcpc,
 					       enum typec_port_type port_type,
 					       enum typec_cc_status cc)
@@ -605,12 +630,14 @@ static int qcom_pmic_typec_port_start_toggling(struct tcpc_dev *tcpc,
 
 	qcom_pmic_set_cc_debounce(pmic_typec_port);
 
+	spin_unlock_irqrestore(&pmic_typec_port->lock, flags);
+
 	/* force it to toggle at least once */
-	ret = regmap_write(pmic_typec_port->regmap,
-			   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
-			   TYPEC_DISABLE_CMD);
+	ret = qcom_pmic_typec_port_disable_cc(pmic_typec_port);
 	if (ret)
-		goto done;
+		return ret;
+
+	spin_lock_irqsave(&pmic_typec_port->lock, flags);
 
 	ret = regmap_write(pmic_typec_port->regmap,
 			   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
@@ -655,6 +682,19 @@ static int qcom_pmic_typec_port_start(struct pmic_typec *tcpm,
 			   TYPEC_INTR_EN_CFG_2_MASK);
 	if (ret)
 		goto done;
+
+	/*
+	 * The Type-C block may have been left attached by the bootloader,
+	 * force a detach longer than tPDDebounce so the partner and TCPM
+	 * start from a known state.
+	 */
+	if (pmic_typec_port->res->detach_on_start) {
+		ret = qcom_pmic_typec_port_disable_cc(pmic_typec_port);
+		if (ret)
+			goto done;
+
+		msleep(200);
+	}
 
 	/* start in TRY_SNK mode */
 	ret = regmap_write(pmic_typec_port->regmap,
@@ -703,11 +743,7 @@ static void qcom_pmic_typec_port_stop(struct pmic_typec *tcpm)
 /* Present neither Rp nor Rd, so a connected partner detects a detach */
 static void qcom_pmic_typec_port_disable(struct pmic_typec *tcpm)
 {
-	struct pmic_typec_port *pmic_typec_port = tcpm->pmic_typec_port;
-
-	regmap_write(pmic_typec_port->regmap,
-		     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
-		     TYPEC_DISABLE_CMD);
+	qcom_pmic_typec_port_disable_cc(tcpm->pmic_typec_port);
 }
 
 int qcom_pmic_typec_port_probe(struct platform_device *pdev,
@@ -750,6 +786,7 @@ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
 	pmic_typec_port->dev = dev;
 	pmic_typec_port->base = base;
 	pmic_typec_port->regmap = regmap;
+	pmic_typec_port->res = res;
 	pmic_typec_port->nr_irqs = res->nr_irqs;
 	pmic_typec_port->irq_data = irq_data;
 	spin_lock_init(&pmic_typec_port->lock);
@@ -794,40 +831,25 @@ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
 	return 0;
 }
 
+#define PMIC_TYPEC_PORT_IRQ_PARAMS						\
+	{								\
+		{ .irq_name = "vpd-detect", .virq = PMIC_TYPEC_VPD_IRQ },		\
+		{ .irq_name = "cc-state-change", .virq = PMIC_TYPEC_CC_STATE_IRQ },	\
+		{ .irq_name = "vconn-oc", .virq = PMIC_TYPEC_VCONN_OC_IRQ },		\
+		{ .irq_name = "vbus-change", .virq = PMIC_TYPEC_VBUS_IRQ },		\
+		{ .irq_name = "attach-detach", .virq = PMIC_TYPEC_ATTACH_DETACH_IRQ },	\
+		{ .irq_name = "legacy-cable-detect", .virq = PMIC_TYPEC_LEGACY_CABLE_IRQ }, \
+		{ .irq_name = "try-snk-src-detect", .virq = PMIC_TYPEC_TRY_SNK_SRC_IRQ }, \
+	}
+
 const struct pmic_typec_port_resources pm8150b_port_res = {
-	.irq_params = {
-		{
-			.irq_name = "vpd-detect",
-			.virq = PMIC_TYPEC_VPD_IRQ,
-		},
-
-		{
-			.irq_name = "cc-state-change",
-			.virq = PMIC_TYPEC_CC_STATE_IRQ,
-		},
-		{
-			.irq_name = "vconn-oc",
-			.virq = PMIC_TYPEC_VCONN_OC_IRQ,
-		},
-
-		{
-			.irq_name = "vbus-change",
-			.virq = PMIC_TYPEC_VBUS_IRQ,
-		},
-
-		{
-			.irq_name = "attach-detach",
-			.virq = PMIC_TYPEC_ATTACH_DETACH_IRQ,
-		},
-		{
-			.irq_name = "legacy-cable-detect",
-			.virq = PMIC_TYPEC_LEGACY_CABLE_IRQ,
-		},
-
-		{
-			.irq_name = "try-snk-src-detect",
-			.virq = PMIC_TYPEC_TRY_SNK_SRC_IRQ,
-		},
-	},
+	.irq_params = PMIC_TYPEC_PORT_IRQ_PARAMS,
 	.nr_irqs = 7,
+};
+
+const struct pmic_typec_port_resources pm8550b_port_res = {
+	.irq_params = PMIC_TYPEC_PORT_IRQ_PARAMS,
+	.nr_irqs = 7,
+	.disable_from_snk_only = true,
+	.detach_on_start = true,
 };
