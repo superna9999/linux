@@ -17,6 +17,7 @@
 #include "pm8550vs.dtsi"
 #include "pmk8550.dtsi"
 #include "sm8650-lpass-cpu.dtsi"
+#include <dt-bindings/usb/pd.h>
 
 / {
 	model = "Valve Deckard";
@@ -944,6 +945,47 @@
 	};
 };
 
+
+&pm8550b_vbus {
+	status = "okay";
+};
+
+&pm8550b_typec {
+	vdd-pdphy-supply = <&vreg_l5b_3p1>;
+
+	status = "okay";
+
+	connector {
+		compatible = "usb-c-connector";
+
+		power-role = "dual";
+		data-role = "dual";
+		try-power-role = "sink";
+		self-powered;
+
+		vbus-supply = <&pm8550b_vbus>;
+
+		source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_DUAL_ROLE |
+					 PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
+		sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_DUAL_ROLE |
+				       PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <15000000>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				pmic_typec_hs_in: endpoint {
+					remote-endpoint = <&usb_1_dwc3_hs>;
+				};
+			};
+		};
+	};
+};
+
 &pm8550b_eusb2_repeater {
 	vdd18-supply = <&vreg_l15b_1p8>;
 	vdd3-supply = <&vreg_l5b_3p1>;
@@ -1304,7 +1346,8 @@
 };
 
 &usb_1 {
-	dr_mode = "peripheral";
+	dr_mode = "otg";
+	usb-role-switch;
 
 	/* USB 2.0 only */
 	qcom,select-utmi-as-pipe-clk;
@@ -1315,6 +1358,10 @@
 	phy-names = "usb2-phy";
 
 	status = "okay";
+};
+
+&usb_1_dwc3_hs {
+	remote-endpoint = <&pmic_typec_hs_in>;
 };
 
 &usb_1_hsphy {

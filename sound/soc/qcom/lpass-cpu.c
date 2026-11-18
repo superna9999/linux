@@ -1392,19 +1392,6 @@ int asoc_qcom_lpass_cpu_platform_probe(struct platform_device *pdev)
 		}
 	}
 
-	/* Allocation for i2sctl regmap fields */
-	drvdata->i2sctl = devm_kzalloc_obj(&pdev->dev, struct lpaif_i2sctl);
-	if (!drvdata->i2sctl)
-		return -ENOMEM;
-
-	/* Initialize bitfields for dai I2SCTL register */
-	ret = lpass_cpu_init_i2sctl_bitfields(dev, drvdata->i2sctl,
-						drvdata->lpaif_map);
-	if (ret) {
-		dev_err(dev, "error init i2sctl field: %d\n", ret);
-		return ret;
-	}
-
 	if (drvdata->hdmi_port_enable) {
 		ret = lpass_hdmi_init_bitfields(dev, drvdata->hdmiif_map);
 		if (ret) {
