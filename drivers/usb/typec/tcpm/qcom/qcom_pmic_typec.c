@@ -134,6 +134,26 @@ static void qcom_pmic_typec_remove(struct platform_device *pdev)
 	fwnode_handle_put(tcpm->tcpc.fwnode);
 }
 
+/*
+ * Nothing handles the port anymore once the kernel goes down: leave it
+ * detached with VBUS and VCONN off, so a source partner drops an explicit
+ * contract (possibly above 5V) and a sink partner stops being powered,
+ * instead of keeping that state until the next boot stage takes over.
+ */
+static void qcom_pmic_typec_shutdown(struct platform_device *pdev)
+{
+	struct pmic_typec *tcpm = platform_get_drvdata(pdev);
+
+	tcpm->pdphy_stop(tcpm);
+	tcpm->port_stop(tcpm);
+
+	/* Turns VBUS and VCONN off and flushes the TCPM state machine */
+	tcpm_unregister_port(tcpm->tcpm_port);
+
+	/* Done last, the flushed state machine may have restarted toggling */
+	tcpm->port_disable(tcpm);
+}
+
 static const struct pmic_typec_resources pm8150b_typec_res = {
 	.pdphy_res = &pm8150b_pdphy_res,
 	.port_res = &pm8150b_port_res,
@@ -158,6 +178,7 @@ static struct platform_driver qcom_pmic_typec_driver = {
 	},
 	.probe = qcom_pmic_typec_probe,
 	.remove = qcom_pmic_typec_remove,
+	.shutdown = qcom_pmic_typec_shutdown,
 };
 
 module_platform_driver(qcom_pmic_typec_driver);

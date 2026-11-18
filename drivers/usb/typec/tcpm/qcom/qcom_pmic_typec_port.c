@@ -700,6 +700,16 @@ static void qcom_pmic_typec_port_stop(struct pmic_typec *tcpm)
 	disable_delayed_work_sync(&pmic_typec_port->cc_debounce_dwork);
 }
 
+/* Present neither Rp nor Rd, so a connected partner detects a detach */
+static void qcom_pmic_typec_port_disable(struct pmic_typec *tcpm)
+{
+	struct pmic_typec_port *pmic_typec_port = tcpm->pmic_typec_port;
+
+	regmap_write(pmic_typec_port->regmap,
+		     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
+		     TYPEC_DISABLE_CMD);
+}
+
 int qcom_pmic_typec_port_probe(struct platform_device *pdev,
 			       struct pmic_typec *tcpm,
 			       const struct pmic_typec_port_resources *res,
@@ -779,6 +789,7 @@ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
 
 	tcpm->port_start = qcom_pmic_typec_port_start;
 	tcpm->port_stop = qcom_pmic_typec_port_stop;
+	tcpm->port_disable = qcom_pmic_typec_port_disable;
 
 	return 0;
 }
