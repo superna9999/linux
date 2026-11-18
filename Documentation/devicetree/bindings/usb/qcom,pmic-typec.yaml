@@ -18,6 +18,7 @@ properties:
       - enum:
           - qcom,pmi632-typec
           - qcom,pm8150b-typec
+          - qcom,pm8550b-typec
       - items:
           - enum:
               - qcom,pm6150-typec
