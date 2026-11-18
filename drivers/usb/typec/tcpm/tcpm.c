@@ -7202,12 +7202,23 @@ static void tcpm_pd_event_handler(struct kthread_work *work)
 	mutex_unlock(&port->lock);
 }
 
+/*
+ * The TCPC driver may report events from the callbacks invoked by
+ * tcpm_reset_port() while the port is being unregistered, after the worker
+ * has been destroyed: drop them, there is nothing left to handle them.
+ */
+static void tcpm_queue_event_work(struct tcpm_port *port)
+{
+	if (port->wq)
+		kthread_queue_work(port->wq, &port->event_work);
+}
+
 void tcpm_cc_change(struct tcpm_port *port)
 {
 	spin_lock(&port->pd_event_lock);
 	port->pd_events |= TCPM_CC_EVENT;
 	spin_unlock(&port->pd_event_lock);
-	kthread_queue_work(port->wq, &port->event_work);
+	tcpm_queue_event_work(port);
 }
 EXPORT_SYMBOL_GPL(tcpm_cc_change);
 
@@ -7216,7 +7227,7 @@ void tcpm_vbus_change(struct tcpm_port *port)
 	spin_lock(&port->pd_event_lock);
 	port->pd_events |= TCPM_VBUS_EVENT;
 	spin_unlock(&port->pd_event_lock);
-	kthread_queue_work(port->wq, &port->event_work);
+	tcpm_queue_event_work(port);
 }
 EXPORT_SYMBOL_GPL(tcpm_vbus_change);
 
@@ -7225,7 +7236,7 @@ void tcpm_pd_hard_reset(struct tcpm_port *port)
 	spin_lock(&port->pd_event_lock);
 	port->pd_events = TCPM_RESET_EVENT;
 	spin_unlock(&port->pd_event_lock);
-	kthread_queue_work(port->wq, &port->event_work);
+	tcpm_queue_event_work(port);
 }
 EXPORT_SYMBOL_GPL(tcpm_pd_hard_reset);
 
@@ -7234,7 +7245,7 @@ void tcpm_sink_frs(struct tcpm_port *port)
 	spin_lock(&port->pd_event_lock);
 	port->pd_events |= TCPM_FRS_EVENT;
 	spin_unlock(&port->pd_event_lock);
-	kthread_queue_work(port->wq, &port->event_work);
+	tcpm_queue_event_work(port);
 }
 EXPORT_SYMBOL_GPL(tcpm_sink_frs);
 
@@ -7243,7 +7254,7 @@ void tcpm_sourcing_vbus(struct tcpm_port *port)
 	spin_lock(&port->pd_event_lock);
 	port->pd_events |= TCPM_SOURCING_VBUS;
 	spin_unlock(&port->pd_event_lock);
-	kthread_queue_work(port->wq, &port->event_work);
+	tcpm_queue_event_work(port);
 }
 EXPORT_SYMBOL_GPL(tcpm_sourcing_vbus);
 
@@ -7252,7 +7263,7 @@ void tcpm_port_clean(struct tcpm_port *port)
 	spin_lock(&port->pd_event_lock);
 	port->pd_events |= TCPM_PORT_CLEAN;
 	spin_unlock(&port->pd_event_lock);
-	kthread_queue_work(port->wq, &port->event_work);
+	tcpm_queue_event_work(port);
 }
 EXPORT_SYMBOL_GPL(tcpm_port_clean);
 
@@ -7267,7 +7278,7 @@ void tcpm_port_error_recovery(struct tcpm_port *port)
 	spin_lock(&port->pd_event_lock);
 	port->pd_events |= TCPM_PORT_ERROR;
 	spin_unlock(&port->pd_event_lock);
-	kthread_queue_work(port->wq, &port->event_work);
+	tcpm_queue_event_work(port);
 }
 EXPORT_SYMBOL_GPL(tcpm_port_error_recovery);
 
