@@ -345,6 +345,10 @@
 			regulator-min-microvolt = <2720000>;
 			regulator-max-microvolt = <3008000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+
+			/* Drives passive USB protection MUX */
+			regulator-always-on;
+			regulator-boot-on;
 		};
 
 		vreg_l1b_1p8: ldo1 {
