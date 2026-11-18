@@ -1757,7 +1757,7 @@ static __always_inline void zap_present_folio_ptes(struct mmu_gather *tlb,
 		ptent = get_and_clear_full_ptes(mm, addr, pte, nr, tlb->fullmm);
 		if (pte_dirty(ptent)) {
 			folio_mark_dirty(folio);
-			if (tlb_delay_rmap(tlb)) {
+			if (tlb_can_delay_rmap()) {
 				delay_rmap = true;
 				*force_flush = true;
 			}
@@ -4149,8 +4149,11 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		entry = folio_mk_pte(new_folio, vma->vm_page_prot);
 		entry = pte_sw_mkyoung(entry);
 		if (unlikely(unshare)) {
+			entry = pte_mkdirty(entry);
 			if (pte_soft_dirty(vmf->orig_pte))
 				entry = pte_mksoft_dirty(entry);
+			else
+				entry = pte_clear_soft_dirty(entry);
 			if (pte_uffd(vmf->orig_pte)) {
 				entry = pte_mkuffd(entry);
 				if (userfaultfd_rwp(vma))
@@ -5522,8 +5525,7 @@ void map_anon_folio_pte_nopf(struct folio *folio, pte_t *pte,
 
 	entry = pte_sw_mkyoung(entry);
 
-	if (vma->vm_flags & VM_WRITE)
-		entry = pte_mkwrite(pte_mkdirty(entry), vma);
+	entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 	if (uffd_wp)
 		entry = pte_mkuffd(entry);
 
