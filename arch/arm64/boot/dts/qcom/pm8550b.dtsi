@@ -45,6 +45,53 @@
 			#thermal-sensor-cells = <0>;
 		};
 
+		pm8550b_vbus: usb-vbus-regulator@2700 {
+			compatible = "qcom,pm8550b-vbus-reg";
+			reg = <0x2700>;
+			regulator-min-microamp = <1000000>;
+			regulator-max-microamp = <3000000>;
+			status = "disabled";
+		};
+
+		pm8550b_typec: typec@2b00 {
+			compatible = "qcom,pm8550b-typec", "qcom,pm8150b-typec";
+			reg = <0x2b00>,
+			      <0x2d00>;
+			interrupts = <0x7 0x2b 0x00 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2b 0x01 IRQ_TYPE_EDGE_BOTH>,
+				     <0x7 0x2b 0x02 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2b 0x03 IRQ_TYPE_EDGE_BOTH>,
+				     <0x7 0x2b 0x04 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2b 0x05 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2b 0x06 IRQ_TYPE_EDGE_BOTH>,
+				     <0x7 0x2b 0x07 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x00 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x01 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x02 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x03 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x04 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x05 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x06 IRQ_TYPE_EDGE_RISING>,
+				     <0x7 0x2d 0x07 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "or-rid-detect-change",
+					  "vpd-detect",
+					  "cc-state-change",
+					  "vconn-oc",
+					  "vbus-change",
+					  "attach-detach",
+					  "legacy-cable-detect",
+					  "try-snk-src-detect",
+					  "sig-tx",
+					  "sig-rx",
+					  "msg-tx",
+					  "msg-rx",
+					  "msg-tx-failed",
+					  "msg-tx-discarded",
+					  "msg-rx-discarded",
+					  "fr-swap";
+			status = "disabled";
+		};
+
 		pm8550b_gpios: gpio@8800 {
 			compatible = "qcom,pm8550b-gpio", "qcom,spmi-gpio";
 			reg = <0x8800>;
