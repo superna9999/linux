@@ -156,6 +156,14 @@
 				       PDO_FIXED_DATA_SWAP | PDO_FIXED_USB_COMM)>;
 		op-sink-microwatt = <15000000>;
 
+		altmodes {
+			displayport {
+				svid = /bits/ 16 <0xff01>;
+				/* DFP_D receptacle, pin assignments C, D and E */
+				vdo = <0x00001c46>;
+			};
+		};
+
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
