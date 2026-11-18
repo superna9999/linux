@@ -3559,6 +3559,11 @@ static int tcpm_register_sink_caps(struct tcpm_port *port)
 	struct usb_power_delivery_capabilities_desc caps = { };
 	struct usb_power_delivery_capabilities *cap;
 
+	if (port->partner_sink_caps) {
+		usb_power_delivery_unregister_capabilities(port->partner_sink_caps);
+		port->partner_sink_caps = NULL;
+	}
+
 	if (!port->partner_pd)
 		port->partner_pd = usb_power_delivery_register(NULL, &desc);
 	if (IS_ERR(port->partner_pd))
