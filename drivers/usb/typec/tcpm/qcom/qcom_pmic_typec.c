@@ -164,8 +164,14 @@ static const struct pmic_typec_resources pmi632_typec_res = {
 	.port_res = &pm8150b_port_res,
 };
 
+static const struct pmic_typec_resources pm8550b_typec_res = {
+	.pdphy_res = &pm8150b_pdphy_res,
+	.port_res = &pm8550b_port_res,
+};
+
 static const struct of_device_id qcom_pmic_typec_table[] = {
 	{ .compatible = "qcom,pm8150b-typec", .data = &pm8150b_typec_res },
+	{ .compatible = "qcom,pm8550b-typec", .data = &pm8550b_typec_res },
 	{ .compatible = "qcom,pmi632-typec", .data = &pmi632_typec_res },
 	{ }
 };
