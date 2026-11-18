@@ -95,6 +95,14 @@
 	firmware-name = "qcom/sm8650/qupv3fw.elf";
 };
 
+&iris {
+	status = "okay";
+
+	video-firmware {
+		iommus = <&apps_smmu 0x1942 0x0000>;
+	};
+};
+
 &gpu {
 	status = "okay";
 };
