@@ -134,6 +134,16 @@ static void qcom_pmic_typec_remove(struct platform_device *pdev)
 	fwnode_handle_put(tcpm->tcpc.fwnode);
 }
 
+static void qcom_pmic_typec_shutdown(struct platform_device *pdev)
+{
+	struct pmic_typec *tcpm = platform_get_drvdata(pdev);
+
+	tcpm->pdphy_stop(tcpm);
+	tcpm->port_stop(tcpm);
+	tcpm_unregister_port(tcpm->tcpm_port);
+	tcpm->port_disable(tcpm);
+}
+
 static const struct pmic_typec_resources pm8150b_typec_res = {
 	.pdphy_res = &pm8150b_pdphy_res,
 	.port_res = &pm8150b_port_res,
@@ -158,6 +168,7 @@ static struct platform_driver qcom_pmic_typec_driver = {
 	},
 	.probe = qcom_pmic_typec_probe,
 	.remove = qcom_pmic_typec_remove,
+	.shutdown = qcom_pmic_typec_shutdown,
 };
 
 module_platform_driver(qcom_pmic_typec_driver);
