@@ -681,12 +681,14 @@ struct regmap *__regmap_init(struct device *dev,
 			     const char *lock_name)
 {
 	struct regmap *map;
-	int ret = -EINVAL;
 	enum regmap_endian reg_endian, val_endian;
 	int i, j;
+	int ret;
 
-	if (!config)
+	if (!config) {
+		ret = -EINVAL;
 		goto err;
+	}
 
 	map = kzalloc_obj(*map);
 	if (map == NULL) {
@@ -1215,7 +1217,7 @@ static void regmap_field_init(struct regmap_field *rm_field,
 	rm_field->regmap = regmap;
 	rm_field->reg = reg_field.reg;
 	rm_field->shift = reg_field.lsb;
-	rm_field->mask = GENMASK(reg_field.msb, reg_field.lsb);
+	rm_field->mask = REG_FIELD_GENMASK(reg_field);
 
 	WARN_ONCE(rm_field->mask == 0, "invalid empty mask defined\n");
 
@@ -1422,6 +1424,7 @@ int regmap_reinit_cache(struct regmap *map, const struct regmap_config *config)
 
 	regmap_debugfs_exit(map);
 	regcache_exit(map);
+	map->cache_ops = NULL;
 
 	map->max_register = config->max_register;
 	map->max_register_is_set = map->max_register ?: config->max_register_is_0;
@@ -1432,22 +1435,29 @@ int regmap_reinit_cache(struct regmap *map, const struct regmap_config *config)
 	map->writeable_noinc_reg = config->writeable_noinc_reg;
 	map->readable_noinc_reg = config->readable_noinc_reg;
 	map->reg_default_cb = config->reg_default_cb;
-	map->cache_type = config->cache_type;
 
 	ret = regmap_set_name(map, config);
 	if (ret)
-		return ret;
+		goto err_none;
 
 	map->cache_bypass = false;
 	map->cache_only = false;
 
+	map->cache_type = config->cache_type;
 	ret = regcache_init(map, config);
 	if (ret)
-		return ret;
+		goto err_none;
 
 	regmap_debugfs_init(map);
 
 	return 0;
+
+err_none:
+	map->cache_ops = NULL;
+	map->cache_type = REGCACHE_NONE;
+	map->cache_bypass = true;
+	map->cache_only = false;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(regmap_reinit_cache);
 
@@ -1640,11 +1650,10 @@ static int _regmap_raw_write_impl(struct regmap *map, unsigned int reg,
 {
 	struct regmap_range_node *range;
 	unsigned long flags;
-	void *work_val = map->work_buf + map->format.reg_bytes +
-		map->format.pad_bytes;
+	void *work_val;
 	void *buf;
-	int ret = -ENOTSUPP;
 	size_t len;
+	int ret;
 	int i;
 
 	/* Check for unwritable or noinc registers in range
@@ -1724,6 +1733,7 @@ static int _regmap_raw_write_impl(struct regmap *map, unsigned int reg,
 	 * buffer to write.  Since register syncs often generate raw
 	 * writes of single registers optimise that case.
 	 */
+	work_val = map->work_buf + map->format.reg_bytes + map->format.pad_bytes;
 	if (val != work_val && val_len == map->format.val_bytes) {
 		memcpy(work_val, val, map->format.val_bytes);
 		val = work_val;
@@ -2327,8 +2337,8 @@ EXPORT_SYMBOL_GPL(regmap_fields_update_bits_base);
 int regmap_bulk_write(struct regmap *map, unsigned int reg, const void *val,
 		     size_t val_count)
 {
-	int ret = 0, i;
 	size_t val_bytes = map->format.val_bytes;
+	int ret, i;
 
 	if (!IS_ALIGNED(reg, map->reg_stride))
 		return -EINVAL;
@@ -2338,6 +2348,8 @@ int regmap_bulk_write(struct regmap *map, unsigned int reg, const void *val,
 	 * single write operations.
 	 */
 	if (!map->write || !map->format.parse_inplace) {
+		ret = 0; /* Later error paths rely on this */
+
 		guard(regmap)(map);
 
 		for (i = 0; i < val_count; i++) {
@@ -2595,9 +2607,9 @@ static int _regmap_multi_reg_write(struct regmap *map,
 		 */
 		range = _regmap_range_lookup(map, reg);
 		if (range || regs[i].delay_us) {
-			size_t len = sizeof(struct reg_sequence)*num_regs;
-			struct reg_sequence *base = kmemdup(regs, len,
-							   GFP_KERNEL);
+			struct reg_sequence *base;
+
+			base = kmemdup_array(regs, num_regs, sizeof(*regs), GFP_KERNEL);
 			if (!base)
 				return -ENOMEM;
 			ret = _regmap_range_multi_paged_reg_write(map, base,
@@ -2775,12 +2787,12 @@ static int _regmap_bus_read(void *context, unsigned int reg,
 {
 	int ret;
 	struct regmap *map = context;
-	void *work_val = map->work_buf + map->format.reg_bytes +
-		map->format.pad_bytes;
+	void *work_val;
 
 	if (!map->format.parse_val)
 		return -EINVAL;
 
+	work_val = map->work_buf + map->format.reg_bytes + map->format.pad_bytes;
 	ret = _regmap_raw_read(map, reg, work_val, map->format.val_bytes, false);
 	if (ret == 0)
 		*val = map->format.parse_val(work_val);
