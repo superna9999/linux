@@ -739,7 +739,8 @@ EXPORT_IF_KUNIT(get_aspect_ratio);
  * With Broadcast RGB left at Automatic follow that default, as i915 does.
  */
 static bool rgb_output_is_limited_range(const struct dc_crtc_timing *dc_crtc_timing,
-					const struct drm_connector_state *connector_state)
+					const struct drm_connector_state *connector_state,
+					enum signal_type signal)
 {
 	switch (connector_state->hdmi.broadcast_rgb) {
 	case DRM_HDMI_BROADCAST_RGB_FULL:
@@ -747,14 +748,16 @@ static bool rgb_output_is_limited_range(const struct dc_crtc_timing *dc_crtc_tim
 	case DRM_HDMI_BROADCAST_RGB_LIMITED:
 		return true;
 	default:
-		return connector_state->connector->display_info.is_hdmi &&
+		return dc_is_hdmi_signal(signal) &&
+		       connector_state->connector->display_info.is_hdmi &&
 		       dc_crtc_timing->vic > 1;
 	}
 }
 
 enum dc_color_space
 amdgpu_dm_get_output_color_space(const struct dc_crtc_timing *dc_crtc_timing,
-				 const struct drm_connector_state *connector_state)
+				 const struct drm_connector_state *connector_state,
+				 enum signal_type signal)
 {
 	enum dc_color_space color_space = COLOR_SPACE_SRGB;
 
@@ -777,7 +780,7 @@ amdgpu_dm_get_output_color_space(const struct dc_crtc_timing *dc_crtc_timing,
 	case DRM_MODE_COLORIMETRY_BT2020_RGB:
 	case DRM_MODE_COLORIMETRY_BT2020_YCC:
 		if (dc_crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB) {
-			if (rgb_output_is_limited_range(dc_crtc_timing, connector_state))
+			if (rgb_output_is_limited_range(dc_crtc_timing, connector_state, signal))
 				color_space = COLOR_SPACE_2020_RGB_LIMITEDRANGE;
 			else
 				color_space = COLOR_SPACE_2020_RGB_FULLRANGE;
@@ -789,7 +792,7 @@ amdgpu_dm_get_output_color_space(const struct dc_crtc_timing *dc_crtc_timing,
 	default:
 		if (dc_crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB) {
 			color_space = COLOR_SPACE_SRGB;
-			if (rgb_output_is_limited_range(dc_crtc_timing, connector_state))
+			if (rgb_output_is_limited_range(dc_crtc_timing, connector_state, signal))
 				color_space = COLOR_SPACE_SRGB_LIMITED;
 		/*
 		 * 27030khz is the separation point between HDTV and SDTV
@@ -941,7 +944,8 @@ STATIC_IFN_KUNIT void fill_stream_properties_from_drm_display_mode(
 		err = drm_hdmi_vendor_infoframe_from_display_mode(&hv_frame,
 								  (struct drm_connector *)connector,
 								  mode_in);
-		if (err < 0)
+		/* Sinks without HDMI infoframe support make it fail with -EINVAL. */
+		if (err < 0 && info->has_hdmi_infoframe)
 			drm_warn_once(connector->dev, "Failed to setup vendor infoframe on connector %s: %zd\n",
 				      connector->name, err);
 		timing_out->hdmi_vic = hv_frame.vic;
@@ -983,7 +987,8 @@ STATIC_IFN_KUNIT void fill_stream_properties_from_drm_display_mode(
 	if (is_hdmi_ep)
 		adjust_colour_depth_from_display_info(timing_out, info);
 
-	stream->output_color_space = amdgpu_dm_get_output_color_space(timing_out, connector_state);
+	stream->output_color_space = amdgpu_dm_get_output_color_space(timing_out, connector_state,
+								      stream->signal);
 	stream->content_type = get_output_content_type(connector_state);
 }
 EXPORT_IF_KUNIT(fill_stream_properties_from_drm_display_mode);
@@ -2420,14 +2425,14 @@ amdgpu_dm_create_validate_stream_for_sink(struct drm_connector *connector,
 	 *  - A 420-only mode collapses the mask to YCbCr420 alone.
 	 *  - The debugfs force_yuv_pixel_format override pins the encoding to a
 	 *    single dc_pixel_encoding when set (PIXEL_ENCODING_UNDEFINED means
-	 *    "no override"). An explicit YCbCr420 force is honoured even on
-	 *    modes the sink only lists as RGB/4:4:4 capable
-	 *    (drm_mode_is_420_also() clear), as required for HDMI compliance
-	 *    testing; dc_validate_stream() still rejects anything the link
-	 *    genuinely cannot carry. The YCbCr422/YCbCr444 forces stay gated on
-	 *    the sink's advertised caps. An RGB force pins to RGB alone and is
-	 *    always honoured, since RGB is the mandatory baseline every sink
-	 *    (DP or HDMI) supports.
+	 *    "no override"). A YCbCr420 force is gated on the mode actually
+	 *    advertising 4:2:0 (drm_mode_is_420_only()/drm_mode_is_420_also());
+	 *    HDMI 2.0/CTA-861 only permit 4:2:0 on those VICs, so forcing it on
+	 *    an RGB/4:4:4-only mode would violate the "Y420 Not Allowed"
+	 *    compliance requirement (HF1-31/HF1-32). The YCbCr422/YCbCr444
+	 *    forces stay gated on the sink's advertised caps. An RGB force pins
+	 *    to RGB alone and is always honoured, since RGB is the mandatory
+	 *    baseline every sink (DP or HDMI) supports.
 	 */
 	want_420 = (aconnector->force_yuv_pixel_format == PIXEL_ENCODING_YCBCR420) ||
 		(drm_state && drm_state->color_format == DRM_CONNECTOR_COLOR_FORMAT_YCBCR420);
@@ -3439,6 +3444,22 @@ STATIC_IFN_KUNIT int amdgpu_dm_i2c_xfer(struct i2c_adapter *i2c_adap,
 	struct i2c_command cmd;
 	int i;
 	int result = -EIO;
+
+	if (!i2c->oem) {
+		struct dc_link *link = ddc_service->link;
+		struct amdgpu_dm_connector *aconnector = link->priv;
+
+		/*
+		 * DDC to a native DisplayPort sink is tunneled over the AUX
+		 * channel; the physical i2c pins only reach DVI/HDMI sinks
+		 * (e.g. DP++ with a passive adapter).  Route accordingly so
+		 * the connector's single "ddc" bus works for either sink.
+		 */
+		if (aconnector && link->local_sink &&
+		    dc_is_dp_signal(link->local_sink->sink_signal) &&
+		    aconnector->dm_dp_aux.aux.ddc.algo)
+			return i2c_transfer(&aconnector->dm_dp_aux.aux.ddc, msgs, num);
+	}
 
 	if (!ddc_service->ddc_pin)
 		return result;

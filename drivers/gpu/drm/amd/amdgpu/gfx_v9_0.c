@@ -1371,6 +1371,9 @@ struct amdgpu_gfxoff_quirk {
 	u8 revision;
 };
 
+/* Match any chip revision in amdgpu_gfxoff_quirk.revision */
+#define AMDGPU_GFXOFF_QUIRK_ANY_REV	0xff
+
 static const struct amdgpu_gfxoff_quirk amdgpu_gfxoff_quirk_list[] = {
 	/* https://bugzilla.kernel.org/show_bug.cgi?id=204689 */
 	{ 0x1002, 0x15dd, 0x1002, 0x15dd, 0xc8 },
@@ -1380,6 +1383,7 @@ static const struct amdgpu_gfxoff_quirk amdgpu_gfxoff_quirk_list[] = {
 	{ 0x1002, 0x15dd, 0x1002, 0x15dd, 0xc6 },
 	/* Apple MacBook Pro (15-inch, 2019) Radeon Pro Vega 20 4 GB */
 	{ 0x1002, 0x69af, 0x106b, 0x019a, 0xc0 },
+	{ 0x1002, 0x15d8, 0x17aa, 0x318f, AMDGPU_GFXOFF_QUIRK_ANY_REV },
 	/* https://bbs.openkylin.top/t/topic/171497 */
 	{ 0x1002, 0x15d8, 0x19e5, 0x3e14, 0xc2 },
 	/* HP 705G4 DM with R5 2400G */
@@ -1396,7 +1400,8 @@ static bool gfx_v9_0_should_disable_gfxoff(struct pci_dev *pdev)
 		    pdev->device == p->chip_device &&
 		    pdev->subsystem_vendor == p->subsys_vendor &&
 		    pdev->subsystem_device == p->subsys_device &&
-		    pdev->revision == p->revision) {
+		    (p->revision == AMDGPU_GFXOFF_QUIRK_ANY_REV ||
+		     pdev->revision == p->revision)) {
 			return true;
 		}
 		++p;
@@ -5227,8 +5232,18 @@ static void gfx_v9_0_update_spm_vmid_internal(struct amdgpu_device *adev,
 }
 
 static void gfx_v9_0_update_spm_vmid(struct amdgpu_device *adev, int xcc_id,
-		unsigned int vmid)
+		struct amdgpu_ring *ring, unsigned int vmid)
 {
+	if (ring) {
+		if ((ring->funcs->type == AMDGPU_RING_TYPE_GFX) ||
+		    (ring->funcs->type == AMDGPU_RING_TYPE_COMPUTE)) {
+			u32 reg = SOC15_REG_OFFSET(GC, 0, mmRLC_SPM_MC_CNTL);
+			u32 data = (vmid & RLC_SPM_MC_CNTL__RLC_SPM_VMID_MASK) << RLC_SPM_MC_CNTL__RLC_SPM_VMID__SHIFT;
+			amdgpu_ring_emit_wreg(ring, reg, data);
+		}
+		return;
+	}
+
 	amdgpu_gfx_off_ctrl(adev, false);
 
 	gfx_v9_0_update_spm_vmid_internal(adev, vmid);
@@ -7548,6 +7563,7 @@ static const struct amdgpu_ring_funcs gfx_v9_0_ring_funcs_gfx = {
 	.get_wptr = gfx_v9_0_ring_get_wptr_gfx,
 	.set_wptr = gfx_v9_0_ring_set_wptr_gfx,
 	.emit_frame_size = /* totally 242 maximum if 16 IBs */
+		5 + /* update_spm_vmid */
 		5 +  /* COND_EXEC */
 		13 +  /* PIPELINE_SYNC */
 		SOC15_FLUSH_GPU_TLB_NUM_WREG * 5 +
@@ -7604,6 +7620,7 @@ static const struct amdgpu_ring_funcs gfx_v9_0_sw_ring_funcs_gfx = {
 	.get_wptr = amdgpu_sw_ring_get_wptr_gfx,
 	.set_wptr = amdgpu_sw_ring_set_wptr_gfx,
 	.emit_frame_size = /* totally 242 maximum if 16 IBs */
+		5 + /* update_spm_vmid */
 		5 +  /* COND_EXEC */
 		13 +  /* PIPELINE_SYNC */
 		SOC15_FLUSH_GPU_TLB_NUM_WREG * 5 +
@@ -7663,6 +7680,7 @@ static const struct amdgpu_ring_funcs gfx_v9_0_ring_funcs_compute = {
 	.get_wptr = gfx_v9_0_ring_get_wptr_compute,
 	.set_wptr = gfx_v9_0_ring_set_wptr_compute,
 	.emit_frame_size =
+		5 + /* update_spm_vmid */
 		20 + /* gfx_v9_0_ring_emit_gds_switch */
 		7 + /* gfx_v9_0_ring_emit_hdp_flush */
 		5 + /* hdp invalidate */
