@@ -448,8 +448,7 @@ static int dthe_aes_run(struct crypto_engine *engine, void *areq)
 		goto aes_prep_err;
 	}
 
-	desc_in->callback = dthe_aes_dma_in_callback;
-	desc_in->callback_param = req;
+	dmaengine_desc_set_callback(desc_in, dthe_aes_dma_in_callback, NULL, req);
 
 	init_completion(&rctx->aes_compl);
 
@@ -1013,12 +1012,10 @@ static int dthe_aead_run(struct crypto_engine *engine, void *areq)
 			goto aead_dma_prep_dst_err;
 		}
 
-		desc_in->callback = dthe_aead_dma_in_callback;
-		desc_in->callback_param = req;
+		dmaengine_desc_set_callback(desc_in, dthe_aead_dma_in_callback, NULL, req);
 	} else if (assoclen != 0) {
 		/* AAD-only operation */
-		desc_aad_out->callback = dthe_aead_dma_in_callback;
-		desc_aad_out->callback_param = req;
+		dmaengine_desc_set_callback(desc_aad_out, dthe_aead_dma_in_callback, NULL, req);
 	}
 
 	init_completion(&rctx->aes_compl);
