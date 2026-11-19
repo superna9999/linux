@@ -12,6 +12,7 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/mnt_idmapping.h>
+#include <linux/mount.h>
 
 #include "smbacl.h"
 #include "smb_common.h"
@@ -1076,8 +1077,15 @@ int build_sec_desc(const struct mnt_idmap *idmap,
 	pntsd->sacloffset = 0;
 	pntsd->revision = cpu_to_le16(1);
 	pntsd->type = cpu_to_le16(SELF_RELATIVE);
-	if (ppntsd)
+	if (ppntsd) {
 		pntsd->type |= ppntsd->type;
+		/* These DACL flags are returned only with the DACL */
+		if (!(addition_info & DACL_SECINFO))
+			pntsd->type &= ~cpu_to_le16(DACL_PRESENT |
+						    DACL_DEFAULTED |
+						    DACL_AUTO_INHERITED |
+						    DACL_PROTECTED);
+	}
 
 	if (addition_info & OWNER_SECINFO) {
 		pntsd->osidoffset = cpu_to_le32(offset);
@@ -1391,58 +1399,35 @@ pass:
 		if (le16_to_cpu(parent_pntsd->type) & DACL_AUTO_INHERITED)
 			pntsd->type |= cpu_to_le16(DACL_AUTO_INHERITED);
 		pntsd_size = sizeof(struct smb_ntsd);
-		pntsd->osidoffset = parent_pntsd->osidoffset;
-		pntsd->gsidoffset = parent_pntsd->gsidoffset;
-		pntsd->dacloffset = parent_pntsd->dacloffset;
 
-		if ((u64)le32_to_cpu(pntsd->osidoffset) + powner_sid_size >
-		    pntsd_alloc_size) {
-			rc = -EINVAL;
-			kfree(pntsd);
-			goto free_aces_base;
-		}
-
-		if ((u64)le32_to_cpu(pntsd->gsidoffset) + pgroup_sid_size >
-		    pntsd_alloc_size) {
-			rc = -EINVAL;
-			kfree(pntsd);
-			goto free_aces_base;
-		}
-
-		if ((u64)le32_to_cpu(pntsd->dacloffset) + sizeof(struct smb_acl) + nt_size >
-		    pntsd_alloc_size) {
-			rc = -EINVAL;
-			kfree(pntsd);
-			goto free_aces_base;
-		}
-
-		if (pntsd->osidoffset) {
-			struct smb_sid *owner_sid = (struct smb_sid *)((char *)pntsd +
-					le32_to_cpu(pntsd->osidoffset));
-			memcpy(owner_sid, powner_sid, powner_sid_size);
+		/*
+		 * Lay out the child as owner, group and DACL. The parent may
+		 * store its components in another order, so its offsets do
+		 * not fit the child.
+		 */
+		if (powner_sid) {
+			pntsd->osidoffset = cpu_to_le32(pntsd_size);
+			memcpy((char *)pntsd + pntsd_size, powner_sid,
+			       powner_sid_size);
 			pntsd_size += powner_sid_size;
 		}
 
-		if (pntsd->gsidoffset) {
-			struct smb_sid *group_sid = (struct smb_sid *)((char *)pntsd +
-					le32_to_cpu(pntsd->gsidoffset));
-			memcpy(group_sid, pgroup_sid, pgroup_sid_size);
+		if (pgroup_sid) {
+			pntsd->gsidoffset = cpu_to_le32(pntsd_size);
+			memcpy((char *)pntsd + pntsd_size, pgroup_sid,
+			       pgroup_sid_size);
 			pntsd_size += pgroup_sid_size;
 		}
 
-		if (pntsd->dacloffset) {
-			struct smb_ace *pace;
+		pntsd->dacloffset = cpu_to_le32(pntsd_size);
+		pdacl = (struct smb_acl *)((char *)pntsd + pntsd_size);
+		pdacl->revision = cpu_to_le16(2);
+		pdacl->size = cpu_to_le16(sizeof(struct smb_acl) + nt_size);
+		pdacl->num_aces = cpu_to_le16(ace_cnt);
+		memcpy((char *)pdacl + sizeof(struct smb_acl), aces_base, nt_size);
+		pntsd_size += sizeof(struct smb_acl) + nt_size;
 
-			pdacl = (struct smb_acl *)((char *)pntsd + le32_to_cpu(pntsd->dacloffset));
-			pdacl->revision = cpu_to_le16(2);
-			pdacl->size = cpu_to_le16(sizeof(struct smb_acl) + nt_size);
-			pdacl->num_aces = cpu_to_le16(ace_cnt);
-			pace = (struct smb_ace *)((char *)pdacl + sizeof(struct smb_acl));
-			memcpy(pace, aces_base, nt_size);
-			pntsd_size += sizeof(struct smb_acl) + nt_size;
-		}
-
-		ksmbd_vfs_set_sd_xattr(conn, idmap, path, pntsd, pntsd_size, false);
+		ksmbd_vfs_set_sd_xattr(conn, idmap, path, pntsd, pntsd_size);
 		kfree(pntsd);
 	}
 
@@ -1544,8 +1529,11 @@ int smb_check_perm_dacl(struct ksmbd_conn *conn, const struct path *path,
 	ksmbd_debug(SMB, "check permission using windows acl\n");
 	pntsd_size = ksmbd_vfs_get_sd_xattr(conn, idmap,
 					    path->dentry, &pntsd);
-	if (pntsd_size <= 0 || !pntsd)
+	if (pntsd_size <= 0 || !pntsd) {
+		if (pntsd_size < 0 && !smb_no_stored_sd(pntsd_size))
+			rc = pntsd_size == -ENOMEM ? -ENOMEM : -EACCES;
 		goto err_out;
+	}
 
 	dacl_offset = le32_to_cpu(pntsd->dacloffset);
 	if (!dacl_offset ||
@@ -1901,7 +1889,7 @@ static unsigned int smb_parent_derived_rights(struct ksmbd_conn *conn,
 
 int set_info_sec(struct ksmbd_conn *conn, struct ksmbd_tree_connect *tcon,
 		 const struct path *path, struct smb_ntsd *pntsd, int ntsd_len,
-		 bool type_check, bool get_write, bool posix_open,
+		 bool type_check, bool posix_open,
 		 bool dacl_requested)
 {
 	int rc;
@@ -1944,6 +1932,10 @@ int set_info_sec(struct ksmbd_conn *conn, struct ksmbd_tree_connect *tcon,
 				   (fattr.cf_mode & 0777);
 
 	ksmbd_vfs_remove_acl_xattrs(idmap, path);
+	rc = mnt_want_write(path->mnt);
+	if (rc)
+		goto out;
+
 	/* Update posix acls */
 	if (IS_ENABLED(CONFIG_FS_POSIX_ACL) && fattr.cf_dacls) {
 		rc = set_posix_acl(idmap, path->dentry,
@@ -1965,6 +1957,7 @@ int set_info_sec(struct ksmbd_conn *conn, struct ksmbd_tree_connect *tcon,
 	inode_lock(inode);
 	rc = notify_change(idmap, path->dentry, &newattrs, NULL);
 	inode_unlock(inode);
+	mnt_drop_write(path->mnt);
 	if (rc)
 		goto out;
 
@@ -1975,8 +1968,14 @@ int set_info_sec(struct ksmbd_conn *conn, struct ksmbd_tree_connect *tcon,
 	if (test_share_config_flag(tcon->share_conf, KSMBD_SHARE_FLAG_ACL_XATTR)) {
 		/* Update WinACL in xattr */
 		ksmbd_vfs_remove_sd_xattrs(idmap, path);
-		ksmbd_vfs_set_sd_xattr(conn, idmap, path, pntsd, ntsd_len,
-				get_write);
+		rc = ksmbd_vfs_set_sd_xattr(conn, idmap, path, pntsd, ntsd_len);
+		/*
+		 * The CREATE context (type_check) stays best effort because
+		 * the file exists already. A filesystem without the xattr is
+		 * not an error either.
+		 */
+		if (type_check || rc == -EOPNOTSUPP)
+			rc = 0;
 	}
 
 out:
