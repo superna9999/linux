@@ -720,7 +720,7 @@
 					     "fsl,imx7ulp-lpuart";
 				reg = <0x42a50000 0x1000>;
 				interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&scmi_clk IMX94_CLK_LPUART10>;
+				clocks = <&scmi_clk IMX94_CLK_LPUART9>;
 				clock-names = "ipg";
 				dmas = <&edma2 51 0 FSL_EDMA_RX>, <&edma2 50 0 0>;
 				dma-names = "rx", "tx";
@@ -1531,6 +1531,47 @@
 					compatible = "pci1131,ee02";
 					reg = <0x100 0 0 0 0>;
 					status = "disabled";
+				};
+
+				netc_switch: ethernet-switch@0,2 {
+					compatible = "pci1131,eef2";
+					reg = <0x200 0 0 0 0>;
+					dsa,member = <0 1>;
+					status = "disabled";
+
+					netc_switch_ports: ethernet-ports {
+						#address-cells = <1>;
+						#size-cells = <0>;
+
+						netc_switch_port0: ethernet-port@0 {
+							reg = <0>;
+							status = "disabled";
+						};
+
+						netc_switch_port1: ethernet-port@1 {
+							reg = <1>;
+							status = "disabled";
+						};
+
+						netc_switch_port2: ethernet-port@2 {
+							reg = <2>;
+							status = "disabled";
+						};
+
+						/* CPU port, a.k.a switch management port */
+						netc_switch_port3: ethernet-port@3 {
+							reg = <3>;
+							ethernet = <&enetc3>;
+							phy-mode = "internal";
+							status = "disabled";
+
+							fixed-link {
+								speed = <2500>;
+								full-duplex;
+								pause;
+							};
+						};
+					};
 				};
 
 				rcec@1,0 {
