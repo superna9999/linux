@@ -294,9 +294,9 @@ static int dmirror_do_fault(struct dmirror *dmirror, struct hmm_range *range)
 
 		if (is_device_private_page(page)) {
 			struct folio *folio = page_folio(page);
+			struct page *backing = BACKING_PAGE(&folio->page);
 
-			page = BACKING_PAGE(&folio->page) +
-				folio_page_idx(folio, page);
+			page = backing + folio_page_idx(folio, page);
 		}
 		entry = page;
 		if (*pfns & HMM_PFN_WRITE)
