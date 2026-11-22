@@ -292,6 +292,12 @@ static int dmirror_do_fault(struct dmirror *dmirror, struct hmm_range *range)
 		page = hmm_pfn_to_page(*pfns);
 		WARN_ON(!page);
 
+		if (is_device_private_page(page)) {
+			struct folio *folio = page_folio(page);
+
+			page = BACKING_PAGE(&folio->page) +
+				folio_page_idx(folio, page);
+		}
 		entry = page;
 		if (*pfns & HMM_PFN_WRITE)
 			entry = xa_tag_pointer(entry, DPT_XA_TAG_WRITE);
@@ -326,14 +332,6 @@ static bool dmirror_interval_invalidate(struct mmu_interval_notifier *mni,
 				unsigned long cur_seq)
 {
 	struct dmirror *dmirror = container_of(mni, struct dmirror, notifier);
-
-	/*
-	 * Ignore invalidation callbacks for device private pages since
-	 * the invalidation is handled as part of the migration process.
-	 */
-	if (range->event == MMU_NOTIFY_MIGRATE &&
-	    range->owner == dmirror->mdevice)
-		return true;
 
 	if (mmu_notifier_range_blockable(range))
 		mutex_lock(&dmirror->mutex);
@@ -1198,7 +1196,6 @@ static vm_fault_t dmirror_devmem_fault_alloc_and_copy(struct migrate_vma *args,
 
 			src_page = pfn_to_page(page_to_pfn(spage) + i);
 
-			xa_erase(&dmirror->pt, addr >> PAGE_SHIFT);
 			addr += PAGE_SIZE;
 			copy_highpage(dst_page, src_page);
 		}
@@ -1822,9 +1819,8 @@ static vm_fault_t dmirror_devmem_fault(struct vm_fault *vmf)
 	}
 	migrate_vma_pages(&args);
 	/*
-	 * No device finalize step is needed since
-	 * dmirror_devmem_fault_alloc_and_copy() will have already
-	 * invalidated the device page table.
+	 * The migration notifier has invalidated all mirror page tables
+	 * before the backing pages can be freed.
 	 */
 	migrate_vma_finalize(&args);
 err:
