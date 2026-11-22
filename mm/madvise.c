@@ -1163,6 +1163,19 @@ static long madvise_guard_install(struct madvise_behavior *madv_behavior)
 	if (!is_valid_guard_vma(vma, /* allow_locked = */false))
 		return -EINVAL;
 
+	/* userfaultfd_remove() can drop mmap_lock. */
+	if (!userfaultfd_remove(vma, range->start, range->end)) {
+		mark_mmap_lock_dropped(madv_behavior);
+		mmap_read_lock(madv_behavior->mm);
+		madv_behavior->vma = vma = vma_lookup(madv_behavior->mm,
+						    range->start);
+		if (!vma)
+			return -ENOMEM;
+		if (!is_valid_guard_vma(vma, /* allow_locked = */false))
+			return -EINVAL;
+		range->end = min(range->end, vma->vm_end);
+	}
+
 	/*
 	 * Set atomically under read lock. All pertinent readers will need to
 	 * acquire an mmap/VMA write lock to read it. All remaining readers may
