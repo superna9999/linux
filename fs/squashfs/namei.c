@@ -134,8 +134,8 @@ static struct dentry *squashfs_lookup(struct inode *dir, struct dentry *dentry,
 	int offset, err, length;
 	unsigned int dir_count, size;
 
-	TRACE("Entered squashfs_lookup [%llx:%x]\n", squashfs_i(inode)->start,
-			squashfs_i(inode)->offset);
+	TRACE("Entered squashfs_lookup [%llx:%x]\n", squashfs_i(dir)->start,
+			squashfs_i(dir)->offset);
 
 	if (len > SQUASHFS_NAME_LEN)
 		return ERR_PTR(-ENAMETOOLONG);
