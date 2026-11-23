@@ -4180,11 +4180,37 @@ static int selinux_mmap_file(struct file *file,
 			     unsigned long prot, unsigned long flags)
 {
 	const unsigned long map_type = (flags & MAP_TYPE);
+	const bool shared = map_type == MAP_SHARED || map_type == MAP_SHARED_VALIDATE;
+	const struct path *path;
+	struct common_audit_data ad;
+	int rc;
 
-	return selinux_mmap_file_common(file, prot,
-					(map_type == MAP_SHARED ||
-					 map_type == MAP_SHARED_VALIDATE),
-					false);
+	if (!file || !(file->f_mode & FMODE_BACKING))
+		return selinux_mmap_file_common(file, prot, shared, false);
+
+	/*
+	 * remap_file_pages() passes the VMA's backing file, not the file
+	 * opened by the caller.  Recheck the saved user file and each
+	 * mounter before checking the backing file under its opener's cred.
+	 */
+	path = backing_file_user_path(file);
+	ad.type = LSM_AUDIT_DATA_PATH;
+	ad.u.path = *path;
+	rc = inode_has_perm(current_cred(), d_inode(path->dentry),
+			    FILE__MAP, &ad);
+	if (rc)
+		return rc;
+
+	rc = __file_map_prot_check(file, prot, shared, false, true);
+	if (rc)
+		return rc;
+
+	rc = backing_mounters_has_perm(file,
+				      file_map_prot_to_av(prot, shared));
+	if (rc)
+		return rc;
+
+	return selinux_mmap_file_common(file, prot, shared, true);
 }
 
 /**

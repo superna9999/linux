@@ -853,6 +853,19 @@ static int madvise_free_single_vma(struct madvise_behavior *madv_behavior)
 	return 0;
 }
 
+static void zap_range(struct madvise_behavior *madv_behavior,
+		zap_flags_t flags)
+{
+	const struct madvise_behavior_range *range = &madv_behavior->range;
+	struct zap_details details = {
+		.reclaim_pt = true,
+		.zap_flags = flags,
+	};
+
+	zap_vma_range_batched(madv_behavior->tlb, madv_behavior->vma,
+			      range->start, range->end - range->start, &details);
+}
+
 /*
  * Application no longer needs these pages.  If the pages are dirty,
  * it's OK to just throw them away.  The app will be more careful about
@@ -875,13 +888,7 @@ static int madvise_free_single_vma(struct madvise_behavior *madv_behavior)
 static long madvise_dontneed_single_vma(struct madvise_behavior *madv_behavior)
 
 {
-	struct madvise_behavior_range *range = &madv_behavior->range;
-	struct zap_details details = {
-		.reclaim_pt = true,
-	};
-
-	zap_vma_range_batched(madv_behavior->tlb, madv_behavior->vma,
-			      range->start, range->end - range->start, &details);
+	zap_range(madv_behavior, 0);
 	return 0;
 }
 
@@ -1159,6 +1166,19 @@ static long madvise_guard_install(struct madvise_behavior *madv_behavior)
 	if (!is_valid_guard_vma(vma, /* allow_locked = */false))
 		return -EINVAL;
 
+	/* userfaultfd_remove() can drop mmap_lock. */
+	if (!userfaultfd_remove(vma, range->start, range->end)) {
+		mark_mmap_lock_dropped(madv_behavior);
+		mmap_read_lock(madv_behavior->mm);
+		madv_behavior->vma = vma = vma_lookup(madv_behavior->mm,
+						    range->start);
+		if (!vma)
+			return -ENOMEM;
+		if (!is_valid_guard_vma(vma, /* allow_locked = */false))
+			return -EINVAL;
+		range->end = min(range->end, vma->vm_end);
+	}
+
 	/*
 	 * Set atomically under read lock. All pertinent readers will need to
 	 * acquire an mmap/VMA write lock to read it. All remaining readers may
@@ -1220,9 +1240,11 @@ static long madvise_guard_install(struct madvise_behavior *madv_behavior)
 
 		/*
 		 * OK some of the range have non-guard pages mapped, zap
-		 * them. This leaves existing guard pages in place.
+		 * them. This also drops any PTE markers in the range,
+		 * including existing guard markers, which we reinstall on
+		 * the next attempt.
 		 */
-		zap_vma_range(vma, range->start, range->end - range->start);
+		zap_range(madv_behavior, ZAP_FLAG_DROP_MARKER);
 	}
 
 	/*
@@ -1848,6 +1870,7 @@ static bool madvise_batch_tlb_flush(int behavior)
 	case MADV_DONTNEED:
 	case MADV_DONTNEED_LOCKED:
 	case MADV_FREE:
+	case MADV_GUARD_INSTALL:
 		return true;
 	default:
 		return false;
