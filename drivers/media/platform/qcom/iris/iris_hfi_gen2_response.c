@@ -350,8 +350,8 @@ static int iris_hfi_gen2_handle_output_buffer(struct iris_inst *inst,
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
 	struct v4l2_m2m_buffer *m2m_buffer, *n;
+	bool found = false, unsignalled_psc_last = false;
 	struct iris_buffer *buf;
-	bool found = false;
 	int ret;
 
 	if (hfi_buffer->flags & HFI_BUF_FW_FLAG_LAST) {
@@ -360,7 +360,15 @@ static int iris_hfi_gen2_handle_output_buffer(struct iris_inst *inst,
 			return ret;
 	}
 
-	if (hfi_buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST) {
+	/* The firmware may still pause the output port after an input resume */
+	if ((hfi_buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST) && inst->drc_resumed_in_place &&
+	    !(inst->sub_state & IRIS_INST_SUB_DRC)) {
+		ret = inst->hfi_session_ops->session_resume_drc(inst,
+							       V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+		if (ret)
+			return ret;
+		unsignalled_psc_last = true;
+	} else if (hfi_buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST) {
 		ret = iris_inst_sub_state_change_drc_last(inst);
 		if (ret)
 			return ret;
@@ -381,6 +389,14 @@ static int iris_hfi_gen2_handle_output_buffer(struct iris_inst *inst,
 	if (!(buf->attr & BUF_ATTR_QUEUED))
 		return -EINVAL;
 
+	if (unsignalled_psc_last) {
+		inst->drc_resumed_in_place = false;
+		if (!hfi_buffer->data_size) {
+			buf->attr &= ~BUF_ATTR_QUEUED;
+			return iris_queue_buffer(inst, buf);
+		}
+	}
+
 	buf->data_offset = hfi_buffer->data_offset;
 	buf->data_size = hfi_buffer->data_size;
 	buf->timestamp = hfi_buffer->timestamp;
@@ -389,6 +405,8 @@ static int iris_hfi_gen2_handle_output_buffer(struct iris_inst *inst,
 	buf->attr |= BUF_ATTR_DEQUEUED;
 
 	buf->flags = iris_hfi_gen2_get_driver_buffer_flags(inst, hfi_buffer->flags);
+	if (unsignalled_psc_last)
+		buf->flags &= ~V4L2_BUF_FLAG_LAST;
 
 	/*
 	 * The empty buffer that ends a drain (LAST) or a source change
@@ -665,6 +683,9 @@ static void iris_hfi_gen2_read_input_subcr_params(struct iris_inst *inst)
 static int iris_hfi_gen2_handle_src_change(struct iris_inst *inst,
 					   struct iris_hfi_packet *pkt)
 {
+	struct v4l2_pix_format_mplane old_fmt = inst->fmt_dst->fmt.pix_mp;
+	u32 old_min_count = inst->buffers[BUF_OUTPUT].min_count;
+	struct iris_hfi_rect_desc old_crop = inst->crop;
 	int ret;
 
 	if (pkt->port != HFI_PORT_BITSTREAM)
@@ -675,6 +696,9 @@ static int iris_hfi_gen2_handle_src_change(struct iris_inst *inst,
 		return ret;
 
 	iris_hfi_gen2_read_input_subcr_params(inst);
+	if (iris_vdec_src_change_after_seek(inst, &old_fmt, &old_crop, old_min_count))
+		return iris_vdec_src_change_resume_input(inst);
+
 	iris_vdec_src_change(inst);
 
 	return 0;

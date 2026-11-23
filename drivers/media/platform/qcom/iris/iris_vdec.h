@@ -15,6 +15,11 @@ int iris_vdec_s_fmt(struct iris_inst *inst, struct v4l2_format *f);
 int iris_vdec_validate_format(struct iris_inst *inst, u32 pixelformat);
 int iris_vdec_subscribe_event(struct iris_inst *inst, const struct v4l2_event_subscription *sub);
 void iris_vdec_src_change(struct iris_inst *inst);
+bool iris_vdec_src_change_after_seek(struct iris_inst *inst,
+				     const struct v4l2_pix_format_mplane *old_fmt,
+				     const struct iris_hfi_rect_desc *old_crop,
+				     u32 old_min_count);
+int iris_vdec_src_change_resume_input(struct iris_inst *inst);
 void iris_vdec_update_min_capture_bufs(struct iris_inst *inst);
 int iris_vdec_streamon_input(struct iris_inst *inst);
 int iris_vdec_streamon_output(struct iris_inst *inst);
