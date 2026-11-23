@@ -368,11 +368,18 @@ static int iris_hfi_gen2_handle_output_buffer(struct iris_inst *inst,
 		if (ret)
 			return ret;
 		unsignalled_psc_last = true;
+	} else if ((hfi_buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST) && inst->drc_unsignalled) {
+		ret = iris_vdec_src_change_complete(inst);
+		if (ret)
+			return ret;
+		unsignalled_psc_last = true;
 	} else if (hfi_buffer->flags & HFI_BUF_FW_FLAG_PSC_LAST) {
 		ret = iris_inst_sub_state_change_drc_last(inst);
 		if (ret)
 			return ret;
 	}
+	if (hfi_buffer->data_size)
+		inst->early_capture = false;
 
 	v4l2_m2m_for_each_dst_buf_safe(m2m_ctx, m2m_buffer, n) {
 		buf = to_iris_buffer(&m2m_buffer->vb);
@@ -686,10 +693,14 @@ static int iris_hfi_gen2_handle_src_change(struct iris_inst *inst,
 	struct v4l2_pix_format_mplane old_fmt = inst->fmt_dst->fmt.pix_mp;
 	u32 old_min_count = inst->buffers[BUF_OUTPUT].min_count;
 	struct iris_hfi_rect_desc old_crop = inst->crop;
+	bool early_capture;
 	int ret;
 
 	if (pkt->port != HFI_PORT_BITSTREAM)
 		return 0;
+
+	early_capture = inst->early_capture;
+	inst->early_capture = false;
 
 	ret = iris_inst_sub_state_change_drc(inst);
 	if (ret)
@@ -698,6 +709,11 @@ static int iris_hfi_gen2_handle_src_change(struct iris_inst *inst,
 	iris_hfi_gen2_read_input_subcr_params(inst);
 	if (iris_vdec_src_change_after_seek(inst, &old_fmt, &old_crop, old_min_count))
 		return iris_vdec_src_change_resume_input(inst);
+
+	if (early_capture && iris_vdec_first_src_change_unchanged(inst, &old_fmt)) {
+		inst->drc_unsignalled = true;
+		return 0;
+	}
 
 	iris_vdec_src_change(inst);
 

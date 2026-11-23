@@ -429,6 +429,36 @@ int iris_vdec_src_change_resume_input(struct iris_inst *inst)
 	return iris_inst_change_sub_state(inst, IRIS_INST_SUB_DRC | IRIS_INST_SUB_INPUT_PAUSE, 0);
 }
 
+/*
+ * A client may start CAPTURE before the first settings change, with the size
+ * from the container as FFmpeg does. That settings change pauses the output
+ * port and ends with a PSC_LAST buffer even if it changes nothing.
+ */
+bool iris_vdec_first_src_change_unchanged(struct iris_inst *inst,
+					  const struct v4l2_pix_format_mplane *old_fmt)
+{
+	struct vb2_queue *dst_q = v4l2_m2m_get_dst_vq(inst->m2m_ctx);
+
+	return inst->state == IRIS_INST_STREAMING &&
+	       inst->sub_state == (IRIS_INST_SUB_DRC | IRIS_INST_SUB_INPUT_PAUSE) &&
+	       iris_vdec_capture_fmt_unchanged(inst, old_fmt) &&
+	       inst->buffers[BUF_OUTPUT].min_count <= vb2_get_num_buffers(dst_q);
+}
+
+/* Complete an unsignalled settings change on its PSC_LAST buffer */
+int iris_vdec_src_change_complete(struct iris_inst *inst)
+{
+	int ret;
+
+	inst->drc_unsignalled = false;
+
+	ret = iris_inst_sub_state_change_drc_last(inst);
+	if (ret)
+		return ret;
+
+	return iris_vdec_start_cmd(inst);
+}
+
 void iris_vdec_src_change(struct iris_inst *inst)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
@@ -482,6 +512,13 @@ int iris_vdec_streamon_output(struct iris_inst *inst)
 {
 	const struct iris_hfi_session_ops *hfi_ops = inst->hfi_session_ops;
 	int ret;
+
+	/* On gen2, fw_min_count is only set by a settings change */
+	inst->early_capture = inst->state == IRIS_INST_INPUT_STREAMING &&
+			      !inst->fw_min_count &&
+			      !(inst->sub_state & (IRIS_INST_SUB_FIRST_IPSC |
+						   IRIS_INST_SUB_DRC |
+						   IRIS_INST_SUB_DRAIN));
 
 	ret = hfi_ops->session_set_config_params(inst, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 	if (ret)

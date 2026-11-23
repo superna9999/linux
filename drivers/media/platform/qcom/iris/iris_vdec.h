@@ -20,6 +20,9 @@ bool iris_vdec_src_change_after_seek(struct iris_inst *inst,
 				     const struct iris_hfi_rect_desc *old_crop,
 				     u32 old_min_count);
 int iris_vdec_src_change_resume_input(struct iris_inst *inst);
+bool iris_vdec_first_src_change_unchanged(struct iris_inst *inst,
+					  const struct v4l2_pix_format_mplane *old_fmt);
+int iris_vdec_src_change_complete(struct iris_inst *inst);
 void iris_vdec_update_min_capture_bufs(struct iris_inst *inst);
 int iris_vdec_streamon_input(struct iris_inst *inst);
 int iris_vdec_streamon_output(struct iris_inst *inst);
