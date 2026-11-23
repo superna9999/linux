@@ -181,11 +181,13 @@ int iris_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 		goto error;
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
+		inst->sequence_out = 0;
 		if (inst->domain == DECODER)
 			ret = iris_vdec_streamon_input(inst);
 		else
 			ret = iris_venc_streamon_input(inst);
 	} else if (V4L2_TYPE_IS_CAPTURE(q->type)) {
+		inst->sequence_cap = 0;
 		if (inst->domain == DECODER)
 			ret = iris_vdec_streamon_output(inst);
 		else
