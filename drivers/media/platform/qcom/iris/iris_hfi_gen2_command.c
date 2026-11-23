@@ -197,9 +197,10 @@ static int iris_hfi_gen2_set_bitstream_resolution(struct iris_inst *inst, u32 pl
 	u32 resolution;
 
 	if (inst->domain == DECODER) {
+		/* Send the resolution as reported by the firmware */
 		width = inst->fmt_src->fmt.pix_mp.width;
 		height = inst->fmt_src->fmt.pix_mp.height;
-		resolution = iris_hfi_get_aligned_resolution(inst, width, height);
+		resolution = width << 16 | height;
 		inst_hfi_gen2->src_subcr_params.bitstream_resolution = resolution;
 		payload_type = HFI_PAYLOAD_U32;
 	} else {
