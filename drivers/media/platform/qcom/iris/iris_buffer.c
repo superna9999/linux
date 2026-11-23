@@ -747,6 +747,43 @@ static int iris_release_input_internal_buffers(struct iris_inst *inst)
 	return 0;
 }
 
+/*
+ * Buffers the firmware holds are kept: it fails to release them while the
+ * CAPTURE port is paused. Only buffers of the new size count for the minimum.
+ */
+int iris_alloc_and_queue_additional_output_int_bufs(struct iris_inst *inst)
+{
+	u32 internal_buffer_count, i, count, fit;
+	const u32 *internal_buf_type;
+	struct iris_buffers *buffers;
+	struct iris_buffer *buf;
+	int ret;
+
+	iris_get_int_buf_tbl(inst, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+			     &internal_buf_type, &internal_buffer_count);
+
+	for (i = 0; i < internal_buffer_count; i++) {
+		buffers = &inst->buffers[internal_buf_type[i]];
+		iris_fill_internal_buf_info(inst, internal_buf_type[i]);
+
+		count = 0;
+		fit = 0;
+		list_for_each_entry(buf, &buffers->list, list) {
+			count++;
+			if (buf->buffer_size >= buffers->size)
+				fit++;
+		}
+
+		for (; fit < buffers->min_count; fit++, count++) {
+			ret = iris_create_internal_buffer(inst, internal_buf_type[i], count);
+			if (ret)
+				return ret;
+		}
+	}
+
+	return iris_queue_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+}
+
 int iris_alloc_and_queue_persist_bufs(struct iris_inst *inst, enum iris_buffer_type buffer_type)
 {
 	struct iris_buffers *buffers = &inst->buffers[buffer_type];

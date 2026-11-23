@@ -495,6 +495,31 @@ int iris_vdec_qbuf(struct iris_inst *inst, struct vb2_v4l2_buffer *vbuf)
 	return iris_queue_buffer(inst, buf);
 }
 
+/* Configure the firmware for the new stream, as on STREAMON(CAPTURE) */
+static int iris_vdec_drc_reconfigure(struct iris_inst *inst)
+{
+	const struct iris_hfi_session_ops *hfi_ops = inst->hfi_session_ops;
+	int ret;
+
+	ret = hfi_ops->session_set_config_params(inst, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	if (ret)
+		return ret;
+
+	ret = iris_alloc_and_queue_input_int_bufs(inst);
+	if (ret)
+		return ret;
+
+	ret = iris_set_stage(inst, STAGE);
+	if (ret)
+		return ret;
+
+	ret = iris_set_pipe(inst, PIPE);
+	if (ret)
+		return ret;
+
+	return iris_alloc_and_queue_additional_output_int_bufs(inst);
+}
+
 int iris_vdec_start_cmd(struct iris_inst *inst)
 {
 	const struct iris_hfi_session_ops *hfi_ops = inst->hfi_session_ops;
@@ -506,6 +531,10 @@ int iris_vdec_start_cmd(struct iris_inst *inst)
 
 	if (inst->sub_state & IRIS_INST_SUB_DRC &&
 	    inst->sub_state & IRIS_INST_SUB_DRC_LAST) {
+		ret = iris_vdec_drc_reconfigure(inst);
+		if (ret)
+			return ret;
+
 		vb2_clear_last_buffer_dequeued(dst_vq);
 		clear_sub_state = IRIS_INST_SUB_DRC | IRIS_INST_SUB_DRC_LAST;
 
