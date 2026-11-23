@@ -537,8 +537,6 @@ static void iris_hfi_gen2_read_input_subcr_params(struct iris_inst *inst)
 	u32 video_signal_type_present_flag;
 	struct iris_core *core = inst->core;
 	u32 full_range, width, height;
-	struct vb2_queue *dst_q;
-	struct v4l2_ctrl *ctrl;
 
 	subsc_params = inst_hfi_gen2->src_subcr_params;
 	width = (subsc_params.bitstream_resolution &
@@ -661,12 +659,7 @@ static void iris_hfi_gen2_read_input_subcr_params(struct iris_inst *inst)
 	inst->fw_min_count = subsc_params.fw_min_count;
 	inst->buffers[BUF_OUTPUT].min_count = iris_vpu_buf_count(inst, BUF_OUTPUT);
 	inst->buffers[BUF_OUTPUT].size = pixmp_op->plane_fmt[0].sizeimage;
-	ctrl = v4l2_ctrl_find(&inst->ctrl_handler, V4L2_CID_MIN_BUFFERS_FOR_CAPTURE);
-	if (ctrl)
-		v4l2_ctrl_s_ctrl(ctrl, inst->buffers[BUF_OUTPUT].min_count);
-
-	dst_q = v4l2_m2m_get_dst_vq(inst->m2m_ctx);
-	dst_q->min_reqbufs_allocation = inst->buffers[BUF_OUTPUT].min_count;
+	iris_vdec_update_min_capture_bufs(inst);
 }
 
 static int iris_hfi_gen2_handle_src_change(struct iris_inst *inst,
