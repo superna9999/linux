@@ -601,6 +601,11 @@ static int iris_dec_cmd(struct file *filp, void *fh,
 	if (inst->state == IRIS_INST_DEINIT)
 		goto unlock;
 
+	/* No source change or drain to resume */
+	if (dec->cmd == V4L2_DEC_CMD_START && inst->state != IRIS_INST_ERROR &&
+	    !(inst->sub_state & (IRIS_INST_SUB_DRC | IRIS_INST_SUB_DRAIN)))
+		goto unlock;
+
 	if (!iris_allow_cmd(inst, dec->cmd)) {
 		ret = -EBUSY;
 		goto unlock;
