@@ -83,7 +83,9 @@ int iris_process_streamon_input(struct iris_inst *inst)
 	if (ret)
 		return ret;
 
-	inst->last_buffer_dequeued = false;
+	/* A seek does not complete a pending source change */
+	if (!(inst->domain == DECODER && inst->sub_state & IRIS_INST_SUB_DRC))
+		inst->last_buffer_dequeued = false;
 
 	return iris_inst_change_sub_state(inst, 0, set_sub_state);
 }
