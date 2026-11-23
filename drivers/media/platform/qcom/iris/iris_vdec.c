@@ -327,10 +327,13 @@ int iris_vdec_s_fmt(struct iris_inst *inst, struct v4l2_format *f)
 					   f->fmt.pix_mp.height);
 		iris_vdec_update_min_capture_bufs(inst);
 
-		inst->crop.top = 0;
-		inst->crop.left = 0;
-		inst->crop.width = f->fmt.pix_mp.width;
-		inst->crop.height = f->fmt.pix_mp.height;
+		/* inst->crop is the visible rectangle of the stream */
+		inst->crop.left = min(inst->crop.left, fmt->fmt.pix_mp.width);
+		inst->crop.top = min(inst->crop.top, fmt->fmt.pix_mp.height);
+		inst->crop.width = min(inst->crop.width,
+				       fmt->fmt.pix_mp.width - inst->crop.left);
+		inst->crop.height = min(inst->crop.height,
+					fmt->fmt.pix_mp.height - inst->crop.top);
 		break;
 	default:
 		return -EINVAL;
