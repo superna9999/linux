@@ -263,6 +263,11 @@ void iris_vb2_stop_streaming(struct vb2_queue *q)
 	mutex_lock(&inst->lock);
 
 	inst->drc_resumed_in_place = false;
+	inst->early_capture = false;
+	if (inst->drc_unsignalled) {
+		inst->drc_unsignalled = false;
+		iris_vdec_src_change(inst);
+	}
 
 	if (!V4L2_TYPE_IS_OUTPUT(q->type) &&
 	    !V4L2_TYPE_IS_CAPTURE(q->type))
