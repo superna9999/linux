@@ -57,6 +57,9 @@ struct iris_hfi_session_ops;
  * @metadata_idx: index for metadata buffer
  * @codec: codec type
  * @last_buffer_dequeued: a flag to indicate that last buffer is sent by driver
+ * @vp9_seek_psc: a VP9 seek may raise a settings change that changes nothing
+ * @drc_resumed_in_place: a settings change was not signalled, its PSC_LAST may follow
+ * @input_stopping: STREAMOFF(OUTPUT) waits for the firmware to stop the input
  * @drc_wq: woken when IRIS_INST_SUB_DRC_LAST is set
  * @last_buf_ns: start time of received input buffer for current one second FPS window
  * @frame_counter: input buffer counter for current one second FPS window
@@ -106,6 +109,9 @@ struct iris_inst {
 	u32				metadata_idx;
 	u32				codec;
 	bool				last_buffer_dequeued;
+	bool				vp9_seek_psc;
+	bool				drc_resumed_in_place;
+	bool				input_stopping;
 	wait_queue_head_t		drc_wq;
 	u64				last_buf_ns;
 	u32				frame_counter;

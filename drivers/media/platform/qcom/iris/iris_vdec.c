@@ -375,6 +375,60 @@ int iris_vdec_subscribe_event(struct iris_inst *inst, const struct v4l2_event_su
 	return ret;
 }
 
+static bool iris_vdec_capture_fmt_unchanged(struct iris_inst *inst,
+					    const struct v4l2_pix_format_mplane *old_fmt)
+{
+	const struct v4l2_pix_format_mplane *fmt = &inst->fmt_dst->fmt.pix_mp;
+
+	return fmt->pixelformat == old_fmt->pixelformat &&
+	       fmt->width == old_fmt->width && fmt->height == old_fmt->height &&
+	       fmt->plane_fmt[0].bytesperline == old_fmt->plane_fmt[0].bytesperline &&
+	       fmt->plane_fmt[0].sizeimage == old_fmt->plane_fmt[0].sizeimage;
+}
+
+/*
+ * After a seek, the VP9 firmware raises an input port settings change for the
+ * next keyframe even if nothing changed, then only waits for the input port to
+ * be resumed: no PSC_LAST buffer follows.
+ */
+bool iris_vdec_src_change_after_seek(struct iris_inst *inst,
+				     const struct v4l2_pix_format_mplane *old_fmt,
+				     const struct iris_hfi_rect_desc *old_crop,
+				     u32 old_min_count)
+{
+	/* A pending drain goes on once the input port resumes */
+	if (!inst->vp9_seek_psc || inst->state != IRIS_INST_STREAMING ||
+	    (inst->sub_state & ~IRIS_INST_SUB_DRAIN) !=
+	    (IRIS_INST_SUB_DRC | IRIS_INST_SUB_INPUT_PAUSE))
+		return false;
+
+	return iris_vdec_capture_fmt_unchanged(inst, old_fmt) &&
+	       inst->fmt_dst->fmt.pix_mp.colorspace == old_fmt->colorspace &&
+	       inst->fmt_dst->fmt.pix_mp.xfer_func == old_fmt->xfer_func &&
+	       inst->fmt_dst->fmt.pix_mp.ycbcr_enc == old_fmt->ycbcr_enc &&
+	       inst->fmt_dst->fmt.pix_mp.quantization == old_fmt->quantization &&
+	       !memcmp(&inst->crop, old_crop, sizeof(*old_crop)) &&
+	       inst->buffers[BUF_OUTPUT].min_count <= old_min_count;
+}
+
+int iris_vdec_src_change_resume_input(struct iris_inst *inst)
+{
+	int ret;
+
+	inst->vp9_seek_psc = false;
+	inst->drc_resumed_in_place = true;
+
+	/* The STREAMON(OUTPUT) following the stop restarts the input port */
+	if (!inst->input_stopping) {
+		ret = inst->hfi_session_ops->session_resume_drc(inst,
+							       V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+		if (ret)
+			return ret;
+	}
+
+	return iris_inst_change_sub_state(inst, IRIS_INST_SUB_DRC | IRIS_INST_SUB_INPUT_PAUSE, 0);
+}
+
 void iris_vdec_src_change(struct iris_inst *inst)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
@@ -417,6 +471,9 @@ int iris_vdec_streamon_input(struct iris_inst *inst)
 		return ret;
 
 	inst->frame_counter = 0;
+
+	inst->vp9_seek_psc = inst->codec == V4L2_PIX_FMT_VP9 &&
+			     vb2_is_streaming(v4l2_m2m_get_dst_vq(inst->m2m_ctx));
 
 	return iris_process_streamon_input(inst);
 }

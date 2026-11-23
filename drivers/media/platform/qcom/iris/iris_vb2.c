@@ -262,11 +262,21 @@ void iris_vb2_stop_streaming(struct vb2_queue *q)
 
 	mutex_lock(&inst->lock);
 
+	inst->drc_resumed_in_place = false;
+
 	if (!V4L2_TYPE_IS_OUTPUT(q->type) &&
 	    !V4L2_TYPE_IS_CAPTURE(q->type))
 		goto exit;
 
+	/*
+	 * The lock is released while the firmware stops the port: a settings
+	 * change for the flushed bitstream can still be handled meanwhile.
+	 */
+	inst->input_stopping = V4L2_TYPE_IS_OUTPUT(q->type);
 	ret = iris_session_streamoff(inst, q->type);
+	inst->input_stopping = false;
+	if (V4L2_TYPE_IS_OUTPUT(q->type))
+		inst->vp9_seek_psc = false;
 	if (ret)
 		goto exit;
 
