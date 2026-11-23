@@ -151,6 +151,7 @@ int iris_process_streamon_output(struct iris_inst *inst)
 		return ret;
 
 	inst->last_buffer_dequeued = false;
+	v4l2_m2m_clear_state(inst->m2m_ctx);
 
 	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
 }

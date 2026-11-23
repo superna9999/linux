@@ -584,7 +584,14 @@ int iris_vdec_start_cmd(struct iris_inst *inst)
 		return -EBUSY;
 	}
 
-	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
+	ret = iris_inst_change_sub_state(inst, clear_sub_state, 0);
+	if (ret)
+		return ret;
+
+	inst->last_buffer_dequeued = false;
+	v4l2_m2m_clear_state(inst->m2m_ctx);
+
+	return 0;
 }
 
 int iris_vdec_stop_cmd(struct iris_inst *inst)
