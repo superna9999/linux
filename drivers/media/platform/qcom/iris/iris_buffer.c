@@ -951,6 +951,10 @@ int iris_vb2_buffer_done(struct iris_inst *inst, struct iris_buffer *buf)
 	vbuf->flags |= buf->flags;
 
 	if (buf->flags & V4L2_BUF_FLAG_ERROR) {
+		if (vbuf->flags & V4L2_BUF_FLAG_LAST) {
+			iris_vb2_signal_eos(inst);
+			inst->last_buffer_dequeued = true;
+		}
 		state = VB2_BUF_STATE_ERROR;
 		vb2_set_plane_payload(vb2, 0, 0);
 		vb2->timestamp = 0;
