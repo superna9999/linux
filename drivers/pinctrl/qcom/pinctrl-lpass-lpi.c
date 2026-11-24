@@ -17,6 +17,7 @@
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinmux.h>
 #include <linux/pm_clock.h>
+#include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 
 #include "../pinctrl-utils.h"
@@ -37,6 +38,7 @@ struct lpi_pinctrl {
 	struct mutex lock;
 	DECLARE_BITMAP(ever_gpio, MAX_NR_GPIO);
 	const struct lpi_pinctrl_variant_data *data;
+	struct dev_pm_domain_list *pd_list;
 };
 
 static void __iomem *lpi_gpio_reg(struct lpi_pinctrl *state,
@@ -541,6 +543,13 @@ int lpi_pinctrl_probe(struct platform_device *pdev)
 		if (IS_ERR(pctrl->slew_base))
 			return dev_err_probe(dev, PTR_ERR(pctrl->slew_base),
 					     "Slew resource not provided\n");
+	}
+
+	/* Attach all the power domains when the LPASS is not handled by the ADSP */
+	if (!dev->pm_domain) {
+		ret = devm_pm_domain_attach_list(dev, NULL, &pctrl->pd_list);
+		if (ret < 0)
+			return dev_err_probe(dev, ret, "failed to attach power domains\n");
 	}
 
 	ret = devm_pm_clk_create(dev);
