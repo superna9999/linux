@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
-#ifndef _ASM_POWERPC_AUXVEC_H
-#define _ASM_POWERPC_AUXVEC_H
+#ifndef _UAPI_ASM_POWERPC_AUXVEC_H
+#define _UAPI_ASM_POWERPC_AUXVEC_H
 
 /*
  * We need to put in some extra aux table entries to tell glibc what
@@ -49,7 +49,5 @@
 #define AT_L3_CACHEGEOMETRY	47
 
 #define AT_MINSIGSTKSZ		51      /* stack needed for signal delivery */
-
-#define AT_VECTOR_SIZE_ARCH	15 /* entries in ARCH_DLINFO */
 
 #endif
