@@ -847,8 +847,9 @@ static int ntfs_create(const struct mnt_idmap *idmap, struct inode *dir,
 	__le16 *uname, *base_name = NULL, *stream_name = NULL;
 	int uname_len, stream_len, path_result, err;
 
-	if (NVolShutdown(vol))
-		return -EIO;
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return err;
 
 	path_result = ntfs_stream_path_names(vol, &dentry->d_name, &base_name,
 			&uname_len, &stream_name, &stream_len);
@@ -1232,8 +1233,9 @@ static int ntfs_unlink(struct inode *dir, struct dentry *dentry)
 	__le16 *uname = NULL;
 	int uname_len;
 
-	if (NVolShutdown(vol))
-		return -EIO;
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return err;
 
 	if (ntfs_stream_path_has_colon(vol, &dentry->d_name))
 		return ntfs_unlink_named_stream(dir, dentry);
@@ -1280,8 +1282,9 @@ static struct dentry *ntfs_mkdir(const struct mnt_idmap *idmap, struct inode *di
 	__le16 *uname;
 	int uname_len;
 
-	if (NVolShutdown(vol))
-		return ERR_PTR(-EIO);
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return ERR_PTR(err);
 
 	err = ntfs_stream_path_check(vol, &dentry->d_name);
 	if (err)
@@ -1325,8 +1328,9 @@ static int ntfs_rmdir(struct inode *dir, struct dentry *dentry)
 	__le16 *uname = NULL;
 	int uname_len;
 
-	if (NVolShutdown(vol))
-		return -EIO;
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return err;
 
 	err = ntfs_stream_path_check(vol, &dentry->d_name);
 	if (err)
@@ -1512,8 +1516,9 @@ static int ntfs_rename(const struct mnt_idmap *idmap, struct inode *old_dir,
 	struct ntfs_inode *old_dir_ni = NTFS_I(old_dir), *new_dir_ni = NTFS_I(new_dir);
 	bool new_dir_first = false;
 
-	if (NVolShutdown(old_dir_ni->vol))
-		return -EIO;
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return err;
 
 	err = ntfs_stream_path_check(vol, &old_dentry->d_name);
 	if (err)
@@ -1672,8 +1677,9 @@ static int ntfs_symlink(const struct mnt_idmap *idmap, struct inode *dir,
 	int usrc_len;
 	int symlen = strlen(symname);
 
-	if (NVolShutdown(vol))
-		return -EIO;
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return err;
 
 	err = ntfs_stream_path_check(vol, &dentry->d_name);
 	if (err)
@@ -1721,8 +1727,9 @@ static int ntfs_mknod(const struct mnt_idmap *idmap, struct inode *dir,
 	__le16 *uname = NULL;
 	int uname_len;
 
-	if (NVolShutdown(vol))
-		return -EIO;
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return err;
 
 	err = ntfs_stream_path_check(vol, &dentry->d_name);
 	if (err)
@@ -1778,8 +1785,9 @@ static int ntfs_link(struct dentry *old_dentry, struct inode *dir,
 	struct ntfs_inode *ni = NTFS_I(vi), *dir_ni = NTFS_I(dir);
 	struct timespec64 ctime;
 
-	if (NVolShutdown(vol))
-		return -EIO;
+	err = ntfs_emergency_state(vol);
+	if (err)
+		return err;
 
 	if (NInoAttr(ni))
 		return -EOPNOTSUPP;
