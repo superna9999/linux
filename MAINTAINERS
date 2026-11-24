@@ -18979,6 +18979,7 @@ M:	Dan Callaghan <dan.callaghan@morsemicro.com>
 R:	Arien Judge <arien.judge@morsemicro.com>
 L:	linux-wireless@vger.kernel.org
 S:	Supported
+T:	git https://github.com/MorseMicro/linux-wireless.git
 F:	drivers/net/wireless/morsemicro/
 
 MOST(R) TECHNOLOGY DRIVER
@@ -22692,9 +22693,8 @@ T:	git git://linuxtv.org/media.git
 F:	drivers/media/cec/usb/pulse8/
 
 PURELIFI PLFXLC DRIVER
-M:	Srinivasan Raju <srini.raju@purelifi.com>
 L:	linux-wireless@vger.kernel.org
-S:	Supported
+S:	Orphan
 F:	drivers/net/wireless/purelifi/
 
 PVRUSB2 VIDEO4LINUX DRIVER
@@ -22990,6 +22990,7 @@ N:	ath12k
 
 QUALCOMM ATHEROS ATH10K WIRELESS DRIVER
 M:	Jeff Johnson <jjohnson@kernel.org>
+M:	Loic Poulain <loic.poulain@oss.qualcomm.com>
 L:	linux-wireless@vger.kernel.org
 L:	ath10k@lists.infradead.org
 S:	Supported
