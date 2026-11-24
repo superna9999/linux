@@ -419,6 +419,7 @@ struct wsa_macro {
 	struct clk *macro;
 	struct clk *dcodec;
 	struct clk *fsgen;
+	struct lpass_macro *pds;
 	struct clk_hw hw;
 };
 #define to_wsa_macro(_hw) container_of(_hw, struct wsa_macro, hw)
@@ -2768,6 +2769,14 @@ static int wsa_macro_probe(struct platform_device *pdev)
 	wsa->fsgen = devm_clk_get(dev, "fsgen");
 	if (IS_ERR(wsa->fsgen))
 		return dev_err_probe(dev, PTR_ERR(wsa->fsgen), "unable to get fsgen clock\n");
+
+	wsa->pds = lpass_macro_pds_init(dev);
+	if (IS_ERR(wsa->pds))
+		return PTR_ERR(wsa->pds);
+
+	ret = devm_add_action_or_reset(dev, lpass_macro_pds_exit_action, wsa->pds);
+	if (ret)
+		return ret;
 
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
