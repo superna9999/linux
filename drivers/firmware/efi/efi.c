@@ -157,18 +157,20 @@ static ssize_t fw_platform_size_show(struct kobject *kobj,
 	return sysfs_emit(buf, "%d\n", efi_enabled(EFI_64BIT) ? 64 : 32);
 }
 
-extern __weak const struct kobj_attribute efi_attr_fw_vendor;
-extern __weak const struct kobj_attribute efi_attr_runtime;
-extern __weak const struct kobj_attribute efi_attr_config_table;
+extern const struct kobj_attribute efi_attr_fw_vendor;
+extern const struct kobj_attribute efi_attr_runtime;
+extern const struct kobj_attribute efi_attr_config_table;
 static const struct kobj_attribute efi_attr_fw_platform_size =
 	__KOBJ_ATTR_RO(fw_platform_size);
 
 static const struct attribute *const efi_subsys_attrs[] = {
 	&efi_attr_systab.attr,
 	&efi_attr_fw_platform_size.attr,
+#ifdef CONFIG_X86
 	&efi_attr_fw_vendor.attr,
 	&efi_attr_runtime.attr,
 	&efi_attr_config_table.attr,
+#endif
 	NULL,
 };
 
@@ -466,8 +468,7 @@ static int __init efisubsys_init(void)
 	efi_kobj = kobject_create_and_add("efi", firmware_kobj);
 	if (!efi_kobj) {
 		pr_err("efi: Firmware registration failed.\n");
-		error = -ENOMEM;
-		goto err_destroy_wq;
+		return -ENOMEM;
 	}
 
 	if (IS_ENABLED(CONFIG_PREEMPT_RT) && efi.runtime_supported_mask) {
@@ -525,9 +526,6 @@ err_unregister:
 err_put:
 	kobject_put(efi_kobj);
 	efi_kobj = NULL;
-err_destroy_wq:
-	if (efi_rts_wq)
-		destroy_workqueue(efi_rts_wq);
 
 	return error;
 }
