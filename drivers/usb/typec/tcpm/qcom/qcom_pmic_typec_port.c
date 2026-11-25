@@ -705,6 +705,16 @@ static void qcom_pmic_typec_port_disable(struct pmic_typec *tcpm)
 {
 	struct pmic_typec_port *pmic_typec_port = tcpm->pmic_typec_port;
 
+	/*
+	 * Disabling the Type-C block straight from DRP mode can trigger
+	 * a VBUS boost over-voltage fault, so go through sink only mode first.
+	 */
+	regmap_write(pmic_typec_port->regmap,
+		     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
+		     EN_SNK_ONLY);
+
+	usleep_range(2000, 3000);
+
 	/* Present neither Rp nor Rd, so a connected partner detects a detach */
 	regmap_write(pmic_typec_port->regmap,
 		     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
