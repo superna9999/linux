@@ -22,6 +22,7 @@ properties:
           - enum:
               - qcom,pm6150-typec
               - qcom,pm7250b-typec
+              - qcom,pm8550b-typec
           - const: qcom,pm8150b-typec
       - items:
           - enum:
