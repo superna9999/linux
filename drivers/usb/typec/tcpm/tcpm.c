@@ -9025,6 +9025,10 @@ void tcpm_unregister_port(struct tcpm_port *port)
 	int i;
 
 	port->registered = false;
+
+	power_supply_put_system_batteries(port->fixed_batt, port->fixed_batt_cnt);
+	tcpm_reset_port(port);
+
 	kthread_destroy_worker(port->wq);
 	port->wq = NULL;
 
@@ -9032,9 +9036,6 @@ void tcpm_unregister_port(struct tcpm_port *port)
 	hrtimer_cancel(&port->enable_frs_timer);
 	hrtimer_cancel(&port->vdm_state_machine_timer);
 	hrtimer_cancel(&port->state_machine_timer);
-
-	power_supply_put_system_batteries(port->fixed_batt, port->fixed_batt_cnt);
-	tcpm_reset_port(port);
 
 	tcpm_port_unregister_pd(port);
 
