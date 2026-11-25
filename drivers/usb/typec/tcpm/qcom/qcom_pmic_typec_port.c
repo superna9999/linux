@@ -803,6 +803,17 @@ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
 	tcpm->port_stop = qcom_pmic_typec_port_stop;
 	tcpm->port_disable = qcom_pmic_typec_port_disable;
 
+	/*
+	 * The Type-C block may have been left attached by the bootloader,
+	 * force a detach longer than tPDDebounce so the partner and TCPM
+	 * start from a known state.
+	 */
+	regmap_write(pmic_typec_port->regmap,
+		     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
+		     TYPEC_DISABLE_CMD);
+
+	msleep(200);
+
 	return 0;
 }
 
